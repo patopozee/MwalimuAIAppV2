@@ -849,6 +849,11 @@ if st.session_state.user_authenticated:
 #============================
 
 else:
+    try:
+        with open("assets/logo211.png", "rb") as image_file:
+            encoded_logo = base64.b64encode(image_file.read()).decode()
+    except Exception:
+        sidebar_bg_style = ""
     st.html(f"""
         <style>
         @media (min-width: 768px) {{
@@ -876,115 +881,32 @@ else:
         st.session_state.show_auth = False
 
     # 2. Header Layout
-    logo_path = "assets/logo112.png"
+    left, middle, right = st.columns([7, 2, 1])
+    with left:
+        col1, col2 = st.columns([1, 5], vertical_alignment="center")
+        with col1:
+            try:
+                title_logo = Image.open("assets/logo112.png")
+                st.image(title_logo, width=100)
+            except Exception:
+                pass
+        with col2:
+            st.markdown("<h1 style='margin-top: 0 !important; margin-bottom: 0 !important; padding: 0;'>Mwalimu AI App</h1>", unsafe_allow_html=True)
+            st.markdown("<h4 style='margin-top: 2px !important; margin-bottom: 0 !important; color: gray; font-weight: normal;'>Shaping Minds, Shifting Futures.</h4>", unsafe_allow_html=True)
+            st.markdown("<div style='margin-bottom: 15px;'></div>", unsafe_allow_html=True)
 
-    with open(logo_path, "rb") as f:
-        logo_base64 = base64.b64encode(f.read()).decode()
-
-    st.markdown(
-        f"""
-    <style>
-
-    /* Remove excessive top spacing */
-    .block-container {{
-        padding-top: 1rem !important;
-    }}
-
-    /* Header */
-    .header {{
-        display:flex;
-        justify-content:space-between;
-        align-items:center;
-        margin-bottom:1rem;
-    }}
-
-    .brand {{
-        display:flex;
-        align-items:center;
-        gap:15px;
-    }}
-
-    .brand img {{
-        width:80px;
-    }}
-
-    .brand h1 {{
-        margin:0;
-        color:white;
-        font-size:2rem;
-    }}
-
-    .brand p {{
-        margin:0;
-        color:#94a3b8;
-        font-size:1rem;
-    }}
-
-    .signup-btn button {{
-        background:#2563eb;
-        color:white;
-        border:none;
-        border-radius:12px;
-        padding:0.7rem 1.4rem;
-        font-weight:600;
-    }}
-
-    /* ---------- MOBILE ---------- */
-
-    @media (max-width:768px) {{
-
-    .header {{
-        flex-direction:column;
-        justify-content:center;
-        align-items:center;
-        text-align:center;
-    }}
-
-    .brand {{
-        flex-direction:column;
-        gap:8px;
-    }}
-
-    .brand img {{
-        width:65px;
-    }}
-
-    .brand h1 {{
-        font-size:1.6rem;
-    }}
-
-    .brand p {{
-        font-size:0.95rem;
-    }}
-
-    }}
-
-    </style>
-
-    <div class="header">
-
-    <div class="brand">
-
-    <img src="data:image/png;base64,{logo_base64}">
-
-    <div>
-    <h1>Mwalimu AI App</h1>
-    <p>Shaping Minds, Shifting Futures.</p>
-    </div>
-
-    </div>
-
-    </div>
-
-    """,
-    unsafe_allow_html=True,
-    )
-
-    st.button(
-        "Sign Up for Free",
-        key="signup",
-        width="stretch",
-    )
+    with right:
+        # Toggle button logic
+        if st.session_state.show_auth:
+            # Button when in Auth view
+            if st.button("Home"):
+                st.session_state.show_auth = False
+                st.rerun()
+        else:
+            # Button when on Landing page
+            if st.button("Sign Up for Free"):
+                st.session_state.show_auth = True
+                st.rerun()
 
     # 3. View Switcher
     if st.session_state.show_auth:
