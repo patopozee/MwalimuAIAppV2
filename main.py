@@ -481,7 +481,7 @@ if st.session_state.user_authenticated:
 
             if str(tier).strip().lower() == "free":
                 st.sidebar.info("🚀 Unlock full power with Premium")
-                if st.sidebar.button("Upgrade to Premium"):
+                if st.sidebar.button("🚀 Upgrade to Premium"):
                     show_upgrade_modal()
                     
 
@@ -591,7 +591,7 @@ if st.session_state.user_authenticated:
         if st.session_state.get("chat_limit_reached"):
             st.error("⚠️ Daily question limit reached. Upgrade to continue!")
             
-            if st.button("Upgrade Now", key="chat_upgrade_unique_btn"):
+            if st.button("🚀 Upgrade to Premium", key="chat_upgrade_unique_btn"):
                 # 1. Clear the banner state flag immediately 
                 st.session_state.pop("chat_limit_reached", None)
                 
@@ -674,7 +674,7 @@ if st.session_state.user_authenticated:
                 # 3. Handle the blocked state
                 st.warning("🎙️ **Voice Tutor Mode is a Premium Feature.**")
                 st.info("Upgrade to Premium to unlock interactive audio learning and more!")
-                if st.button("Upgrade to Premium", key="voice_upgrade"):
+                if st.button("🚀 Upgrade to Premium", key="voice_upgrade"):
                     show_upgrade_modal()
 
     # PAGE VIEW MODE 3: GENERATORS WORKSPACE HUB
