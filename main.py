@@ -844,7 +844,32 @@ if st.session_state.user_authenticated:
                     st.session_state.lesson_content = None
                     st.rerun()
 
+#===========================
+#=== LANDING PAGE ========
+#============================
+
 else:
+    st.html(f"""
+        <style>
+        @media (min-width: 768px) {{
+        [data-testid="stHeader"], header {{ background-color: transparent !important; height: 3.5rem !important; }}
+        [data-testid="stAppViewMainObj"], .stMain, [data-testid="stMain"] {{ margin-top: 0rem !important; padding-top: 0rem !important; }}
+        [data-testid="stMainBlockContainer"], [data-testid="stAppViewBlockContainer"], .block-container {{ padding-top: 1.5rem !important; margin-top: 0rem !important; }}
+        }}
+        @media (max-width: 767px) {{
+        [data-testid="stHeader"], header {{ background-color: transparent !important; height: 3.5rem !important; }}
+        [data-testid="stAppViewMainObj"], .stMain, [data-testid="stMain"] {{ margin-top: 0rem !important; padding-top: 0.5rem !important; }}
+        }}
+        div.stButton > button {{
+        transition: all 0.2s ease-in-out !important;
+        }}
+        div.stButton > button:hover {{
+        border-color: #1E3A8A !important;
+        color: #1E3A8A !important;
+        box-shadow: 0 2px 8px rgba(30, 58, 138, 0.1) !important;
+        }}
+        </style>
+        """)
     
         # 1. Initialize state
     if "show_auth" not in st.session_state:
@@ -861,8 +886,8 @@ else:
             except Exception:
                 pass
         with col2:
-            st.markdown("<h1 style='margin-top: 0 !important; margin-bottom: 0 !important; padding: 0;'>Mwalimu AI App</h1>", unsafe_allow_html=True)
-            st.markdown("<h4 style='margin-top: 2px !important; margin-bottom: 0 !important; color: gray; font-weight: normal;'>Shaping Minds, Shifting Futures.</h4>", unsafe_allow_html=True)
+            st.markdown("<h1 style='margin-top: -20 !important; margin-bottom: 0 !important; padding: 0;'>Mwalimu AI App</h1>", unsafe_allow_html=True)
+            st.markdown("<h4 style='margin-top: -15px !important; margin-bottom: 0 !important; color: gray; font-weight: normal;'>Shaping Minds, Shifting Futures.</h4>", unsafe_allow_html=True)
             st.markdown("<div style='margin-bottom: 15px;'></div>", unsafe_allow_html=True)
 
     with right:
@@ -1092,7 +1117,7 @@ st.markdown(
     <div class="sticky-footer-container">
         <hr style='margin: 10px auto 15px auto; width: 80%; border: 0; height: 1px; background-image: linear-gradient(to right, rgba(255,255,255,0), rgba(255,255,255,0.1), rgba(255,255,255,0));'>
         <p style='color: gray; font-size: 0.85rem; display: flex; align-items: center; justify-content: center; margin: 0;'>
-        {logo_html_tag} Mwalimu AI App Version 1.0 | CBC Curriculum Engine | © 2026 Copyright
+        {logo_html_tag} Mwalimu AI App Version 2.0 | CBC Curriculum Engine | © 2026 Copyright
         </p>
     </div>
     """,
