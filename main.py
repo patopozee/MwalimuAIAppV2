@@ -878,28 +878,16 @@ else:
     # 2. Header Layout
     left, middle, right = st.columns([7, 2, 1])
     with left:
-        col1, col2 = st.columns([1, 8], vertical_alignment="center")
+        col1, col2 = st.columns([1, 5], vertical_alignment="center")
         with col1:
             try:
-                st.markdown("""
-                <style>
-                .logo-container{
-                    display:flex;
-                    justify-content:center;
-                    margin-top:-40px;
-                    margin-bottom:10px;
-                }
-                </style>
-                """, unsafe_allow_html=True)
-
-                st.markdown('<div class="logo-container">', unsafe_allow_html=True)
-                st.image("assets/logo112.png", width=160)
-                st.markdown("</div>", unsafe_allow_html=True)
+                title_logo = Image.open("assets/logo112.png")
+                st.image(title_logo, width=100)
             except Exception:
                 pass
         with col2:
             st.markdown("<h1 style='margin-top: 0 !important; margin-bottom: 0 !important; padding: 0;'>Mwalimu AI App</h1>", unsafe_allow_html=True)
-            st.markdown("<h4 style='margin-top: 0px !important; margin-bottom: 0 !important; color: gray; font-weight: normal;'>Shaping Minds, Shifting Futures.</h4>", unsafe_allow_html=True)
+            st.markdown("<h4 style='margin-top: 2px !important; margin-bottom: 0 !important; color: gray; font-weight: normal;'>Shaping Minds, Shifting Futures.</h4>", unsafe_allow_html=True)
             st.markdown("<div style='margin-bottom: 15px;'></div>", unsafe_allow_html=True)
 
     with right:
