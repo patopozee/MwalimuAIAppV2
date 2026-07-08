@@ -485,7 +485,7 @@ if st.session_state.user_authenticated:
                     show_upgrade_modal()
                     
 
-        st.sidebar.write("show_upgrade_modal =", st.session_state.get("show_upgrade_modal"))
+        
         # Trigger the modal based on state
         if st.session_state.get("show_upgrade_modal"):
             show_upgrade_modal()
