@@ -598,45 +598,6 @@ if st.session_state.user_authenticated:
             with st.chat_message(role):
                 st.markdown(msg["content"])
 
-        # ----------------------------------------------------
-        # Add some space so messages don't hide behind input
-        # ----------------------------------------------------
-        st.markdown("<div style='height:90px'></div>", unsafe_allow_html=True)
-
-        # ----------------------------------------------------
-        # Custom CSS (ONLY ONCE)
-        # ----------------------------------------------------
-        st.markdown("""
-        <style>
-
-        /* Center the chat input */
-        div[data-testid="stChatInput"]{
-            position: fixed !important;
-            bottom: 70px !important;
-            left: 58.5% !important;
-            right: 50% !important;
-            transform: translateX(-50%) !important;
-
-            width: 50% !important;
-            max-width: 900px !important;
-
-            z-index: 9999 !important;
-        }
-
-        /* Rounded textbox */
-        div[data-testid="stChatInput"] textarea{
-            border-radius: 25px !important;
-            font-size: 16px !important;
-            padding: 5px !important;
-        }
-
-        /* Rounded send button */
-        div[data-testid="stChatInput"] button{
-            border-radius: 50% !important;
-        }
-
-        </style>
-        """, unsafe_allow_html=True)
 
         # ----------------------------------------------------
         # Chat Input
