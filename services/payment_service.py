@@ -1,0 +1,132 @@
+import base64
+from datetime import datetime
+
+import requests
+import streamlit as st
+
+
+class MpesaPaymentService:
+
+    TOKEN_URL = "https://sandbox.safaricom.co.ke/oauth/v1/generate?grant_type=client_credentials"
+    STK_URL = "https://sandbox.safaricom.co.ke/mpesa/stkpush/v1/processrequest"
+
+    @staticmethod
+    def normalize_phone(phone: str) -> str:
+        phone = str(phone).strip().replace(" ", "").replace("-", "")
+
+        if phone.startswith("+254"):
+            phone = phone[1:]
+
+        elif phone.startswith("254"):
+            pass
+
+        elif phone.startswith("0"):
+            phone = "254" + phone[1:]
+
+        return phone
+
+    @staticmethod
+    def generate_token():
+
+        consumer_key = st.secrets["mpesa"]["consumer_key"]
+        consumer_secret = st.secrets["mpesa"]["consumer_secret"]
+
+        try:
+
+            response = requests.get(
+                MpesaPaymentService.TOKEN_URL,
+                auth=(consumer_key, consumer_secret),
+                timeout=15,
+            )
+
+            if response.status_code != 200:
+                return None
+
+            return response.json()["access_token"]
+
+        except Exception as e:
+            return None
+
+    @staticmethod
+    def initiate_stk_push(phone_number, amount, uid=None):
+
+        token = MpesaPaymentService.generate_token()
+
+        if token is None:
+            return {
+                "success": False,
+                "error": "Failed to generate OAuth token."
+            }
+
+        phone_number = MpesaPaymentService.normalize_phone(phone_number)
+
+        shortcode = str(st.secrets["mpesa"]["shortcode"])
+        passkey = str(st.secrets["mpesa"]["passkey"])
+        callback = st.secrets["mpesa"]["callback_url"]
+
+        timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+
+        password_string = shortcode + passkey + timestamp
+        password = base64.b64encode(password_string.encode()).decode()
+        
+
+        payload = {
+            "BusinessShortCode": shortcode, # Use the variable from secrets
+            "Password": password,
+            "Timestamp": timestamp,
+            "TransactionType": "CustomerPayBillOnline",
+            "Amount": amount,
+            "PartyA": phone_number,
+            "PartyB": shortcode,            # Use the variable from secrets
+            "PhoneNumber": phone_number,
+            "CallBackURL": callback,        # Use the variable from secrets
+            "AccountReference": "Mwalimu AI App",
+            "TransactionDesc": "Premium Subscription"
+        }
+
+        headers = {
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json"
+        }
+
+        try:
+
+            response = requests.post(
+                MpesaPaymentService.STK_URL,
+                json=payload,
+                headers=headers,
+                timeout=30,
+            )
+
+            data = response.json()
+
+            if response.status_code == 200:
+
+                if data.get("ResponseCode") == "0":
+
+                    return {
+                        "success": True,
+                        "merchant_request_id": data.get("MerchantRequestID"),
+                        "checkout_request_id": data.get("CheckoutRequestID"),
+                        "customer_message": data.get("CustomerMessage"),
+                    }
+
+                return {
+                    "success": False,
+                    "error": data.get(
+                        "ResponseDescription",
+                        data.get("errorMessage", "Unknown M-Pesa error"),
+                    ),
+                }
+
+            return {
+                "success": False,
+                "error": data.get("errorMessage", response.text),
+            }
+
+        except Exception as e:
+
+            return {
+                "success": False,
+                "error": str(e),
+            }
