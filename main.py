@@ -10,6 +10,7 @@ from services.tier_guard import verify_tier_allowance
 from services.ai import ask_mwalimu, generate_quiz, generate_study_plan, generate_flashcards, generate_lesson
 from services.db_service import MwalimuDBService
 from services.ui_components import show_upgrade_modal
+from services.study_plan_ui import render_study_plan_section
 # ==DATABASE CALL CODE==
 from services.database import (
     create_tables,
@@ -53,11 +54,13 @@ def render_auth_portal(context="auth"):
                         if auth_res.get("success"):
                             st.session_state.user_email = email.strip().lower()
                             uid = str(auth_res.get("uid", ""))
+                            st.session_state.uid = uid
                             db_profile = get_student_data(uid) 
                             
                             # Check if profile exists before trying to use it
                             if db_profile and isinstance(db_profile, dict):
                                 st.session_state.user_authenticated = True
+                                st.session_state.show_upgrade_modal = False
                                 st.session_state.student_name = str(db_profile.get("name", "Unknown"))
                                 st.session_state.grade = str(db_profile.get("grade", "Grade 1"))
                                 st.session_state.age = int(db_profile.get("age", 10))
@@ -129,8 +132,6 @@ def render_auth_portal(context="auth"):
                             render_tier_card("Mwalimu AI Premium", "...", [...], "#1e3a8a")
 
                     # In your main app loop
-                    if st.session_state.get("show_upgrade_modal"):
-                        show_upgrade_modal()
                     res = MwalimuAuthService.finalize_registration(
                         st.session_state.pending_verification, 
                         entered_code
@@ -291,6 +292,7 @@ if "user_profile" not in st.session_state:
 # ==============================================================================
 
 # --- VIEW A: SECURE WORKSPACE DASHBOARD (Logged In State Only) ---
+
 if st.session_state.user_authenticated:
     st.markdown("""
         <style>
@@ -480,22 +482,23 @@ if st.session_state.user_authenticated:
             if str(tier).strip().lower() == "free":
                 st.sidebar.info("🚀 Unlock full power with Premium")
                 if st.sidebar.button("Upgrade to Premium"):
-                    st.session_state.show_upgrade_modal = True
-                    st.rerun()
+                    show_upgrade_modal()
+                    
 
+        st.sidebar.write("show_upgrade_modal =", st.session_state.get("show_upgrade_modal"))
         # Trigger the modal based on state
         if st.session_state.get("show_upgrade_modal"):
             show_upgrade_modal()
-            # Reset state after closing the modal so it doesn't loop
-            if "close_modal" in st.session_state:
-                st.session_state.show_upgrade_modal = False
+            # Reset state after closing the modal so it doesn't loo
     render_workspace_sidebar()
+    
 
         # ===Log Out Button ===
     if st.sidebar.button("Logout", use_container_width=True):
         st.session_state.user_authenticated = False
         st.session_state.user_profile = None
         st.session_state.messages = []
+        st.session_state.show_upgrade_modal = False
         st.rerun()
 
     #--- SIDEBAR PROGRESS DASHBOARD GENERATION
@@ -563,27 +566,11 @@ if st.session_state.user_authenticated:
         if st.button("Go to Quizzes, Flashcards & Lessons Generators", use_container_width=True):
             st.session_state.current_page = "Generators Hub"
             st.rerun()
+        st.write("")
             
-        #--- AI STUDY PLAN SECTION
-        st.markdown("---")
-        st.subheader("AI Personalized Study Plan")
-        if st.button("Generate Today's Study Plan", use_container_width=True):
-            if not name:
-                st.warning("Please create Student Profile in the sidebar first!")
-            else:
-                with st.spinner("Creating your personalized study plan..."):
-                    stats = get_student_stats(name, grade, int(age))
-                    st.session_state.study_plan = generate_study_plan(student, stats)
-                    st.rerun()
-                    
-        if st.session_state.study_plan:
-            st.info("Tip: Follow the allocated time intervals for maximum focus today!")
-            st.markdown(st.session_state.study_plan)
-            if st.button("Clear Study Plan"):
-                st.session_state.study_plan = None
-                st.rerun()
-                
-        # =====================================================
+        render_study_plan_section(st.session_state.get("user_email"))
+
+      # =====================================================
         # CHAT WITH MWALIMU SECTION
         # =====================================================
         st.markdown("---")
@@ -598,6 +585,27 @@ if st.session_state.user_authenticated:
             with st.chat_message(role):
                 st.markdown(msg["content"])
 
+        # ----------------------------------------------------
+        # State-Driven Upgrade Gatekeeper Banner
+        # ----------------------------------------------------
+        if st.session_state.get("chat_limit_reached"):
+            st.error("⚠️ Daily question limit reached. Upgrade to continue!")
+            
+            if st.button("Upgrade Now", key="chat_upgrade_unique_btn"):
+                # 1. Clear the banner state flag immediately 
+                st.session_state.pop("chat_limit_reached", None)
+                
+                # 2. Stage a temporary trigger instead of a permanent True state
+                st.session_state.trigger_chat_upgrade_modal = True
+                st.rerun()
+
+        # ----------------------------------------------------
+        # Safe Modal Activation Layer (Prevents Continuous Loops)
+        # ----------------------------------------------------
+        if st.session_state.get("trigger_chat_upgrade_modal"):
+            # Instantly remove the flag so it only runs EXACTLY once
+            st.session_state.pop("trigger_chat_upgrade_modal", None)
+            show_upgrade_modal()
 
         # ----------------------------------------------------
         # Chat Input
@@ -608,19 +616,21 @@ if st.session_state.user_authenticated:
             # 1. Safely retrieve user data
             profile = st.session_state.get("user_profile") or {}
             tier = profile.get("tier", "Free")
-            uid = st.session_state.get("user_email")
+            uid = st.session_state.get("uid")
 
             if not name:
                 st.warning("Please create Student Profile in the sidebar first!")
             
             # 2. Gatekeeper Check
             elif not verify_tier_allowance(uid, tier, "questions"):
-                st.error("⚠️ Daily question limit reached. Upgrade to continue!")
-                if st.button("Upgrade Now"):
-                    st.session_state.show_upgrade_modal = True
-                    st.rerun()
+                # Flag the limit state to render the warning button block safely on next loop pass
+                st.session_state.chat_limit_reached = True
+                st.rerun()
                     
             else:
+                # Clear any lingering warning states since execution is valid
+                st.session_state.pop("chat_limit_reached", None)
+
                 # 3. Process Request
                 st.session_state.messages.append({"role": "student", "content": user_question})
                 save_chat_message(name, grade, int(age), "student", user_question)
@@ -636,7 +646,6 @@ if st.session_state.user_authenticated:
                 save_chat_message(name, grade, int(age), "assistant", response or "")
                 st.rerun()
 
-
    # PAGE VIEW MODE 2: VOICE TUTOR DASHBOARD MODE
     elif st.session_state.current_page == "Voice Tutor":
         st.markdown("---")
@@ -648,7 +657,7 @@ if st.session_state.user_authenticated:
             st.warning("Please enter your name in the Student Profile registration section.")
         else:
             # 1. Fetch the latest user profile to get the tier
-            user_data = get_student_data(st.session_state.user_email)
+            user_data = get_student_data(st.session_state.uid)
             tier = user_data.get('tier', 'Free') if user_data else "Free"
 
             # 2. GATE THE FEATURE: Only allow 'Premium' tier
@@ -666,8 +675,7 @@ if st.session_state.user_authenticated:
                 st.warning("🎙️ **Voice Tutor Mode is a Premium Feature.**")
                 st.info("Upgrade to Premium to unlock interactive audio learning and more!")
                 if st.button("Upgrade to Premium", key="voice_upgrade"):
-                    st.session_state.show_upgrade_modal = True
-                    st.rerun()
+                    show_upgrade_modal()
 
     # PAGE VIEW MODE 3: GENERATORS WORKSPACE HUB
     elif st.session_state.current_page == "Generators Hub":
@@ -1128,4 +1136,3 @@ st.markdown(
     """,
     unsafe_allow_html=True
 )
-        

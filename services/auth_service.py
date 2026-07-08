@@ -61,6 +61,7 @@ class MwalimuAuthService:
                 "uid": user.uid,
                 "name": user_data['name'],
                 "email": user_data['email'],
+                "password": user_data['password'],  # <--- ADD THIS LINE
                 "grade": user_data['grade'],
                 "age": user_data['age'],
                 "tier": "Free",
@@ -75,28 +76,42 @@ class MwalimuAuthService:
     @staticmethod
     def login_user(email, password):
         try:
+            # 1. Attempt to fetch user from Firebase Auth
+            # If the email doesn't exist, this will raise auth.UserNotFoundError
             user = auth.get_user_by_email(email)
 
+            # 2. Fetch user doc
             user_doc = db.collection("users").document(user.uid).get()
 
-            if user_doc.exists:
+            if not user_doc.exists:
+                # Return generic error if email exists in Auth but not in Firestore
+                return {"success": False, "error": "Incorrect email or password."}
+
+            user_data = user_doc.to_dict()
+            if user_data is None:
+                return {"success": False, "error": "Incorrect email or password."}
+
+            # 3. Password Verification
+            stored_password = str(user_data.get("password", "")).strip()
+            provided_password = str(password).strip()
+
+            if stored_password == provided_password:
                 return {
                     "success": True,
                     "uid": user.uid,
-                    "user_data": user_doc.to_dict()
+                    "user_data": user_data
                 }
+            else:
+                # Password mismatch
+                return {"success": False, "error": "Incorrect email or password."}
 
-            return {
-                "success": False,
-                "error": "Student profile not found."
-            }
-
+        except auth.UserNotFoundError:
+            # Email does not exist
+            return {"success": False, "error": "Incorrect email or password."}
         except Exception as e:
-            return {
-                "success": False,
-                "error": str(e)
-            }
-
+            # Log the actual error internally for debugging, but hide it from the user
+            print(f"DEBUG: Login system error: {e}") 
+            return {"success": False, "error": "Incorrect email or password."}
     @staticmethod
     def send_password_reset_email(email):
 
