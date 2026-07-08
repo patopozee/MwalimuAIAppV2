@@ -886,8 +886,6 @@ else:
             except Exception:
                 pass
         with col2:
-            st.markdown("<h1 style='margin-top: -20 !important; margin-bottom: 0 !important; padding: 0;'>Mwalimu AI App</h1>", unsafe_allow_html=True)
-            st.markdown("<h4 style='margin-top: -15px !important; margin-bottom: 0 !important; color: gray; font-weight: normal;'>Shaping Minds, Shifting Futures.</h4>", unsafe_allow_html=True)
             st.markdown("<div style='margin-bottom: 15px;'></div>", unsafe_allow_html=True)
 
     with right:
