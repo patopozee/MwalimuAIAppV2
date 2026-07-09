@@ -32,95 +32,49 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-@st.dialog(" ")
+@st.dialog("Upgrade to Premium")
 def show_upgrade_modal():
-
-    logo = Image.open("assets/mpesa_logo.png")
-
-    # ---------- Logo ----------
-    col1, col2, col3 = st.columns([1,2,1])
-
+    # 1. Cleaner Header Section
+    col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
-        st.image("assets/mpesa_logo.png", width="stretch")
+        st.image("assets/mpesa_logo.png") # Streamlit handles width well automatically
+    
+    st.markdown("<h2 style='text-align:center;'>Upgrade to Premium</h2>", unsafe_allow_html=True)
+    st.markdown("<p style='text-align:center; color:#6B7280;'>Unlock unlimited learning with <b>Mwalimu AI Premium</b></p>", unsafe_allow_html=True)
 
-    st.markdown(
-        "<h2 style='text-align:center;margin-bottom:0;'>Upgrade to Premium</h2>",
-        unsafe_allow_html=True
-    )
-
-    st.markdown(
-        "<p style='text-align:center;color:#9CA3AF;font-size:15px;'>"
-        "Unlock unlimited learning with <b>Mwalimu AI Premium</b>"
-        "</p>",
-        unsafe_allow_html=True
-    )
-
-    st.divider()
-
-    # ---------- Phone ----------
-    phone = st.text_input(
-        "📱 Enter M-Pesa Phone Number",
-        placeholder="2547XXXXXXXX"
-    )
-
-    st.write("")
-
-    # ---------- Compact Card ----------
+    # 2. Compact Pricing Card
     with st.container(border=True):
-
-        left, right = st.columns(2)
-
-        with left:
-            st.caption("💰 Amount")
-            st.markdown(
-                "<h2 style='color:#22c55e;margin-top:0;'>KES 500</h2>",
-                unsafe_allow_html=True
-            )
-
-        with right:
-            st.caption("🛡 Payment")
-            st.markdown(
-                "<h4 style='margin-top:8px;'>STK Push</h4>",
-                unsafe_allow_html=True
-            )
-
+        # Use columns for a grid-like alignment
+        c1, c2 = st.columns([1, 1])
+        with c1:
+            st.caption("Amount")
+            st.subheader("KES 500")
+        with c2:
+            st.caption("Payment Method")
+            st.write("M-Pesa STK Push")
+        
         st.divider()
+        st.caption("✔ Secure • Instant • Encrypted")
 
-        st.success("✔ Secure • Instant • Encrypted")
+    # 3. Input Section
+    phone = st.text_input("Enter M-Pesa Phone Number", placeholder="2547XXXXXXXX")
 
-    st.write("")
-
-    # ---------- Pay ----------
-    if st.button("Pay 500 KES", width="stretch"):
-
+    # 4. Action Button
+    if st.button("Pay 500 KES", type="primary", use_container_width=True):
         phone = phone.strip()
+        if not phone.startswith("254") or len(phone) != 12:
+            st.error("Please enter a valid M-Pesa number (e.g., 2547XXXXXXXX)")
+        else:
+            with st.spinner("Sending STK Push..."):
+                result = MpesaPaymentService.initiate_stk_push(
+                    phone_number=phone,
+                    amount=500,
+                    uid=st.session_state.user_email
+                )
+                if result["success"]:
+                    st.success("✅ Check your phone for the M-Pesa prompt.")
+                    st.balloons()
+                else:
+                    st.error(result.get("message", "Payment failed. Please try again."))
 
-        if not phone.startswith("254"):
-            st.error("Phone number must start with 254.")
-            return
-
-        if len(phone) != 12:
-            st.error("Use format: 2547XXXXXXXX")
-            return
-
-        with st.spinner("Sending STK Push..."):
-
-            result = MpesaPaymentService.initiate_stk_push(
-                phone_number=phone,
-                amount=500,
-                uid=st.session_state.user_email
-            )
-
-            if result["success"]:
-                st.success("✅ STK Push sent to your phone.")
-                st.balloons()
-
-            else:
-                st.error(result["message"])
-
-    st.markdown(
-        "<p style='text-align:center;color:#9CA3AF;font-size:13px;'>"
-        "You will receive an M-Pesa prompt on your phone."
-        "</p>",
-        unsafe_allow_html=True
-    )
+    st.caption("You will receive an M-Pesa prompt on your phone to complete the payment.", help="Ensure your phone is unlocked.")
