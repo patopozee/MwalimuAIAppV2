@@ -36,22 +36,31 @@ create_tables()
 # 1. PAGE CONFIGURATION
 st.set_page_config(page_title="Mwalimu AI App", layout="wide")
 # ADD THE CSS BLOCK HERE (Right after page config)
-st.markdown("""
+st.html(f"""
     <style>
-    /* Reduce top padding on main container to fix mobile/desktop spacing */
-    .main .block-container {
-        padding-top: 2rem !important;
-        padding-bottom: 90px !important;
-    }
+    @media (min-width: 768px) {{
+    [data-testid="stHeader"], header {{ background-color: transparent !important; height: 3.5rem !important; }}
+    [data-testid="stAppViewMainObj"], .stMain, [data-testid="stMain"] {{ margin-top: -1.5rem !important; padding-top: 0rem !important; }}
+    [data-testid="stMainBlockContainer"], [data-testid="stAppViewBlockContainer"], .block-container {{ padding-top: 1.5rem !important; margin-top: 0rem !important; }}
+    }}
+    @media (max-width: 767px) {{
+    [data-testid="stHeader"], header {{ background-color: transparent !important; height: 3.5rem !important; }}
+    [data-testid="stAppViewMainObj"], .stMain, [data-testid="stMain"] {{ margin-top: 0rem !important; padding-top: 0.5rem !important; }}
+    }}
+    [data-testid="stMainBlockContainer"], [data-testid="stAppViewBlockContainer"], .block-container {{ padding-top: 1rem !important; }}
+    [data-testid="stHeader"] button {{ background-color: rgba(255, 255, 255, 0.1) !important; border-radius: 4px !important; z-index: 999999 !important; }}
+    [data-testid="stSidebarUserContent"] {{ padding-top: 0rem !important; margin-top: 0rem !important; }}
     
-    /* Target mobile specifically to ensure no extra whitespace */
-    @media (max-width: 600px) {
-        .main .block-container {
-            padding-top: 1rem !important;
-        }
-    }
+    div.stButton > button {{
+    transition: all 0.2s ease-in-out !important;
+    }}
+    div.stButton > button:hover {{
+    border-color: #1E3A8A !important;
+    color: #1E3A8A !important;
+    box-shadow: 0 2px 8px rgba(30, 58, 138, 0.1) !important;
+    }}
     </style>
-""", unsafe_allow_html=True)
+    """)
 # --- HEADER AREA ---
 header_col1, header_col2 = st.columns([8, 1])
 def render_auth_portal(context="auth"):
