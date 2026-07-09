@@ -35,6 +35,23 @@ create_tables()
 
 # 1. PAGE CONFIGURATION
 st.set_page_config(page_title="Mwalimu AI App", layout="wide")
+# ADD THE CSS BLOCK HERE (Right after page config)
+st.markdown("""
+    <style>
+    /* Reduce top padding on main container to fix mobile/desktop spacing */
+    .main .block-container {
+        padding-top: 2rem !important;
+        padding-bottom: 90px !important;
+    }
+    
+    /* Target mobile specifically to ensure no extra whitespace */
+    @media (max-width: 600px) {
+        .main .block-container {
+            padding-top: 1rem !important;
+        }
+    }
+    </style>
+""", unsafe_allow_html=True)
 # --- HEADER AREA ---
 header_col1, header_col2 = st.columns([8, 1])
 def render_auth_portal(context="auth"):
