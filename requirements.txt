@@ -8,3 +8,5 @@ google-auth>=2.20.0
 firebase-functions
 requests
 sib-api-v3-sdk
+fastapi 
+uvicorn

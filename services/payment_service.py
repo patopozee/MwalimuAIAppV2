@@ -3,6 +3,8 @@ from datetime import datetime
 
 import requests
 import streamlit as st
+from datetime import datetime, timedelta
+from services.firebase_init import db
 
 
 class MpesaPaymentService:
@@ -130,3 +132,22 @@ class MpesaPaymentService:
                 "success": False,
                 "error": str(e),
             }
+    @staticmethod
+    def upgrade_user_subscription(uid, tier_name):
+        """
+        Updates the user's subscription tree in Firestore.
+        """
+        try:
+            # Set expiry to 30 days from now
+            expiry_date = (datetime.utcnow() + timedelta(days=30)).strftime("%Y-%m-%d")
+            
+            # Update only the specific fields inside the 'subscription' map
+            db.collection("users").document(uid).update({
+                "subscription.tier": tier_name,
+                "subscription.start_date": datetime.utcnow().strftime("%Y-%m-%d"),
+                "subscription.expiry_date": expiry_date
+            })
+            return {"success": True}
+        except Exception as e:
+            print(f"Error upgrading subscription: {e}")
+            return {"success": False, "error": str(e)}

@@ -4,6 +4,7 @@ from config import DATABASE_NAME
 import firebase_admin
 from firebase_admin import credentials, firestore
 import os
+from datetime import datetime, timedelta
 from google.cloud.firestore import FieldFilter
 
 # Initialize the app only once
@@ -213,22 +214,31 @@ def get_student_data(uid):
         return None
     
 def upgrade_user_tier(uid, new_tier):
-    """Updates the user tier in Firestore."""
+    """Updates the user tier and sets a 30-day subscription expiry in Firestore."""
     try:
-        # 1. Find the user document by email
-        # We search the 'users' collection for the document where the 'email' field matches
         users_ref = db.collection('users')
         query = users_ref.where('email', '==', uid).stream()
         
+        # Calculate 30-day expiry
+        expiry_date = (datetime.utcnow() + timedelta(days=30)).strftime("%Y-%m-%d")
+        subscription_data = {
+            "tier": new_tier,
+            "start_date": datetime.utcnow().strftime("%Y-%m-%d"),
+            "expiry_date": expiry_date
+        }
+        
         user_found = False
         for doc in query:
-            # 2. Update the specific document found
-            doc.reference.update({'tier': new_tier})
+            # Update tier AND add the subscription object
+            doc.reference.update({
+                'tier': new_tier,
+                'subscription': subscription_data
+            })
             user_found = True
-            print(f"Successfully updated {uid} to {new_tier}")
+            print(f"Successfully upgraded {uid} to {new_tier}. Expiry: {expiry_date}")
             
         if not user_found:
-            print(f"DEBUG: bubum: {uid}")
+            print(f"DEBUG: User not found: {uid}")
             
     except Exception as e:
         print(f"An error occurred while updating Firestore: {e}")

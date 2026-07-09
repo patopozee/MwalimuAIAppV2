@@ -43,7 +43,7 @@ class MwalimuAuthService:
         # 2. Extract data safely
         user_data = doc.get("user_data")
         
-        # 3. Create the user with error handling
+        # 3. Create the user
         try:
             user = auth.create_user(
                 email=email, 
@@ -55,17 +55,22 @@ class MwalimuAuthService:
         except Exception as e:
             return {"success": False, "error": f"Auth error: {str(e)}"}
         
-        # 4. Save to 'users' collection
+        # 4. Save to 'users' collection WITH subscription tree
         try:
             db.collection("users").document(user.uid).set({
                 "uid": user.uid,
                 "name": user_data['name'],
                 "email": user_data['email'],
-                "password": user_data['password'],  # <--- ADD THIS LINE
+                "password": user_data['password'],
                 "grade": user_data['grade'],
                 "age": user_data['age'],
-                "tier": "Free",
-                "created_at": datetime.utcnow().isoformat()
+                "created_at": datetime.utcnow().isoformat(),
+                # --- NEW SUBSCRIPTION TREE ---
+                "subscription": {
+                    "tier": "Free",
+                    "start_date": datetime.utcnow().strftime("%Y-%m-%d"),
+                    "expiry_date": None
+                }
             })
             
             # 5. Cleanup

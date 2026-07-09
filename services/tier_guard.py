@@ -1,5 +1,7 @@
 import streamlit as st
 from services.db_service import MwalimuDBService
+from datetime import datetime
+from services.database import get_student_data
 
 # Business Rule Constraints Dictionary Mapping
 TIER_LIMITS = {
@@ -29,23 +31,46 @@ TIER_LIMITS = {
     }
 }
 
-def verify_tier_allowance(uid, tier, action_type):
-    limits = TIER_LIMITS.get(tier, TIER_LIMITS["Free"])
-    max_allowance = limits.get(action_type, 0)
+def is_subscription_active(user_data):
+    if user_data is None:
+        return False
+        
+    subscription = user_data.get("subscription", {})
+    expiry = subscription.get("expiry_date")
     
+    if not expiry: 
+        return False
+        
+    # Standard UTC day comparison pattern matching 
+    if datetime.utcnow().strftime("%Y-%m-%d") > expiry:
+        return False
+    return True
+
+def verify_tier_allowance(uid, tier, action_type):
+    # 1. Standardize and clean up the incoming tier string input context
+    raw_tier_str = str(tier).strip().lower()
+    
+    if "premium" in raw_tier_str:
+        active_tier = "Premium"
+    elif "plus" in raw_tier_str:
+        active_tier = "Mwalimu AI Plus"
+    else:
+        active_tier = "Free"
+
+    # 2. Extract standard limits from our strict dictionary schema lookup
+    limits = TIER_LIMITS.get(active_tier, TIER_LIMITS["Free"])
+    
+    max_allowance = limits.get(action_type, 0)
     current_usage = MwalimuDBService.get_daily_usage(uid, action_type)
     
-    # Debug print BEFORE the logic so you always see what's happening
-    print(f"DEBUG: UID={uid}, Tier={tier}, Action={action_type}, Usage={current_usage}, Limit={max_allowance}")
+    # 3. PRINT DIAGNOSTIC METRICS TO CONSOLE FOR TRACKING
+    print(f"DEBUG_FIXED: Active_Tier_Mapped={active_tier}, Action={action_type}, Usage={current_usage}, Limit={max_allowance}")
     
-    # 1. If max_allowance is 0 or False, they have no allowance
+    # 4. Enforce our dynamic structural guard logic checks
     if max_allowance == 0 or max_allowance is False:
         return False
         
-    # 2. Check usage (if not infinite)
-    # Only block if usage is strictly GREATER than or EQUAL to the limit
     if max_allowance != float('inf') and current_usage >= max_allowance:
         return False
         
-    # 3. If we passed all checks, they are allowed
     return True

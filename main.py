@@ -10,7 +10,6 @@ from services.tier_guard import verify_tier_allowance
 from services.ai import ask_mwalimu, generate_quiz, generate_study_plan, generate_flashcards, generate_lesson
 from services.db_service import MwalimuDBService
 from services.ui_components import show_upgrade_modal
-from services.study_plan_ui import render_study_plan_section
 from services.database import get_student_data, get_student_stats
 # ==DATABASE CALL CODE==
 from services.database import (
@@ -147,26 +146,16 @@ def render_auth_portal(context="auth"):
                 entered_code = st.text_input("Verification Code")
                 
                 if st.button("Complete Registration"):
-                    @st.dialog("Choose Your Premium Plan")
-                    def upgrade_modal():
-                        st.write("Unlock unlimited access to the full Mwalimu AI toolkit!")
-                        
-                        # Reuse your existing render_tier_card logic here to show the plans
-                        col1, col2 = st.columns(2)
-                        with col1:
-                            render_tier_card("Mwalimu AI Plus", "...", [...], "#1e593c")
-                        with col2:
-                            render_tier_card("Mwalimu AI Premium", "...", [...], "#1e3a8a")
-
-                    # In your main app loop
+                    # Process the registration
                     res = MwalimuAuthService.finalize_registration(
                         st.session_state.pending_verification, 
                         entered_code
                     )
                     
                     if res.get("success"):
-                        st.success("✅ Account verified and created! Go back to Sign In to access your workspace.")
-                        del st.session_state.pending_verification # Reset the flow
+                        st.success("✅ Account created! Please sign in.")
+                        del st.session_state.pending_verification
+                        st.rerun()
                     else:
                         st.error(res.get("error"))
 
@@ -504,29 +493,48 @@ if st.session_state.user_authenticated:
     def render_workspace_sidebar():
         if "user_email" in st.session_state:
             user_data = get_student_data(st.session_state.user_email)
-            tier = user_data.get('tier', 'Free') if user_data else "Free"
+            if user_data:
+                subscription = user_data.get('subscription', {})
+                tier = subscription.get('tier', 'Free')
+            else:
+                # Fallback if no user_data is found
+                tier = 'Free'
+            st.sidebar.write(f"**Current Plan:** {tier}")
 
+            # 1. Show upgrade prompt if user is on the Free tier
             if str(tier).strip().lower() == "free":
                 st.sidebar.info("🚀 Unlock full power with Premium")
-                if st.sidebar.button("🚀 Upgrade to Premium"):
+                if st.sidebar.button("🚀 Upgrade to Premium", use_container_width=True):
                     show_upgrade_modal()
+                
+                # MOVED INSIDE SIDEBAR: Verification button for free users who just paid
+                if st.sidebar.button("💳 I've Paid, Check Status", use_container_width=True):
+                    # Refresh data from database
+                    user_data = get_student_data(st.session_state.user_email)
+                    updated_tier = user_data.get('tier', 'Free') if user_data else "Free"
                     
+                    if str(updated_tier).strip().lower() != "free":
+                        st.sidebar.success(f"Upgrade successful! You are now {updated_tier}")
+                        st.rerun()
+                    else:
+                        st.sidebar.warning("Payment not confirmed yet. Please wait a moment.")
 
-        
-        # Trigger the modal based on state
+        # 2. Trigger the modal based on state
         if st.session_state.get("show_upgrade_modal"):
             show_upgrade_modal()
-            # Reset state after closing the modal so it doesn't loo
-    render_workspace_sidebar()
-    
 
-        # ===Log Out Button ===
-    if st.sidebar.button("Logout", use_container_width=True):
-        st.session_state.user_authenticated = False
-        st.session_state.user_profile = None
-        st.session_state.messages = []
-        st.session_state.show_upgrade_modal = False
-        st.rerun()
+        # 3. Log Out Button (Kept at the bottom of the sidebar)
+        st.sidebar.markdown("---") # Visual separator
+        if st.sidebar.button("Logout", use_container_width=True):
+            st.session_state.user_authenticated = False
+            st.session_state.user_profile = None
+            st.session_state.messages = []
+            st.session_state.show_upgrade_modal = False
+            st.rerun()
+
+    # Call the function to render the complete sidebar layout
+    render_workspace_sidebar()
+
 
     #--- SIDEBAR PROGRESS DASHBOARD GENERATION
     st.sidebar.markdown("---")
@@ -595,82 +603,99 @@ if st.session_state.user_authenticated:
             st.rerun()
         st.write("")
             
-        #--- AI STUDY PLAN SECTION
+        # =====================================================================
+        # --- AI STUDY PLAN SECTION
+        # =====================================================================
         st.markdown("---")
         st.subheader("AI Personalized Study Plan")
-        
-        # 1. Fetch student tier profile data upfront
-        student_profile = get_student_data(st.session_state.user_email)
-        user_tier = student_profile.get("tier", "Free") if student_profile else "Free"
-        uid = st.session_state.get("uid") or st.session_state.user_email
 
-        # Check if there is an active study plan currently open on screen
-        has_active_plan = "study_plan" in st.session_state and st.session_state.study_plan is not None
+        # 1. Pipeline User Profile Data & Tier Verification safely without breaking Pylance
+        user_profile_raw = get_student_data(st.session_state.user_email)
+        student_profile = user_profile_raw if user_profile_raw is not None else {}
+
+        # Extract student baseline values cleanly
+        name = str(student_profile.get("name", ""))
+        grade = str(student_profile.get("grade", ""))
+        try:
+            age_int = int(student_profile.get("age", 0))
+        except (ValueError, TypeError):
+            age_int = 0
+
+        # Safeguard Tier Lookup matching working sidebar patterns
+        subscription_tree = student_profile.get('subscription', {}) if isinstance(student_profile.get('subscription'), dict) else {}
+        user_tier = str(subscription_tree.get('tier', 'Free')).strip()
+
+        # Enforce clean dynamic state handling for Premium/Plus users 
+        if "premium" in user_tier.lower() or "plus" in user_tier.lower():
+            st.session_state.study_plan_limit_reached = False
+
+        uid = str(st.session_state.get("uid") or st.session_state.user_email)
+
+        # Initialized layout tracking state parameters safely
+        if "study_plan" not in st.session_state:
+            st.session_state.study_plan = None
+        has_active_plan = st.session_state.study_plan is not None
 
         # ----------------------------------------------------
-        # State-Driven Upgrade Gatekeeper Banner
+        # 2. Gatekeeper Banner UI Elements
         # ----------------------------------------------------
-        # Only show the limit banner if they reached the limit and are NOT currently reading a study plan
         if st.session_state.get("study_plan_limit_reached") and not has_active_plan:
             st.error("⚠️ AI Study Plans are only available for Plus and Premium members.")
             
             if st.button("🚀 Upgrade to Premium", key="study_plan_upgrade_unique_btn"):
-                # 1. Clear the banner state flag immediately 
                 st.session_state.pop("study_plan_limit_reached", None)
-                
-                # 2. Stage a temporary trigger instead of a permanent True state
                 st.session_state.trigger_study_upgrade_modal = True
                 st.rerun()
 
-        # ----------------------------------------------------
-        # Safe Modal Activation Layer (Prevents Continuous Loops)
-        # ----------------------------------------------------
+        # Non-locking conditional rendering bridge to process upgrade triggers smoothly
         if st.session_state.get("trigger_study_upgrade_modal"):
-            # Instantly remove the flag so it only runs EXACTLY once
             st.session_state.pop("trigger_study_upgrade_modal", None)
             show_upgrade_modal()
 
         # ----------------------------------------------------
-        # Study Plan Generation Action Trigger
+        # 3. Functional Execution Controls
         # ----------------------------------------------------
         if st.button("Generate Today's Study Plan", use_container_width=True):
-            if not name:
-                st.warning("Please create Student Profile in the sidebar first!")
-            
-            # Guard tier allowance at the moment of clicking
+            if not name or not grade or age_int == 0:
+                st.warning("Please complete your Student Profile registration inside the sidebar first!")
+                
             elif not verify_tier_allowance(uid, user_tier, "has_study_plan"):
                 st.session_state.study_plan_limit_reached = True
                 st.rerun()
+                
             else:
-                # Clear any lingering warning states since execution is valid
                 st.session_state.pop("study_plan_limit_reached", None)
 
                 with st.spinner("Creating your personalized study plan..."):
-                    stats = get_student_stats(name, grade, int(age))
-                    st.session_state.study_plan = generate_study_plan(student, stats)
+                    # Compile usage and behavioral parameters from internal metrics database
+                    local_metrics = get_student_stats(name, grade, age_int)
+                    st.session_state.study_plan = generate_study_plan(student_profile, local_metrics)
                     
-                    # Deduct the remaining balance token instantly after generation
+                    # Post transaction token balance metrics updates 
                     MwalimuDBService.increment_usage(uid, "has_study_plan")
                     
-                    # Double-check if that last click used up the allowance balance
+                    # Verify capacity limits so the tier-guard matches immediately on next reload
                     if not verify_tier_allowance(uid, user_tier, "has_study_plan"):
                         st.session_state.study_plan_limit_reached = True
                     st.rerun()
                     
         # ----------------------------------------------------
-        # Display Study Plan Layout
+        # 4. Display & Formatting Layout
         # ----------------------------------------------------
         if st.session_state.study_plan:
-            st.info("Tip: Follow the allocated time intervals for maximum focus today!")
+            st.info("💡 Tip: Follow the allocated time intervals for maximum focus today!")
             st.markdown(st.session_state.study_plan)
             
             if st.button("Clear Study Plan", use_container_width=True):
                 st.session_state.study_plan = None
                 
-                # Check limits again. If they were out of limits, the banner will now reappear cleanly
                 if not verify_tier_allowance(uid, user_tier, "has_study_plan"):
                     st.session_state.study_plan_limit_reached = True
                 st.rerun()
+
+
+
+
 
 
       # =====================================================
@@ -717,9 +742,10 @@ if st.session_state.user_authenticated:
 
         if user_question:
             # 1. Safely retrieve user data
-            profile = st.session_state.get("user_profile") or {}
-            tier = profile.get("tier", "Free")
-            uid = st.session_state.get("uid")
+            student_profile = get_student_data(st.session_state.user_email)
+            subscription = student_profile.get("subscription", {}) if student_profile else {}
+            tier = subscription.get("tier", "Free")
+            uid = st.session_state.get("uid") or st.session_state.user_email
 
             if not name:
                 st.warning("Please create Student Profile in the sidebar first!")
@@ -761,7 +787,8 @@ if st.session_state.user_authenticated:
         else:
             # 1. Fetch the latest user profile to get the tier
             user_data = get_student_data(st.session_state.uid)
-            tier = user_data.get('tier', 'Free') if user_data else "Free"
+            subscription = user_data.get('subscription', {}) if user_data else {}
+            tier = subscription.get('tier', 'Free')
 
             # 2. GATE THE FEATURE: Only allow 'Premium' tier
             if str(tier).strip().lower() == "premium":
@@ -806,7 +833,9 @@ if st.session_state.user_authenticated:
             
             # 2. Fetch student tier profile data upfront
             student_profile = get_student_data(st.session_state.user_email)
-            user_tier = student_profile.get("tier", "Free") if student_profile else "Free"
+            subscription = student_profile.get("subscription", {}) if student_profile else {}
+            user_tier = subscription.get("tier", "Free")
+            uid = st.session_state.get("uid") or st.session_state.user_email
             
             # Check if there is an active quiz currently displayed on screen
             has_active_quiz = "quiz" in st.session_state and st.session_state.quiz is not None
@@ -972,7 +1001,9 @@ if st.session_state.user_authenticated:
             
             # Fetch student tier profile data upfront
             student_profile = get_student_data(st.session_state.user_email)
-            user_tier = student_profile.get("tier", "Free") if student_profile else "Free"
+            subscription = student_profile.get("subscription", {}) if student_profile else {}
+            user_tier = subscription.get("tier", "Free")
+            uid = st.session_state.get("uid") or st.session_state.user_email
             
             # Check if there are active flashcards currently displayed on screen
             has_active_flashcards = "flashcards" in st.session_state and len(st.session_state.flashcards) > 0
@@ -1060,7 +1091,9 @@ if st.session_state.user_authenticated:
             
             # Fetch student tier profile data upfront
             student_profile = get_student_data(st.session_state.user_email)
-            user_tier = student_profile.get("tier", "Free") if student_profile else "Free"
+            subscription = student_profile.get("subscription", {}) if student_profile else {}
+            user_tier = subscription.get("tier", "Free")
+            uid = st.session_state.get("uid") or st.session_state.user_email
             
             # Check if there is active lesson content currently displayed on screen
             has_active_lesson = "lesson_content" in st.session_state and st.session_state.lesson_content is not None
