@@ -11,6 +11,7 @@ from services.ai import ask_mwalimu, generate_quiz, generate_study_plan, generat
 from services.db_service import MwalimuDBService
 from services.ui_components import show_upgrade_modal
 from services.study_plan_ui import render_study_plan_section
+from services.database import get_student_data, get_student_stats
 # ==DATABASE CALL CODE==
 from services.database import (
     create_tables,
@@ -594,7 +595,83 @@ if st.session_state.user_authenticated:
             st.rerun()
         st.write("")
             
-        render_study_plan_section(st.session_state.get("user_email"))
+        #--- AI STUDY PLAN SECTION
+        st.markdown("---")
+        st.subheader("AI Personalized Study Plan")
+        
+        # 1. Fetch student tier profile data upfront
+        student_profile = get_student_data(st.session_state.user_email)
+        user_tier = student_profile.get("tier", "Free") if student_profile else "Free"
+        uid = st.session_state.get("uid") or st.session_state.user_email
+
+        # Check if there is an active study plan currently open on screen
+        has_active_plan = "study_plan" in st.session_state and st.session_state.study_plan is not None
+
+        # ----------------------------------------------------
+        # State-Driven Upgrade Gatekeeper Banner
+        # ----------------------------------------------------
+        # Only show the limit banner if they reached the limit and are NOT currently reading a study plan
+        if st.session_state.get("study_plan_limit_reached") and not has_active_plan:
+            st.error("⚠️ AI Study Plans are only available for Plus and Premium members.")
+            
+            if st.button("🚀 Upgrade to Premium", key="study_plan_upgrade_unique_btn"):
+                # 1. Clear the banner state flag immediately 
+                st.session_state.pop("study_plan_limit_reached", None)
+                
+                # 2. Stage a temporary trigger instead of a permanent True state
+                st.session_state.trigger_study_upgrade_modal = True
+                st.rerun()
+
+        # ----------------------------------------------------
+        # Safe Modal Activation Layer (Prevents Continuous Loops)
+        # ----------------------------------------------------
+        if st.session_state.get("trigger_study_upgrade_modal"):
+            # Instantly remove the flag so it only runs EXACTLY once
+            st.session_state.pop("trigger_study_upgrade_modal", None)
+            show_upgrade_modal()
+
+        # ----------------------------------------------------
+        # Study Plan Generation Action Trigger
+        # ----------------------------------------------------
+        if st.button("Generate Today's Study Plan", use_container_width=True):
+            if not name:
+                st.warning("Please create Student Profile in the sidebar first!")
+            
+            # Guard tier allowance at the moment of clicking
+            elif not verify_tier_allowance(uid, user_tier, "has_study_plan"):
+                st.session_state.study_plan_limit_reached = True
+                st.rerun()
+            else:
+                # Clear any lingering warning states since execution is valid
+                st.session_state.pop("study_plan_limit_reached", None)
+
+                with st.spinner("Creating your personalized study plan..."):
+                    stats = get_student_stats(name, grade, int(age))
+                    st.session_state.study_plan = generate_study_plan(student, stats)
+                    
+                    # Deduct the remaining balance token instantly after generation
+                    MwalimuDBService.increment_usage(uid, "has_study_plan")
+                    
+                    # Double-check if that last click used up the allowance balance
+                    if not verify_tier_allowance(uid, user_tier, "has_study_plan"):
+                        st.session_state.study_plan_limit_reached = True
+                    st.rerun()
+                    
+        # ----------------------------------------------------
+        # Display Study Plan Layout
+        # ----------------------------------------------------
+        if st.session_state.study_plan:
+            st.info("Tip: Follow the allocated time intervals for maximum focus today!")
+            st.markdown(st.session_state.study_plan)
+            
+            if st.button("Clear Study Plan", use_container_width=True):
+                st.session_state.study_plan = None
+                
+                # Check limits again. If they were out of limits, the banner will now reappear cleanly
+                if not verify_tier_allowance(uid, user_tier, "has_study_plan"):
+                    st.session_state.study_plan_limit_reached = True
+                st.rerun()
+
 
       # =====================================================
         # CHAT WITH MWALIMU SECTION
@@ -615,7 +692,7 @@ if st.session_state.user_authenticated:
         # State-Driven Upgrade Gatekeeper Banner
         # ----------------------------------------------------
         if st.session_state.get("chat_limit_reached"):
-            st.error("⚠️ Daily question limit reached. Upgrade to continue!")
+            st.error("⚠️ Daily question Limit Reached, Wait for 24hrs or Upgrade to Premium to continue!")
             
             if st.button("🚀 Upgrade to Premium", key="chat_upgrade_unique_btn"):
                 # 1. Clear the banner state flag immediately 
@@ -706,46 +783,112 @@ if st.session_state.user_authenticated:
     # PAGE VIEW MODE 3: GENERATORS WORKSPACE HUB
     elif st.session_state.current_page == "Generators Hub":
         st.markdown("---")
+        student_profile = get_student_data(st.session_state.user_email)
         if st.button("Go back to Main Chat Dashboard", use_container_width=True, key="back_from_generators"):
             st.session_state.current_page = "Main Chat"
             st.rerun()
         st.markdown("---")
-        
+
+       #=== GENERATOR TABS======
+       
         tab1, tab2, tab3 = st.tabs(["Quiz Generator Engine", "AI Flashcards Maker", "AI Lessons Generator"])
         with tab1:
             st.subheader("Quiz Generator")
             
-            # Guard topic string assignment safely
-            raw_quiz_input = st.text_input("Quiz Topic", placeholder="Defaults to current dynamic Sub topic selection", value=sub_topic, key="workspace_quiz_topic")
+            # 1. Guard topic string assignment safely
+            raw_quiz_input = st.text_input(
+                "Quiz Topic", 
+                placeholder="Defaults to current dynamic Sub topic selection", 
+                value=sub_topic, 
+                key="workspace_quiz_topic"
+            )
             quiz_topic: str = raw_quiz_input.strip() if raw_quiz_input else ""
             
+            # 2. Fetch student tier profile data upfront
+            student_profile = get_student_data(st.session_state.user_email)
+            user_tier = student_profile.get("tier", "Free") if student_profile else "Free"
+            
+            # Check if there is an active quiz currently displayed on screen
+            has_active_quiz = "quiz" in st.session_state and st.session_state.quiz is not None
+
+            # ----------------------------------------------------
+            # State-Driven Upgrade Gatekeeper Banner
+            # ----------------------------------------------------
+            # Only show the limit banner if they reached the limit and are NOT currently viewing an active quiz
+            if st.session_state.get("quiz_limit_reached") and not has_active_quiz:
+                st.error("⚠️ Quizzes Limit Reached, Wait for 24hrs or Upgrade to Premium to continue!")
+                
+                if st.button("🚀 Upgrade to Premium", key="quiz_upgrade_unique_btn"):
+                    # 1. Clear the banner state flag immediately 
+                    st.session_state.pop("quiz_limit_reached", None)
+                    
+                    # 2. Stage a temporary trigger instead of a permanent True state
+                    st.session_state.trigger_quiz_upgrade_modal = True
+                    st.rerun()
+
+            # ----------------------------------------------------
+            # Safe Modal Activation Layer (Prevents Continuous Loops)
+            # ----------------------------------------------------
+            if st.session_state.get("trigger_quiz_upgrade_modal"):
+                # Instantly remove the flag so it only runs EXACTLY once
+                st.session_state.pop("trigger_quiz_upgrade_modal", None)
+                show_upgrade_modal()
+
+            # ----------------------------------------------------
+            # Quiz Generation Action Trigger
+            # ----------------------------------------------------
             if st.button("Generate Quiz", use_container_width=True):
                 if not quiz_topic:
                     st.warning("Please enter a quiz topic.")
                 elif not name:
                     st.warning("Please create Student Profile in the sidebar first!")
+                
+                # Guard tier allowance at the moment of clicking
+                elif not verify_tier_allowance(st.session_state.user_email, user_tier, "quizzes"):
+                    # Flag the limit state to render the warning button block safely on next loop pass
+                    st.session_state.quiz_limit_reached = True
+                    st.rerun()
                 else:
+                    # Clear any lingering warning states since execution is valid
+                    st.session_state.pop("quiz_limit_reached", None)
+
                     with st.spinner("Generating quiz..."):
                         target_diff = get_next_difficulty(name, grade, int(age), quiz_topic)
-                        st.session_state.quiz = generate_quiz(quiz_topic, student, target_diff)
-                        st.session_state.quiz_submitted = False
-                        st.session_state.quiz_score = 0
-                        st.session_state.quiz_raw_score = 0
-                        save_activity(
-                            student_name=name,
-                            student_grade=grade,
-                            student_age=int(age),
-                            activity_type="quiz_generation",
-                            topic=quiz_topic,
-                            score=0,
-                            subject=subject if subject else "General",
-                            topics=topic if topic else "General",
-                            sub_topic=sub_topic if sub_topic else "General",
-                            learning_outcome=learning_outcome if learning_outcome else "General"
-                        )
-                        st.rerun()
+                        quiz_result = generate_quiz(quiz_topic, student, target_diff)
                         
-            if st.session_state.quiz:
+                        if quiz_result:
+                            # Initialize session states for the new quiz
+                            st.session_state.quiz = quiz_result
+                            st.session_state.quiz_submitted = False
+                            st.session_state.quiz_score = 0
+                            st.session_state.quiz_raw_score = 0
+                            
+                            # Deduct the remaining balance token instantly after generation
+                            MwalimuDBService.increment_usage(st.session_state.user_email, "quizzes")
+                            
+                            # Double-check if that last click used up the allowance
+                            if not verify_tier_allowance(st.session_state.user_email, user_tier, "quizzes"):
+                                st.session_state.quiz_limit_reached = True
+                            
+                            # Save generation log activity
+                            save_activity(
+                                student_name=name,
+                                student_grade=grade,
+                                student_age=int(age),
+                                activity_type="quiz_generation",
+                                topic=quiz_topic,
+                                score=0,
+                                subject=subject if subject else "General",
+                                topics=topic if topic else "General",
+                                sub_topic=sub_topic if sub_topic else "General",
+                                learning_outcome=learning_outcome if learning_outcome else "General"
+                            )
+                            st.rerun()
+                            
+            # ----------------------------------------------------
+            # Render Active Quiz Layout (Stays open across user interactions)
+            # ----------------------------------------------------
+            if "quiz" in st.session_state and st.session_state.quiz:
                 st.markdown("### Generated Quiz")
                 for i, question in enumerate(st.session_state.quiz):
                     st.markdown(f"#### Question {i+1}")
@@ -756,6 +899,8 @@ if st.session_state.user_authenticated:
                         key=f"q_{i}",
                         disabled=st.session_state.quiz_submitted
                     )
+                    
+                # Submit handling block
                 if not st.session_state.quiz_submitted:
                     if st.button("Submit Quiz", use_container_width=True):
                         current_answers = [st.session_state.get(f"q_{i}") for i in range(len(st.session_state.quiz))]
@@ -769,6 +914,8 @@ if st.session_state.user_authenticated:
                             st.session_state.quiz_raw_score = score
                             st.session_state.quiz_score = round((score / len(st.session_state.quiz)) * 100)
                             st.session_state.quiz_submitted = True
+                            
+                            # Save the evaluation results log
                             save_activity(
                                 student_name=name, student_grade=grade, student_age=int(age),
                                 activity_type="quiz_score", topic=quiz_topic,
@@ -780,11 +927,15 @@ if st.session_state.user_authenticated:
                             )
                             st.rerun()
                             
+                # ----------------------------------------------------
+                # Post-Submission Review Display
+                # ----------------------------------------------------
                 if st.session_state.quiz_submitted:
                     raw_score = st.session_state.quiz_raw_score
                     total_questions = len(st.session_state.quiz)
                     percentage = st.session_state.quiz_score
                     st.success(f"You scored {raw_score}/{total_questions} ({percentage}%)")
+                    
                     st.markdown("## Answer Review")
                     for i, q in enumerate(st.session_state.quiz):
                         student_answer = st.session_state.get(f"q_{i}")
@@ -796,28 +947,91 @@ if st.session_state.user_authenticated:
                             st.success(f"Correct Answer: {correct_answer}")
                         else:
                             st.error(f"Correct Answer: {correct_answer}")
+                            
+                    # Clear layout to reset state controls
                     if st.button("Clear Quiz Results", use_container_width=True):
                         st.session_state.quiz = None
                         st.session_state.quiz_submitted = False
                         st.session_state.quiz_score = 0
                         st.session_state.quiz_raw_score = 0
+                        
+                        # Check limits again. If they were out of limits, the banner will now reappear cleanly
+                        if not verify_tier_allowance(st.session_state.user_email, user_tier, "quizzes"):
+                            st.session_state.quiz_limit_reached = True
                         st.rerun()
+
+
+
                         
         with tab2:
             st.subheader("AI Flashcards Maker")
+            
             # Ensure input string extraction can never evaluate as NoneType
             raw_fc_input = st.text_input("Enter a topic for your flashcards:", value=sub_topic, key="fc_topic")
             flashcard_topic: str = raw_fc_input.strip() if raw_fc_input else ""
             
+            # Fetch student tier profile data upfront
+            student_profile = get_student_data(st.session_state.user_email)
+            user_tier = student_profile.get("tier", "Free") if student_profile else "Free"
+            
+            # Check if there are active flashcards currently displayed on screen
+            has_active_flashcards = "flashcards" in st.session_state and len(st.session_state.flashcards) > 0
+
+            # ----------------------------------------------------
+            # State-Driven Upgrade Gatekeeper Banner
+            # ----------------------------------------------------
+            # Only show the limit banner if they reached the limit and are NOT currently viewing flashcards
+            if st.session_state.get("flashcards_limit_reached") and not has_active_flashcards:
+                st.error("⚠️ Flashcards Limit Reached, Wait for 24hrs or Upgrade to Premium to continue!")
+                
+                if st.button("🚀 Upgrade to Premium", key="fc_upgrade_unique_btn"):
+                    # 1. Clear the banner state flag immediately 
+                    st.session_state.pop("flashcards_limit_reached", None)
+                    
+                    # 2. Stage a temporary trigger instead of a permanent True state
+                    st.session_state.trigger_fc_upgrade_modal = True
+                    st.rerun()
+
+            # ----------------------------------------------------
+            # Safe Modal Activation Layer (Prevents Continuous Loops)
+            # ----------------------------------------------------
+            if st.session_state.get("trigger_fc_upgrade_modal"):
+                # Instantly remove the flag so it only runs EXACTLY once
+                st.session_state.pop("trigger_fc_upgrade_modal", None)
+                show_upgrade_modal()
+
+            # ----------------------------------------------------
+            # Flashcards Generation Action Trigger
+            # ----------------------------------------------------
             if st.button("Generate Flashcards", use_container_width=True):
                 if not flashcard_topic:
                     st.warning("Please enter a valid topic first!")
                 elif not name:
                     st.warning("Please create Student Profile in the sidebar first!")
+                
+                # Guard tier allowance at the moment of clicking (matches the specific 'flashcards' rule context)
+                elif not verify_tier_allowance(st.session_state.user_email, user_tier, "flashcards"):
+                    # Flag the limit state to render the warning button block safely on next loop pass
+                    st.session_state.flashcards_limit_reached = True
+                    st.rerun()
                 else:
+                    # Clear any lingering warning states since execution is valid
+                    st.session_state.pop("flashcards_limit_reached", None)
+
                     with st.spinner("Mwalimu AI is writing your flashcards..."):
                         st.session_state.flashcards = generate_flashcards(flashcard_topic, student)
+                        
+                        # Deduct the remaining balance token instantly after generation
+                        MwalimuDBService.increment_usage(st.session_state.user_email, "flashcards")
+                        
+                        # Double-check if that last click used up the allowance balance
+                        if not verify_tier_allowance(st.session_state.user_email, user_tier, "flashcards"):
+                            st.session_state.flashcards_limit_reached = True
                         st.rerun()
+
+            # ----------------------------------------------------
+            # Render Active Flashcards Layout
+            # ----------------------------------------------------
             if st.session_state.flashcards:
                 st.markdown("---")
                 st.info("Click **'Show Answer'** to test your active recall memory knowledge!")
@@ -827,25 +1041,82 @@ if st.session_state.user_authenticated:
                     with st.expander("Show Answer"):
                         st.success(f"**Answer:** {card.get('answer', '')}")
                 st.markdown("---")
+                
                 if st.button("Clear Flashcards", use_container_width=True):
                     st.session_state.flashcards = []
+                    
+                    # Check limits again. If they were out of limits, the banner will now reappear cleanly
+                    if not verify_tier_allowance(st.session_state.user_email, user_tier, "flashcards"):
+                        st.session_state.flashcards_limit_reached = True
                     st.rerun()
+
                     
         with tab3:
             st.subheader("AI Lessons Generator")
+            
             # Protect lesson text input string binding variables
             raw_lesson_input = st.text_input("Enter the topic you want to learn today:", value=learning_outcome, key="lesson_topic_input")
             lesson_topic: str = raw_lesson_input.strip() if raw_lesson_input else ""
             
+            # Fetch student tier profile data upfront
+            student_profile = get_student_data(st.session_state.user_email)
+            user_tier = student_profile.get("tier", "Free") if student_profile else "Free"
+            
+            # Check if there is active lesson content currently displayed on screen
+            has_active_lesson = "lesson_content" in st.session_state and st.session_state.lesson_content is not None
+
+            # ----------------------------------------------------
+            # State-Driven Upgrade Gatekeeper Banner
+            # ----------------------------------------------------
+            # Only show the limit banner if they reached the limit and are NOT currently reading a lesson
+            if st.session_state.get("lessons_limit_reached") and not has_active_lesson:
+                st.error("⚠️ Lessons Limit Reached, Wait for 24hrs or Upgrade to Premium to continue!")
+                
+                if st.button("🚀 Upgrade to Premium", key="lesson_upgrade_unique_btn"):
+                    # 1. Clear the banner state flag immediately 
+                    st.session_state.pop("lessons_limit_reached", None)
+                    
+                    # 2. Stage a temporary trigger instead of a permanent True state
+                    st.session_state.trigger_lesson_upgrade_modal = True
+                    st.rerun()
+
+            # ----------------------------------------------------
+            # Safe Modal Activation Layer (Prevents Continuous Loops)
+            # ----------------------------------------------------
+            if st.session_state.get("trigger_lesson_upgrade_modal"):
+                # Instantly remove the flag so it only runs EXACTLY once
+                st.session_state.pop("trigger_lesson_upgrade_modal", None)
+                show_upgrade_modal()
+
+            # ----------------------------------------------------
+            # Lessons Generation Action Trigger
+            # ----------------------------------------------------
             if st.button("Generate Lesson", use_container_width=True):
                 if not lesson_topic:
                     st.warning("Please enter a valid lesson topic first!")
                 elif not name:
                     st.warning("Please create Student Profile in the sidebar first!")
+                
+                # Guard tier allowance at the moment of clicking (matches the specific 'lessons' rule context)
+                elif not verify_tier_allowance(st.session_state.user_email, user_tier, "lessons"):
+                    # Flag the limit state to render the warning button block safely on next loop pass
+                    st.session_state.lessons_limit_reached = True
+                    st.rerun()
                 else:
+                    # Clear any lingering warning states since execution is valid
+                    st.session_state.pop("lessons_limit_reached", None)
+
                     with st.spinner("Mwalimu AI is preparing your personalized lesson..."):
                         try:
                             st.session_state.lesson_content = generate_lesson(lesson_topic, student)
+                            
+                            # Deduct the remaining balance token instantly after generation
+                            MwalimuDBService.increment_usage(st.session_state.user_email, "lessons")
+                            
+                            # Double-check if that last click used up the allowance balance
+                            if not verify_tier_allowance(st.session_state.user_email, user_tier, "lessons"):
+                                st.session_state.lessons_limit_reached = True
+                                
                             save_activity(
                                 student_name=name, student_grade=grade, student_age=int(age),
                                 activity_type="lesson", topic=lesson_topic, score=0,
@@ -858,6 +1129,9 @@ if st.session_state.user_authenticated:
                             st.error(f"Failed to generate lesson: {str(e)}")
                         st.rerun()
                         
+            # ----------------------------------------------------
+            # Render Active Lesson Layout
+            # ----------------------------------------------------
             if "lesson_content" in st.session_state and st.session_state.lesson_content:
                 st.markdown("---")
                 st.info("Tip: Read through the breakdown below. Mwalimu customized this explanation precisely for your style!")
@@ -876,7 +1150,13 @@ if st.session_state.user_authenticated:
                     
                 if st.button("Clear Lesson Content", use_container_width=True):
                     st.session_state.lesson_content = None
+                    
+                    # Check limits again. If they were out of limits, the banner will now reappear cleanly
+                    if not verify_tier_allowance(st.session_state.user_email, user_tier, "lessons"):
+                        st.session_state.lessons_limit_reached = True
                     st.rerun()
+
+
 
 #===========================
 #=== LANDING PAGE ========
