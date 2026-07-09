@@ -40,7 +40,7 @@ st.html(f"""
     <style>
     @media (min-width: 768px) {{
     [data-testid="stHeader"], header {{ background-color: transparent !important; height: 3.5rem !important; }}
-    [data-testid="stAppViewMainObj"], .stMain, [data-testid="stMain"] {{ margin-top: -1.5rem !important; padding-top: 0rem !important; }}
+    [data-testid="stAppViewMainObj"], .stMain, [data-testid="stMain"] {{ margin-top: -2.5rem !important; padding-top: 0rem !important; }}
     [data-testid="stMainBlockContainer"], [data-testid="stAppViewBlockContainer"], .block-container {{ padding-top: 1.5rem !important; margin-top: 0rem !important; }}
     }}
     @media (max-width: 767px) {{
