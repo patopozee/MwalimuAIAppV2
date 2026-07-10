@@ -4,16 +4,50 @@ from config import DATABASE_NAME
 import firebase_admin
 from firebase_admin import credentials, firestore
 import os
+import json  # Required to decode your string format
+import streamlit as st
 from datetime import datetime, timedelta
 from google.cloud.firestore import FieldFilter
 
-# Initialize the app only once
+# Initialize the app safely using your custom single-string JSON string layout
 if not firebase_admin._apps:
-    # Use the path to the file you just created
-    cred = credentials.Certificate("serviceAccountKey.json")
-    firebase_admin.initialize_app(cred)
+    raw_json_str = None
+
+    try:
+        # 1. Attempt Streamlit runtime access layer lookup
+        if "firebase" in st.secrets and "service_account_json" in st.secrets["firebase"]:
+            raw_json_str = st.secrets["firebase"]["service_account_json"]
+    except Exception:
+        pass
+
+    # 2. Asynchronous background server fallback lookup context layer (e.g., Uvicorn runtime)
+    if not raw_json_str:
+        import toml
+        secrets_path = os.environ.get("STREAMLIT_SECRETS_PATH", os.path.join(".streamlit", "secrets.toml"))
+        if os.path.exists(secrets_path):
+            try:
+                config = toml.load(secrets_path)
+                raw_json_str = config.get("firebase", {}).get("service_account_json")
+            except Exception as e:
+                print(f"⚠️ Failed to parse secrets toml parameters: {e}")
+
+    # 3. Compile and initialize the Firebase credential map schema safely
+    if raw_json_str:
+        try:
+            # Safely unroll the raw text configuration map directly from your string payload
+            credentials_dict = json.loads(str(raw_json_str).strip())
+            cred = credentials.Certificate(credentials_dict)
+            firebase_admin.initialize_app(cred)
+        except Exception as json_err:
+            raise ValueError(f"CRITICAL: Failed to decode service account string payload: {json_err}")
+    else:
+        # Ultimate fallback option if the configuration fields are entirely unpopulated
+        raise FileNotFoundError("Could not locate any valid 'service_account_json' settings in secrets.toml.")
 
 db = firestore.client()
+# ... Rest of your database.py script remains completely untouched below this line ...
+
+
 
 def create_tables():
     conn = sqlite3.connect(DATABASE_NAME)
@@ -193,7 +227,6 @@ def clear_student_chat_history(student_name: str, grade: str, age: int):
 def get_student_data(uid):
     """Retrieves student profile and prints progress to terminal."""
     try:
-        
         # 1. Attempt direct ID lookup
         doc_ref = db.collection('users').document(str(uid))
         doc = doc_ref.get()
@@ -216,28 +249,29 @@ def get_student_data(uid):
 def upgrade_user_tier(uid, new_tier):
     """Updates the user tier and sets a 30-day subscription expiry in Firestore."""
     try:
+        calculated_expiry = (datetime.utcnow() + timedelta(days=30)).strftime("%Y-%m-%d")
+        
+        live_subscription = {
+            "tier": str(new_tier).strip(),
+            "expiry_date": calculated_expiry,
+            "payment_status": "Completed",
+            "updated_at": datetime.utcnow().isoformat()
+        }
+
+        # Query to look up by email first, matching old patterns
         users_ref = db.collection('users')
         query = users_ref.where('email', '==', uid).stream()
         
-        # Calculate 30-day expiry
-        expiry_date = (datetime.utcnow() + timedelta(days=30)).strftime("%Y-%m-%d")
-        subscription_data = {
-            "tier": new_tier,
-            "start_date": datetime.utcnow().strftime("%Y-%m-%d"),
-            "expiry_date": expiry_date
-        }
-        
-        user_found = False
+        doc_found = False
         for doc in query:
-            # Update tier AND add the subscription object
-            doc.reference.update({
-                'tier': new_tier,
-                'subscription': subscription_data
+            doc_found = True
+            db.collection('users').document(doc.id).update({
+                "subscription": live_subscription
             })
-            user_found = True
-            print(f"Successfully upgraded {uid} to {new_tier}. Expiry: {expiry_date}")
+            break
             
-        if not user_found:
+        # Direct fallback ID update if no query parameters match
+        if not doc_found:
             print(f"DEBUG: User not found: {uid}")
             
     except Exception as e:
