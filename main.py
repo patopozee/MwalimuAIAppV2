@@ -45,7 +45,13 @@ from services.database import (
 from voice_page import render_voice_tutor_page
 from config import CBC  # Dynamic CBC repository dictionary
 import streamlit as st
-REDIRECT_URI = "http://localhost:8501"
+if st.get_option("server.port") == 8501:
+    # We are running locally on our machine
+    REDIRECT_URI = "http://localhost:8501"
+else:
+    # We are deployed live on Streamlit Community Cloud
+    # Replace this string with your EXACT live Streamlit application URL
+    REDIRECT_URI = "https://mwalimuaiappv2.streamlit.app" 
 
 # --- STREAMLIT PAGE CONFIGURATION (MUST BE ABSOLUTE FIRST COMMAND)
 st.set_page_config(
