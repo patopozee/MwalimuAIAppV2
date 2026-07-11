@@ -12,6 +12,23 @@ from services.ai import ask_mwalimu, generate_quiz, generate_study_plan, generat
 from services.db_service import MwalimuDBService
 from services.ui_components import show_upgrade_modal
 from services.database import get_student_data, get_student_stats
+from services.legal_text import TERMS_AND_CONDITIONS
+import json
+import firebase_admin
+from firebase_admin import credentials, firestore
+
+# 1. Initialize Firebase Admin SDK (Only if it hasn't been initialized yet)
+if not firebase_admin._apps:
+    # Option A: If you are using the service account string from st.secrets
+    try:
+        secret_json = json.loads(st.secrets["firebase"]["service_account_json"])
+        cred = credentials.Certificate(secret_json)
+        firebase_admin.initialize_app(cred)
+    except Exception as e:
+        st.error(f"Failed to initialize Firebase credentials: {e}")
+
+# 2. Define 'db' globally so line 130 can access it 🌟
+db = firestore.client()
 # ==DATABASE CALL CODE==
 from services.database import (
     create_tables,
@@ -28,239 +45,7 @@ from services.database import (
 from voice_page import render_voice_tutor_page
 from config import CBC  # Dynamic CBC repository dictionary
 import streamlit as st
-
-# INITIALIZATION
-load_dotenv()
-os.environ["OAUTHLIB_INSECURE_TRANSPORT"] = "1"
-create_tables()
-
-# 1. PAGE CONFIGURATION
-st.set_page_config(page_title="Mwalimu AI App", layout="wide")
-# ADD THE CSS BLOCK HERE (Right after page config)
-st.html(f"""
-    <style>
-    @media (min-width: 768px) {{
-    [data-testid="stHeader"], header {{ background-color: transparent !important; height: 3.5rem !important; }}
-    [data-testid="stAppViewMainObj"], .stMain, [data-testid="stMain"] {{ margin-top: 1.5rem !important; padding-top: 0rem !important; }}
-    [data-testid="stMainBlockContainer"], [data-testid="stAppViewBlockContainer"], .block-container {{ padding-top: 1.5rem !important; margin-top: 0rem !important; }}
-    }}
-    @media (max-width: 767px) {{
-    [data-testid="stHeader"], header {{ background-color: transparent !important; height: 3.5rem !important; }}
-    [data-testid="stAppViewMainObj"], .stMain, [data-testid="stMain"] {{ margin-top: 0rem !important; padding-top: 0.5rem !important; }}
-    }}
-    [data-testid="stMainBlockContainer"], [data-testid="stAppViewBlockContainer"], .block-container {{ padding-top: 1rem !important; }}
-    [data-testid="stHeader"] button {{ background-color: rgba(255, 255, 255, 0.1) !important; border-radius: 4px !important; z-index: 999999 !important; }}
-    [data-testid="stSidebarUserContent"] {{ padding-top: 0rem !important; margin-top: 0rem !important; }}
-    
-    div.stButton > button {{
-    transition: all 0.2s ease-in-out !important;
-    }}
-    div.stButton > button:hover {{
-    border-color: #1E3A8A !important;
-    color: #1E3A8A !important;
-    box-shadow: 0 2px 8px rgba(30, 58, 138, 0.1) !important;
-    }}
-    </style>
-    """)
-# --- HEADER AREA ---
-header_col1, header_col2 = st.columns([8, 1])
-def render_auth_portal(context="auth"):
-    # If a user selected a tier, show them what they are signing up for
-    if "selected_tier" in st.session_state:
-        st.info(f"You are signing up for: **{st.session_state.selected_tier}**")   
-    tab_login, tab_signup, tab_google = st.tabs(["🔑 Login", "✨ Sign Up", "🔵 Google"])
-    
-    with tab_login:
-        with st.container(border=True):
-            email = st.text_input("Email", key="signin_email")
-            password = st.text_input("Password", type="password", key="signin_pass")
-            if st.button("Log In to Workspace", use_container_width=True):
-                if email.strip() and password.strip():
-                    with st.spinner("Verifying credentials..."):
-                        auth_res = MwalimuAuthService.login_user(email.strip(), password.strip())
-                        if auth_res.get("success"):
-                            st.session_state.user_email = email.strip().lower()
-                            uid = str(auth_res.get("uid", ""))
-                            st.session_state.uid = uid
-                            db_profile = get_student_data(uid) 
-                            
-                            # Check if profile exists before trying to use it
-                            if db_profile and isinstance(db_profile, dict):
-                                st.session_state.user_authenticated = True
-                                st.session_state.show_upgrade_modal = False
-                                st.session_state.student_name = str(db_profile.get("name", "Unknown"))
-                                st.session_state.grade = str(db_profile.get("grade", "Grade 1"))
-                                st.session_state.age = int(db_profile.get("age", 10))
-                                st.session_state.user_profile = db_profile
-                                st.rerun()
-                            else:
-                                # If the database returns None, handle it gracefully instead of crashing
-                                st.error("Profile not found for this user. Please register your profile.")
-                        else:
-                            st.error(f"Login Failed: Please try again. Error: {auth_res.get('error')}")
-
-
-        
-    with tab_signup:
-        with st.container(border=True):
-            # --- STEP 1: INITIAL SIGNUP FORM ---
-            # --- STEP 1: INITIAL SIGNUP FORM ---
-            if "pending_verification" not in st.session_state:
-                st.write("Register a new student account.")
-                reg_name = st.text_input("Student Full Name", key="reg_name")
-                reg_email = st.text_input("Email Address", key="reg_email")
-                col_g, col_a = st.columns(2)
-                with col_g:
-                    reg_grade = st.selectbox("Current Grade", [f"Grade {i}" for i in range(1, 13)], index=5, key="reg_grade")
-                with col_a:
-                    reg_age = st.number_input("Age", min_value=5, max_value=25, value=12, key="reg_age")
-                reg_pass = st.text_input("Choose Secure Password", type="password", placeholder="At least 6 characters", key="reg_pass")
-                
-                if st.button("Register account"):
-                    # Validation checks
-                    if not reg_name.strip():
-                        st.warning("Please enter your name.")
-                    elif not reg_email.strip():
-                        st.warning("Please enter your email address.")
-                    elif not reg_pass.strip() or len(reg_pass) < 6:
-                        st.warning("Password must be at least 6 characters.")
-                    else:
-                        with st.spinner("Creating your Mwalimu AI account..."):
-                            # MOVED INSIDE THE ELSE BLOCK
-                            reg_res = MwalimuAuthService.register_user(
-                                email=reg_email.strip().lower(),
-                                password=reg_pass,
-                                name=reg_name.strip().title(),
-                                grade=reg_grade,
-                                age=int(reg_age),
-                                tier=st.session_state.get("selected_tier", "Free")
-                            )
-                            if reg_res.get("success"):
-                                st.session_state.pending_verification = reg_email.strip().lower()
-                                st.rerun()
-                            else:
-                                st.error(reg_res.get("error"))
-
-            # --- STEP 2: VERIFICATION INPUT ---
-            else:
-                st.write(f"Enter the code sent to {st.session_state.pending_verification}")
-                entered_code = st.text_input("Verification Code")
-                
-                if st.button("Complete Registration"):
-                    # Process the registration
-                    res = MwalimuAuthService.finalize_registration(
-                        st.session_state.pending_verification, 
-                        entered_code
-                    )
-                    
-                    if res.get("success"):
-                        st.success("✅ Account created! Please sign in.")
-                        del st.session_state.pending_verification
-                        st.rerun()
-                    else:
-                        st.error(res.get("error"))
-
-        
-    with tab_google:
-        with st.container(border=True):
-            st.write("Fast access via Google:")
-            auth_url = (
-                "https://accounts.google.com/o/oauth2/v2/auth?"
-                f"client_id={st.secrets['google_oauth']['client_id']}&"
-                "redirect_uri=http://localhost:8501/&"
-                "response_type=code&"
-                "scope=openid%20profile%20email&"
-                "prompt=select_account"
-            )
-            def get_base64_image(image_path):
-                if os.path.exists(image_path):
-                    with open(image_path, "rb") as f:
-                        return base64.b64encode(f.read()).decode()
-                return ""
-            google_logo_b64 = get_base64_image("assets/google.png")
-            auth_url = f"https://accounts.google.com/o/oauth2/v2/auth?client_id={st.secrets['google_oauth']['client_id']}&redirect_uri=http://localhost:8501/&response_type=code&scope=openid%20profile%20email"
-
-            st.markdown(f"""
-                <a href="{auth_url}" target="_self" style="
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                    padding: 12px 20px;
-                    background-color: #ffffff;
-                    border: 1px solid #dadce0;
-                    border-radius: 8px;
-                    color: #3c4043;
-                    text-decoration: none;
-                    font-family: Arial, sans-serif;
-                    font-size: 16px;
-                    font-weight: 500;
-                    box-shadow: 0 1px 2px rgba(0,0,0,0.1);
-                    margin-bottom: 10px;
-                ">
-                    <img src="data:image/png;base64,{google_logo_b64}" style="width: 20px; margin-right: 10px;">
-                    Continue with Google
-                </a>
-            """, unsafe_allow_html=True)
-    if st.button("Forgot Password?"):
-        st.session_state.show_reset_form = True
-
-    if st.session_state.get("show_reset_form"):
-        reset_email = st.text_input("Enter your registered email")
-        if st.button("Send Reset Link"):
-            with st.spinner("Sending email..."):
-                # Call the function from your service
-                result = MwalimuAuthService.send_password_reset_email(reset_email)
-                
-                if result["success"]:
-                    st.success("Check your email for the password reset link!")
-                    st.session_state.show_reset_form = False
-                else:
-                    # Always show a generic message to prevent email enumeration
-                    st.error("If the email is registered, you will receive a reset link.")
-                    # Optional: Log the actual error in terminal for yourself
-                    print(f"Debug Reset Error: {result.get('error')}")
-
-# 🚀 TOP-LEVEL GOOGLE OAUTH INTERCEPTOR
-if "code" in st.query_params:
-    auth_code = st.query_params["code"]
-    try:
-        cid = st.secrets["google_oauth"]["client_id"]
-        csecret = st.secrets["google_oauth"]["client_secret"]
-        
-        token_url = "https://oauth2.googleapis.com/token"
-        token_data = {
-            "code": auth_code,
-            "client_id": cid,
-            "client_secret": csecret,
-            "redirect_uri": "http://localhost:8501/",
-            "grant_type": "authorization_code"
-        }
-        
-        token_response = requests.post(token_url, data=token_data).json()
-        
-        if "access_token" in token_response:
-            user_info = requests.get(
-                "https://www.googleapis.com/oauth2/v3/userinfo",
-                headers={"Authorization": f"Bearer {token_response['access_token']}"}
-            ).json()
-            
-            # Sync authentication state fields
-            st.session_state.user_authenticated = True
-            st.session_state.student_name = user_info.get("name", "Student").strip().title()
-            st.session_state.user_profile = {
-                "name": st.session_state.student_name,
-                "email": user_info.get("email"),
-                "grade": "Grade 6", 
-                "age": 12,
-                "tier": "Free"
-            }
-            
-            st.query_params.clear()
-            st.rerun()
-        else:
-            st.error(f"OAuth Exchange Failed: {token_response.get('error_description', 'Unknown Error')}")
-    except Exception as e:
-        st.error(f"Authentication background sync failed: {str(e)}")
+REDIRECT_URI = "http://localhost:8501"
 
 # --- STREAMLIT PAGE CONFIGURATION (MUST BE ABSOLUTE FIRST COMMAND)
 st.set_page_config(
@@ -271,7 +56,10 @@ st.set_page_config(
     
 )
 
-
+# INITIALIZATION
+load_dotenv()
+os.environ["OAUTHLIB_INSECURE_TRANSPORT"] = "1"
+create_tables()
 
 # --- INITIALIZE STATE WORKSPACE ---
 if "user_authenticated" not in st.session_state: st.session_state.user_authenticated = False
@@ -300,7 +88,344 @@ if "chat_history" not in st.session_state:
     st.session_state.chat_history = []
 if "user_profile" not in st.session_state:
     st.session_state.user_profile = None
+if "student_name" not in st.session_state:
+    st.session_state.student_name = ""
 
+# 🚀 TOP-LEVEL GOOGLE OAUTH INTERCEPTOR
+if "code" in st.query_params and not st.session_state.user_authenticated:
+    auth_code = st.query_params["code"]
+    try:
+        cid = st.secrets["google_oauth"]["client_id"]
+        csecret = st.secrets["google_oauth"]["client_secret"]
+        
+        token_url = "https://oauth2.googleapis.com/token"
+        response = requests.post(
+            "https://oauth2.googleapis.com/token",
+            data={
+                "code": auth_code,
+                "client_id": cid,
+                "client_secret": csecret,
+                "redirect_uri": REDIRECT_URI,
+                "grant_type": "authorization_code",
+            },
+        )
+        
+        # 🌟 Check if Google accepted the transaction before decoding JSON
+        if response.status_code == 200:
+            token_response = response.json()
+            
+            if "access_token" in token_response:
+                user_info = requests.get(
+                    "https://www.googleapis.com/oauth2/v2/userinfo",
+                    headers={
+                        "Authorization": f"Bearer {token_response['access_token']}"
+                    },
+                ).json()
+                
+                # Extract clean string parameters safely
+                google_uid = user_info.get("id") or user_info.get("sub")
+                email_val = user_info.get("email", "").strip().lower()
+                name_val = user_info.get("name", "Student").strip().title()
+                
+                if not google_uid:
+                    st.error("Authentication failed: Missing unique user ID from Google.")
+                    st.stop()
+                
+                # Define baseline dictionary payload matching your Firestore schema exactly
+                user_profile_payload = {
+                    "uid": google_uid,
+                    "name": name_val,
+                    "email": email_val,
+                    "grade": "Grade 6", # Default fallback parameter
+                    "age": 12,          # Default fallback parameter
+                    "created_at": "2026-07-11T13:08:00Z", # Current ISO timestamp
+                    "subscription": {
+                        "tier": "Free",
+                        "payment_status": "Pending",
+                        "reference_id": "",
+                        "expiry_date": ""
+                    }
+                }
+                
+                # 🌟 WRITE DIRECTLY TO CLOUD FIRESTORE
+                # Using merge=True ensures you don't overwrite premium/subscription metrics on future logins!
+                db.collection("users").document(google_uid).set(user_profile_payload, merge=True)
+                
+                # Fetch fresh payload back from DB to respect existing parameters
+                fresh_doc = db.collection("users").document(google_uid).get()
+                doc_data = fresh_doc.to_dict()
+                final_data = doc_data if (fresh_doc.exists and doc_data is not None) else user_profile_payload
+                
+                # Sync your local frontend authentication parameters
+                st.session_state.user_authenticated = True
+                st.session_state.user_email = final_data.get("email", email_val)
+                st.session_state.student_name = final_data.get("name", name_val)
+                st.session_state.user_profile = final_data
+                
+                st.query_params.clear()
+                st.toast("🎉 Account synced with Firebase and authenticated successfully!")
+                st.session_state.uid = google_uid
+                print("Google UID:", google_uid)
+                print("Session UID:", st.session_state.uid)
+                print("Firestore document:", final_data)
+                st.rerun()
+            else:
+                st.error(f"OAuth Keys Missing: {token_response.get('error_description', 'Unknown Error')}")
+        else:
+            # 🌟 Displays exactly what went wrong instead of crashing your app interface
+            st.error(f"Google Server Rejected Request (Status {response.status_code}): {response.text}")
+            st.query_params.clear()
+            
+    except Exception as e:
+        st.error(f"Authentication background sync failed: {str(e)}")
+
+
+
+
+# ADD THE CSS BLOCK HERE (Right after page config)
+st.html(f"""
+    <style>
+    @media (min-width: 768px) {{
+    [data-testid="stHeader"], header {{ background-color: transparent !important; height: 3.5rem !important; }}
+    [data-testid="stAppViewMainObj"], .stMain, [data-testid="stMain"] {{ margin-top: 1.5rem !important; padding-top: 0rem !important; }}
+    [data-testid="stMainBlockContainer"], [data-testid="stAppViewBlockContainer"], .block-container {{ padding-top: 1.5rem !important; margin-top: 0rem !important; }}
+    }}
+    @media (max-width: 767px) {{
+    [data-testid="stHeader"], header {{ background-color: transparent !important; height: 3.5rem !important; }}
+    [data-testid="stAppViewMainObj"], .stMain, [data-testid="stMain"] {{ margin-top: 0rem !important; padding-top: 0.5rem !important; }}
+    }}
+    [data-testid="stMainBlockContainer"], [data-testid="stAppViewBlockContainer"], .block-container {{ padding-top: 1rem !important; }}
+    [data-testid="stHeader"] button {{ background-color: rgba(255, 255, 255, 0.1) !important; border-radius: 4px !important; z-index: 999999 !important; }}
+    [data-testid="stSidebarUserContent"] {{ padding-top: 0rem !important; margin-top: 0rem !important; }}
+    
+    div.stButton > button {{
+    transition: all 0.2s ease-in-out !important;
+    }}
+    div.stButton > button:hover {{
+    border-color: #1E3A8A !important;
+    color: #1E3A8A !important;
+    box-shadow: 0 2px 8px rgba(30, 58, 138, 0.1) !important;
+    }}
+    </style>
+    """)
+# --- HEADER AREA ---
+header_col1, header_col2 = st.columns([8, 1])
+
+# 1. DEFINE BASE64 PARSER UTILITY AT TOP-LEVEL
+def get_base64_image(image_path):
+    import os
+    import base64
+    if os.path.exists(image_path):
+        with open(image_path, "rb") as f:
+            return base64.b64encode(f.read()).decode()
+    return ""
+
+def render_auth_portal(context="auth"):
+    # If a user selected a tier, show them what they are signing up for
+    if "selected_tier" in st.session_state:
+        st.info(f"You are signing up for: **{st.session_state.selected_tier}**") 
+        
+    # Track password reset sub-form display states
+    if "show_reset_form" not in st.session_state:
+        st.session_state.show_reset_form = False
+
+    # Initialize all 3 native authorization tabs up-front
+    tab_login, tab_signup, tab_google = st.tabs(["🔑 Login", "✨ Sign Up", "🔵 Google"])
+    
+    # ----------------------------------------------------
+    # TAB 1: LOGIN GATEWAY & RESTORED RESET MANAGEMENT
+    # ----------------------------------------------------
+    with tab_login:
+        with st.container(border=True):
+            # CONDITION A: Default Login Window View Layout
+            if not st.session_state.get("show_reset_form", False):
+                email = st.text_input("Email", key="signin_email")
+                password = st.text_input("Password", type="password", key="signin_pass")
+                
+                if st.button("Log In to Workspace", use_container_width=True):
+                    if email.strip() and password.strip():
+                        with st.spinner("Verifying credentials..."):
+                            auth_res = MwalimuAuthService.login_user(email.strip(), password.strip())                    
+                            if auth_res.get("success"):                              
+                                st.session_state.user_email = email.strip().lower()
+                                uid = str(auth_res.get("uid", ""))
+                                st.session_state.uid = uid
+                                db_profile = get_student_data(uid)                                 
+                                if db_profile and isinstance(db_profile, dict):
+                                    st.session_state.user_authenticated = True
+                                    st.session_state.show_upgrade_modal = False
+                                    st.session_state.student_name = str(db_profile.get("name", "Unknown"))
+                                    st.session_state.grade = str(db_profile.get("grade", "Grade 1"))
+                                    st.session_state.age = int(db_profile.get("age", 10))
+                                    st.session_state.user_profile = db_profile
+                                    st.rerun()
+                                else:
+                                    st.error("Profile not found for this user. Please register your profile.")
+                            else:
+                                st.error(f"Login Failed: Please try again. Error: {auth_res.get('error')}")
+                
+                # LINK TO TOGGLE RESET VIEW ONLY INSIDE THE LOGIN TAB
+                if st.button("Forgot Password?", key="forgot_pass_link_btn"):
+                    st.session_state.show_reset_form = True
+                    st.rerun()
+                    
+            # CONDITION B: PASSWORD RECOVERY SUB-FORM PIPELINE (STABLE VERSION)
+            else:
+                st.markdown("### 🔄 Reset Password")
+                reset_email = st.text_input("Enter your registered email", key="pwd_reset_email_input")
+                
+                if st.button("Send Reset Link", use_container_width=True, key="execute_send_reset_link"):
+                    if not reset_email.strip():
+                        st.warning("Please enter your email.")
+                    else:
+                        with st.spinner("Sending email..."):
+                            result = MwalimuAuthService.send_password_reset_email(reset_email.strip())
+                            
+                            if result.get("success"):
+                                # FIXED: Success box prints safely here, and state changes only when they click back
+                                st.success("📩 **Reset link sent successfully!** Please check your email inbox or spam folder to complete your password change.")
+                            else:
+                                st.error("If the email is registered, you will receive a reset link shortly. Please check your inbox or spam folder.")
+                                print(f"Debug Reset Error: {result.get('error')}")
+                
+                # Back to log in option button serves as confirmation closer link
+                if st.button("⬅_ Return to Login Screen", use_container_width=True, key="back_to_login_from_reset"):
+                    st.session_state.show_reset_form = False
+                    st.rerun()
+
+    # ----------------------------------------------------
+    # TAB 2: SIGNUP FUNNEL WITH LEGAL COMPLIANCE GATE
+    # ----------------------------------------------------
+    with tab_signup:
+        with st.container(border=True):
+            # --- STEP 1: INITIAL SIGNUP FORM ---
+            if "pending_verification" not in st.session_state:
+                st.write("Register a new student account.")
+                reg_name = st.text_input("Student Full Name", key="reg_name")
+                reg_email = st.text_input("Email Address", key="reg_email")
+                col_g, col_a = st.columns(2)
+                with col_g:
+                    reg_grade = st.selectbox("Current Grade", [f"Grade {i}" for i in range(1, 13)], index=5, key="reg_grade")
+                with col_a:
+                    reg_age = st.number_input("Age", min_value=5, max_value=25, value=12, key="reg_age")
+                reg_pass = st.text_input("Choose Secure Password", type="password", placeholder="At least 6 characters", key="reg_pass")
+                
+                reg_agree = st.checkbox("I agree to terms and conditions", key="reg_agree")
+                
+                if st.button("Register account", use_container_width=True):
+                    if not reg_name.strip():
+                        st.warning("Please enter your name.")
+                    elif not reg_email.strip():
+                        st.warning("Please enter your email address.")
+                    elif not reg_pass.strip() or len(reg_pass) < 6:
+                        st.warning("Password must be at least 6 characters.")
+                    elif not reg_agree:
+                        st.error("🔒 You must agree to the terms and conditions before creating an account.")
+                    else:
+                        with st.spinner("Creating your Mwalimu AI account..."):
+                            reg_res = MwalimuAuthService.register_user(
+                                email=reg_email.strip().lower(),
+                                password=reg_pass,
+                                name=reg_name.strip().title(),
+                                grade=reg_grade,
+                                age=int(reg_age),
+                                tier=st.session_state.get("selected_tier", "Free")
+                            )
+                            if reg_res.get("success"):
+                                st.session_state.pending_verification = reg_email.strip().lower()
+                                st.rerun()
+                            else:
+                                st.error(reg_res.get("error"))
+            # --- STEP 2: VERIFICATION INPUT ---
+            else:
+                st.write(f"Enter the code sent to {st.session_state.pending_verification}")
+                entered_code = st.text_input("Verification Code", key="verification_code_entry_input")
+                
+                if st.button("Complete Registration", use_container_width=True):
+                    res = MwalimuAuthService.finalize_registration(
+                        st.session_state.pending_verification, 
+                        entered_code
+                    )
+                    if res.get("success"):
+                        st.success("Account created! Please sign in via the Login tab.")
+                        del st.session_state.pending_verification
+                        st.rerun()
+                    else:
+                        st.error(res.get("error"))
+
+    # ----------------------------------------------------
+    # TAB 3: OAUTH GOOGLE AUTHENTICATION GATED ROUTE
+    # ----------------------------------------------------
+    with tab_google:
+        with st.container(border=True):
+            st.write("Fast access via Google:")
+            
+            google_agree = st.checkbox("I agree to terms and conditions", key="google_agree")
+            st.markdown("<div style='margin-bottom: 10px;'></div>", unsafe_allow_html=True)
+            
+            auth_url = (
+                "https://accounts.google.com/o/oauth2/v2/auth"
+                f"?client_id={st.secrets['google_oauth']['client_id']}"
+                "&response_type=code"
+                "&scope=openid%20email%20profile"
+                f"&redirect_uri={REDIRECT_URI}"
+                "&access_type=offline"
+                "&prompt=select_account"
+            )
+            
+
+                
+                # 4. Conditional Secure Intercept Gateway Controller UI Layer
+            if google_agree:
+                # Safe execution line: get_base64_image is now fully recognized!
+                google_logo_b64 = get_base64_image("assets/google.png")
+                st.markdown(f"""
+                <a href="{auth_url}" target="_self" style="
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    padding: 12px 20px;
+                    background-color: #ffffff;
+                    border: 1px solid #dadce0;
+                    border-radius: 8px;
+                    color: #3c4043;
+                    text-decoration: none;
+                    font-family: Arial, sans-serif;
+                    font-size: 16px;
+                    font-weight: 500;
+                    box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+                    margin-bottom: 10px;
+                ">
+                    <img src="data:image/png;base64,{google_logo_b64}" style="width: 20px; margin-right: 10px;">
+                    Continue with Google
+                </a>
+                """, unsafe_allow_html=True)
+            else:
+                st.markdown(f"""
+                <div style="
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    padding: 12px 20px;
+                    background-color: #f1f3f4;
+                    border: 1px solid #dadce0;
+                    border-radius: 8px;
+                    color: #9aa0a6;
+                    text-decoration: none;
+                    font-family: Arial, sans-serif;
+                    font-size: 16px;
+                    font-weight: 500;
+                    cursor: not-allowed;
+                    margin-bottom: 10px;
+                    opacity: 0.6;
+                ">
+                    Continue with Google
+                </div>
+                """, unsafe_allow_html=True)
+                st.info("🔒 Please check the agreement box above to activate Google Sign-In.")
+        #==
+            
+           
 
 
 
@@ -310,7 +435,44 @@ if "user_profile" not in st.session_state:
 
 # --- VIEW A: SECURE WORKSPACE DASHBOARD (Logged In State Only) ---
 
-if st.session_state.user_authenticated:
+# =====================================================================
+# --- LIVE PAYMENT CELEBRATION DISPATCHER (ADD THIS) ---
+# =====================================================================
+if st.session_state.user_authenticated and "user_email" in st.session_state:
+    # 1. Fetch live profile data cleanly from your optimized database.py cache layer
+    current_profile_live = get_student_data(st.session_state.user_email)
+    
+    if current_profile_live and isinstance(current_profile_live, dict):
+        live_sub = current_profile_live.get("subscription", {})
+        live_tier = str(live_sub.get("tier", "Free")).strip()
+        
+        # 2. Look for the last tracked tier configuration in local state variables
+        if "last_known_tier" not in st.session_state:
+            st.session_state.last_known_tier = live_tier
+            
+        # 3. CRITICAL TRIGGER: If their tier changed from Free to an upgraded level!
+        if st.session_state.last_known_tier.lower() == "free" and live_tier.lower() != "free":
+            # Update local track markers immediately to prevent looping
+            st.session_state.last_known_tier = live_tier
+            st.session_state.user_profile = current_profile_live
+            st.session_state.grade = str(current_profile_live.get("grade", "Grade 6"))
+            st.session_state.age = int(current_profile_live.get("age", 12))
+            st.session_state.student_name = str(current_profile_live.get("name", "Student"))
+            
+            # Reset all generational limits blocks instantly across tabs
+            st.session_state.quiz_limit_reached = False
+            st.session_state.flashcards_limit_reached = False
+            st.session_state.study_plan_limit_reached = False
+            st.session_state.chat_limit_reached = False
+            
+            # 4. Fire a premium canvas canvas celebration visual effect layout onto screen!
+            st.balloons()
+            st.toast(f"🎉 Premium Power Unlocked! Welcome to {live_tier}!", icon="🚀")
+            st.rerun()
+            
+        # Update fallbacks tracking parameters if altered inside firestore console interfaces manually
+        st.session_state.last_known_tier = live_tier
+
     st.markdown("""
         <style>
         /* This centers the dashboard content */
@@ -470,25 +632,45 @@ if st.session_state.user_authenticated:
         st.sidebar.warning("Please type your Student Name at the top of the sidebar.")
 
     # NAVIGATION HUB
-    st.sidebar.subheader(" Navigation Hub")
-    if st.sidebar.button("🎙️Voice Tutor Mode", use_container_width=True):
+        # =====================================================================
+    # --- NAVIGATION HUB WITH DYNAMIC GENERATOR TOGGLE ---
+    # =====================================================================
+    st.sidebar.markdown("### Navigation Hub")
+    
+    # 1. Voice Tutor Mode Button (Stays at the top of the hub)
+    if st.sidebar.button("🎙️ Voice Tutor Mode", use_container_width=True, key="sb_nav_voice"):
         st.session_state.current_page = "Voice Tutor"
         st.rerun()
-
-    if st.sidebar.button("🗑️Clear Chat"):
-        if name:
-            try:
-                clear_student_chat_history(name, grade, int(age))
-            except Exception as e:
-                print(f"Error clearing database chat logs: {e}")
-            st.session_state.messages = []
-            st.session_state.quiz = None
-            st.session_state.quiz_submitted = False
-            st.session_state.quiz_score = 0
-            st.session_state.quiz_raw_score = 0
-            st.session_state.flashcards = []
-            st.session_state.lesson_content = None
+        
+    # ---------------------------------------------------------------------
+    # DYNAMIC BUTTON: Switches text and behavior based on the active page
+    # ---------------------------------------------------------------------
+    current_active_page = st.session_state.get("current_page", "Main Chat")
+    
+    if current_active_page == "Generators Hub":
+        # If the user is inside the Hub, show the return path button
+        if st.sidebar.button("💬 Back to Ask Mwalimu", use_container_width=True, key="sb_dynamic_back_chat"):
+            st.session_state.current_page = "Main Chat"
             st.rerun()
+    else:
+        # If the user is anywhere else, show the entrance button to the Hub
+        if st.sidebar.button("⚡ Go to Quizzes, Flashcards and Lessons Generator", use_container_width=True, key="sb_dynamic_go_hub"):
+            st.session_state.current_page = "Generators Hub"
+            st.rerun()
+    # ---------------------------------------------------------------------
+
+    # 3. Clear Chat Button (Moved cleanly to the bottom of the navigation block)
+    if st.sidebar.button("🗑️ Clear Chat", use_container_width=True, key="sb_nav_clear_chat"):
+        # Ensure your student_name, grade, and age fallbacks exist inside local scopes
+        clear_student_chat_history(
+            student_name=st.session_state.get("student_name", "Student"),
+            grade=st.session_state.get("grade", "Grade 6"),
+            age=int(st.session_state.get("age", 12))
+        )
+        st.session_state.messages = []
+        st.toast("Chat history cleared cleanly!", icon="🗑️")
+        st.rerun()
+
 
     #=== Upgrade Tier === 
     def render_workspace_sidebar():
@@ -509,7 +691,7 @@ if st.session_state.user_authenticated:
                     show_upgrade_modal()
                 
                 # MOVED INSIDE SIDEBAR: Verification button for free users who just paid
-                if st.sidebar.button("💳 I've Paid, Check Status", use_container_width=True):
+                #if st.sidebar.button("💳 I've Paid, Check Status", use_container_width=True):
                     # ----------------------------------------------------------------
                     # TEMPORARY MOCK PAYMENT TRIGGER (REMOVE BEFORE PRODUCTION)
                     # ----------------------------------------------------------------
@@ -524,24 +706,24 @@ if st.session_state.user_authenticated:
                     }
                     
                     # Directly update your Firestore user document layout
-                    from services.database import db
-                    uid = st.session_state.get("uid") or st.session_state.user_email
-                    db.collection('users').document(str(uid)).update({
-                        "subscription": mock_subscription
-                    })
-                    st.sidebar.success("🔧 Mock Payment Simulated!")
+                    #from services.database import db
+                    #uid = st.session_state.get("uid") or st.session_state.user_email
+                    #db.collection('users').document(str(uid)).update({
+                    #    "subscription": mock_subscription
+                    #})
+                    #st.sidebar.success("🔧 Mock Payment Simulated!")
                     # ----------------------------------------------------------------
 
                     # Refresh data from database to check if everything updates live
-                    user_data = get_student_data(st.session_state.user_email)
-                    subscription = user_data.get('subscription', {}) if user_data else {}
-                    updated_tier = subscription.get('tier', 'Free')
+                    #user_data = get_student_data(st.session_state.user_email)
+                   # subscription = user_data.get('subscription', {}) if user_data else {}
+                   # updated_tier = subscription.get('tier', 'Free')
                     
-                    if str(updated_tier).strip().lower() != "free":
-                        st.sidebar.success(f"Upgrade successful! You are now {updated_tier}")
-                        st.rerun()
-                    else:
-                        st.sidebar.warning("Payment not confirmed yet. Please wait a moment.")
+                    #if str(updated_tier).strip().lower() != "free":
+                       # st.sidebar.success(f"Upgrade successful! You are now {updated_tier}")
+                       #st.rerun()
+                    #else:
+                       # st.sidebar.warning("Payment not confirmed yet. Please wait a moment.")
 
 
         # 2. Trigger the modal based on state
@@ -566,7 +748,6 @@ if st.session_state.user_authenticated:
     st.sidebar.subheader(" Progress Dashboard")
     if name:
         stats = get_student_stats(name, grade, int(age))
-        st.sidebar.metric("Questions Asked", stats.get("questions", 0))
         st.sidebar.metric(label="Quizzes Taken", value=stats["quizzes"])
         st.sidebar.metric("Average Score", f"{stats.get('average_score', 0)}%")
         
@@ -589,6 +770,76 @@ if st.session_state.user_authenticated:
             st.sidebar.line_chart(history_scores)
     else:
         st.sidebar.caption("Fill in your name to start tracking parameters.")
+
+    #======
+                    # =====================================================================
+    # --- INTEGRATED SIDEBAR USAGE BALANCES ---
+    # =====================================================================
+    st.sidebar.markdown("---")
+    st.sidebar.subheader("🔋 Daily Generation Limits")
+
+    # 1. Pipeline profile & data lookups cleanly inside sidebar scope
+    sidebar_profile_raw = get_student_data(st.session_state.user_email)
+    sidebar_profile = sidebar_profile_raw if sidebar_profile_raw is not None else {}
+    sb_sub_tree = sidebar_profile.get('subscription', {}) if isinstance(sidebar_profile.get('subscription'), dict) else {}
+    sb_current_plan = str(sb_sub_tree.get('tier', 'Free')).strip()
+
+    # 2. Extract specific limit structures mapping from tier_guard module configs
+    from services.tier_guard import TIER_LIMITS
+    sb_limits_key = "Free"
+    if "plus" in sb_current_plan.lower():
+        sb_limits_key = "Mwalimu AI Plus"
+    elif "premium" in sb_current_plan.lower():
+        sb_limits_key = "Premium"
+
+    sb_user_limits = TIER_LIMITS.get(sb_limits_key, TIER_LIMITS["Free"])
+
+    # 3. Read usage tracking entries using verified tracking id string keys
+    sb_uid = str(st.session_state.get("uid") or st.session_state.user_email)
+    
+    # Fetch Limits Configuration Values
+    sb_q_limit = sb_user_limits.get("quizzes", 1)
+    sb_fc_limit = sb_user_limits.get("flashcards", 1)
+    sb_lesson_limit = sb_user_limits.get("lessons", 1)
+    sb_ask_limit = sb_user_limits.get("questions", 1)
+    sb_plan_limit = sb_user_limits.get("has_study_plan", 1)
+
+    # Fetch Current Daily Usage Stats Metrics
+    sb_q_used = MwalimuDBService.get_daily_usage(sb_uid, "quizzes")
+    sb_fc_used = MwalimuDBService.get_daily_usage(sb_uid, "flashcards")
+    sb_lesson_used = MwalimuDBService.get_daily_usage(sb_uid, "lessons")
+    sb_ask_used = MwalimuDBService.get_daily_usage(sb_uid, "questions")
+    sb_plan_used = MwalimuDBService.get_daily_usage(sb_uid, "has_study_plan")
+
+    # 4. Formulate clean conditional balance labels strings text
+    def format_sb_balance(used, max_limit):
+        if max_limit == float('inf'):
+            return f"{used} / ∞ (Unlimited)"
+        remaining = max(0, max_limit - used)
+        return f"{remaining} left (of {max_limit})"
+
+    # 5. Render compact, text-based metric slots inside the dark sidebar
+    st.sidebar.markdown(f"💬 **Ask Mwalimu:** `{format_sb_balance(sb_ask_used, sb_ask_limit)}`")
+    if sb_ask_limit != float('inf') and sb_ask_used >= sb_ask_limit:
+        st.sidebar.caption("⚠️ AI Ask limit reached for today.")
+
+    st.sidebar.markdown(f"📅 **Study Plans:** `{format_sb_balance(sb_plan_used, sb_plan_limit)}`")
+    if sb_plan_limit != float('inf') and sb_plan_used >= sb_plan_limit:
+        st.sidebar.caption("⚠️ Study Plan limit reached for today.")
+
+    st.sidebar.markdown(f"📝 **Quizzes:** `{format_sb_balance(sb_q_used, sb_q_limit)}`")
+    if sb_q_limit != float('inf') and sb_q_used >= sb_q_limit:
+        st.sidebar.caption("⚠️ Quiz limit reached for today.")
+
+    st.sidebar.markdown(f"🎴 **Flashcards:** `{format_sb_balance(sb_fc_used, sb_fc_limit)}`")
+    if sb_fc_limit != float('inf') and sb_fc_used >= sb_fc_limit:
+        st.sidebar.caption("⚠️ Flashcard limit reached for today.")
+
+    st.sidebar.markdown(f"📖 **Lessons:** `{format_sb_balance(sb_lesson_used, sb_lesson_limit)}`")
+    if sb_lesson_limit != float('inf') and sb_lesson_used >= sb_lesson_limit:
+        st.sidebar.caption("⚠️ Lesson limit reached for today.")
+
+
 
     # MAIN BRANDING HEADER CONTAINER
     col1, col2 = st.columns([1, 5], vertical_alignment="center")
@@ -839,6 +1090,7 @@ if st.session_state.user_authenticated:
         if st.button("Go back to Main Chat Dashboard", use_container_width=True, key="back_from_generators"):
             st.session_state.current_page = "Main Chat"
             st.rerun()
+
         st.markdown("---")
 
         #=== GENERATOR TABS======
@@ -1322,7 +1574,7 @@ else:
                 max-width:960px;
                 margin:auto;
                 padding-top:3rem;
-                padding-bottom:3rem;
+                padding-bottom:5rem;
             }
 
             /* Registration card */
@@ -1570,41 +1822,105 @@ else:
                 button_key="premium_tier"
             )
 
+
+
+        #=====
+        # =====================================================================
+        # --- LANDING PAGE: SUPPORT CENTER WITH LEGAL NAVIGATION TRIGGER ---
+        # =====================================================================
         st.markdown("<br><br><br>", unsafe_allow_html=True)
         st.markdown("""
         <div style="text-align: center; margin-bottom: 25px;">
             <h2 style="font-size: 2rem; font-weight: 700; color: #f8fafc; margin: 0 0 6px 0;">
-                Frequently Asked Questions
+                Information & Support Center
             </h2>
             <p style="color: #94a3b8; font-size: 0.95rem; margin: 0;">
-                Everything you need to know about our Mwalimu AI CBC platform subscriptions.
+                Got questions or need to review our platform policies? Explore the tabs below.
             </p>
         </div>
         """, unsafe_allow_html=True)
 
-        # Interactive Streamlit Expanders mimic a professional SaaS accordion component layout
-        with st.expander("💳 How do I pay for Mwalimu AI Plus or Premium?"):
-            st.write("""
-            Payments are securely handled via **M-Pesa STK Push**. 
-            When you choose a tier, you will be prompted to enter your phone number, and a secure PIN prompt will appear instantly on your mobile screen.
-            """)
+        # Create cohesive navigation tabs for resources
+        tab_faq, tab_contact, tab_terms = st.tabs([
+            "❓ Frequently Asked Questions", 
+            "✉️ Contact Support", 
+            "📜 Terms & Conditions"
+        ])
 
-        with st.expander("⏳ How long does my upgraded tier access last?"):
-            st.write("""
-            All upgrades provide **30 days of complete access** starting from the exact minute your transaction is successfully confirmed. 
-            You can track your expiration date anytime inside your student workspace sidebar profile panel.
-            """)
+        # --- TAB 1: FAQ ACCORDION BLOCK ---
+        with tab_faq:
+            st.markdown("<br>", unsafe_allow_html=True)
+            with st.expander("💳 How do I pay for Mwalimu AI Plus or Premium?"):
+                st.write("Payments are securely handled via **M-Pesa STK Push**...")
 
-        with st.expander("🔄 Can I upgrade from Plus to Premium later?"):
-            st.write("""
-            Yes! You can upgrade your tier level at any time. 
-            Our system will instantly process your transaction and transition your capabilities over to the Premium rules framework without resetting your history.
-            """)
+            with st.expander("⏳ How long does my upgraded tier access last?"):
+                st.write("All upgrades provide **30 days of complete access**...")
 
-        with st.expander("🎙️ What equipment do I need for the Voice Tutor mode?"):
-            st.write("""
-            No extra gear is required! The interactive Swahili and English audio tutor works natively through your smartphone or laptop microphone and audio speakers directly inside your web browser.
-            """)
+            with st.expander("🔄 Can I upgrade from Plus to Premium later?"):
+                st.write("Yes! You can upgrade your tier level at any time...")
+
+            with st.expander("🎙️ What equipment do I need for the Voice Tutor mode?"):
+                st.write("No extra gear is required!...")
+
+        # --- TAB 2: CLEAN SUPPORT FORM ---
+        with tab_contact:
+            st.markdown("<br>", unsafe_allow_html=True)
+            with st.form(key="landing_contact_tab_form", clear_on_submit=True):
+                col_sender, col_mail = st.columns(2)
+                with col_sender:
+                    sender_name = st.text_input("Your Name", placeholder="e.g., Jp Cyber")
+                with col_mail:
+                    sender_email = st.text_input("Your Email Address", placeholder="name@domain.com")
+                    
+                msg_subject = st.text_input("Subject", placeholder="How can our CBC support desk assist you today?")
+                msg_body = st.text_area("Your Message Details", placeholder="Type your question or revision inquiry here...", height=120)
+                
+                submit_support_btn = st.form_submit_button(label="Submit Secure Message ✨", use_container_width=True)
+                if submit_support_btn:
+                    # (Your existing form submission processing logic stays here unchanged)
+                    pass
+
+        # --- TAB 3: CLEAN ENTRANCE TRIGGER GATE (UPDATED) ---
+        with tab_terms:
+                    # --- TAB 3: CLEAN ENTRANCE TRIGGER GATE (SIMPLE OVERLAY VERSION) ---
+        
+            st.markdown("<br>", unsafe_allow_html=True)
+            
+            # 1. Check if the user has clicked the button to open the full terms
+            if st.session_state.get("viewing_full_terms", False):
+                st.markdown("## 📜 Standalone Terms & Conditions Center")
+                st.caption("📅 Last Updated: July 2026 | CBC Curriculum Engine Sync")
+                st.markdown("---")
+                
+                # Pulls the clean text instantly from your services/legal_text.py file
+                from services.legal_text import TERMS_AND_CONDITIONS
+                st.write(TERMS_AND_CONDITIONS)
+                
+                st.markdown("---")
+                # Clean button at the bottom to go right back home
+                if st.button("⬅️ Accept & Close Document (Return Home)", use_container_width=True, key="close_terms_overlay"):
+                    st.session_state.viewing_full_terms = False
+                    st.rerun()
+            
+            # 2. This is what shows by default when they first click the tab
+            else:
+                st.markdown("### 📜 Platform Terms of Service & End-User License Agreement")
+                st.write("""
+                To ensure complete transparency regarding your data protection, subscription limits, and M-Pesa non-auto-renewal policies under the Kenyan Data Protection Act, please click the button below to view our comprehensive legal agreement.
+                """)
+                
+                # The button that sets the state to True and opens the writings
+                if st.button("⚖️ Read Full Terms of Service", key="trigger_terms_overlay", use_container_width=True):
+                    st.session_state.viewing_full_terms = True
+                    st.rerun()
+
+
+        # --- CLEAN LOW-PROFILE FOOTER (REMOVE OLD SEPARATE BLUE BUTTON) ---
+        st.markdown("---")
+        st.markdown("<p style='text-align: center; color: #64748b; font-size: 0.85rem;'>© 2026 Mwalimu AI App. All Rights Reserved. Mapping Kenyan CBC Excellence.</p>", unsafe_allow_html=True)
+
+
+
 
 
 

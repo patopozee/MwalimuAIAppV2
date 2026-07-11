@@ -64,7 +64,7 @@ def verify_tier_allowance(uid, tier, action_type):
     current_usage = MwalimuDBService.get_daily_usage(uid, action_type)
     
     # 3. PRINT DIAGNOSTIC METRICS TO CONSOLE FOR TRACKING
-    print(f"DEBUG_FIXED: Active_Tier_Mapped={active_tier}, Action={action_type}, Usage={current_usage}, Limit={max_allowance}")
+    #print(f"DEBUG_FIXED: Active_Tier_Mapped={active_tier}, Action={action_type}, Usage={current_usage}, Limit={max_allowance}")
     
     # 4. Enforce our dynamic structural guard logic checks
     if max_allowance == 0 or max_allowance is False:

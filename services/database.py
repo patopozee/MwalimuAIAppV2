@@ -38,6 +38,8 @@ if not firebase_admin._apps:
             credentials_dict = json.loads(str(raw_json_str).strip())
             cred = credentials.Certificate(credentials_dict)
             firebase_admin.initialize_app(cred)
+
+            app = firebase_admin.get_app()
         except Exception as json_err:
             raise ValueError(f"CRITICAL: Failed to decode service account string payload: {json_err}")
     else:
@@ -45,6 +47,7 @@ if not firebase_admin._apps:
         raise FileNotFoundError("Could not locate any valid 'service_account_json' settings in secrets.toml.")
 
 db = firestore.client()
+
 # ... Rest of your database.py script remains completely untouched below this line ...
 
 
@@ -276,4 +279,25 @@ def upgrade_user_tier(uid, new_tier):
             
     except Exception as e:
         print(f"An error occurred while updating Firestore: {e}")
+
+def save_support_message(name: str, email: str, subject: str, message: str) -> bool:
+    """
+    Saves an inbound landing page inquiry directly into Firestore support collection.
+    """
+    try:
+        support_payload = {
+            "name": name.strip(),
+            "email": email.strip().lower(),
+            "subject": subject.strip(),
+            "message": message.strip(),
+            "status": "Open",
+            "created_at": datetime.utcnow().isoformat()
+        }
+        # Appends a unique auto-generated ID entry snapshot inside collections branch
+        db.collection('support_messages').add(support_payload)
+        return True
+    except Exception as e:
+        print(f"❌ Failed to submit message payload structure: {str(e)}")
+        return False
+
 
