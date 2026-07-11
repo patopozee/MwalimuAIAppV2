@@ -45,13 +45,14 @@ from services.database import (
 from voice_page import render_voice_tutor_page
 from config import CBC  # Dynamic CBC repository dictionary
 import streamlit as st
-if st.get_option("server.port") == 8501:
-    # We are running locally on our machine
+current_host = st.context.headers.get("host", "")
+
+if "localhost" in current_host or "127.0.0.1" in current_host:
+    # Running locally
     REDIRECT_URI = "http://localhost:8501"
 else:
-    # We are deployed live on Streamlit Community Cloud
-    # Replace this string with your EXACT live Streamlit application URL
-    REDIRECT_URI = "https://mwalimuaiappv2.streamlit.app" 
+    # Running live on Streamlit Cloud (Matches your exact live application URL)
+    REDIRECT_URI = "https://mwalimuaiappv2.streamlit.app"
 
 # --- STREAMLIT PAGE CONFIGURATION (MUST BE ABSOLUTE FIRST COMMAND)
 st.set_page_config(
@@ -64,7 +65,12 @@ st.set_page_config(
 
 # INITIALIZATION
 load_dotenv()
-os.environ["OAUTHLIB_INSECURE_TRANSPORT"] = "1"
+if "localhost" in st.context.headers.get("host", ""):
+    os.environ["OAUTHLIB_INSECURE_TRANSPORT"] = "1"
+else:
+    if "OAUTHLIB_INSECURE_TRANSPORT" in os.environ:
+        del os.environ["OAUTHLIB_INSECURE_TRANSPORT"]
+
 create_tables()
 
 # --- INITIALIZE STATE WORKSPACE ---
@@ -100,6 +106,7 @@ if "student_name" not in st.session_state:
 # 🚀 TOP-LEVEL GOOGLE OAUTH INTERCEPTOR
 if "code" in st.query_params and not st.session_state.user_authenticated:
     auth_code = st.query_params["code"]
+  
     try:
         cid = st.secrets["google_oauth"]["client_id"]
         csecret = st.secrets["google_oauth"]["client_secret"]
@@ -394,7 +401,6 @@ def render_auth_portal(context="auth"):
                 
                 # 4. Conditional Secure Intercept Gateway Controller UI Layer
             if google_agree:
-                # Safe execution line: get_base64_image is now fully recognized!
                 google_logo_b64 = get_base64_image("assets/google.png")
                 st.markdown(f"""
                 <a href="{auth_url}" target="_self" style="
@@ -417,6 +423,8 @@ def render_auth_portal(context="auth"):
                     Continue with Google
                 </a>
                 """, unsafe_allow_html=True)
+
+
             else:
                 st.markdown(f"""
                 <div style="
@@ -1800,8 +1808,8 @@ else:
 
 
         # --- 1. DEFINE THE UNIFIED FUNCTION WITH EMBEDDED ENGINE HOOKS ---
-        # --- 1. DEFINE THE UNIFIED FUNCTION WITH CLEAN ST.HTML RENDERING ---
-        def render_tier_card_html(title, description, card_features, color_bg, is_premium=False, button_key=""):
+                # --- 1. DEFINE THE UNIFIED FUNCTION WITH CLEAN ST.HTML RENDERING ---
+        def render_tier_card_html(title, price, period, description, card_features, color_bg, is_premium=False, button_key=""):
             """
             Renders a premium SaaS layout card using Streamlit's native st.html wrapper.
             Guarantees 100% type safety and completely clears Pylance errors.
@@ -1828,7 +1836,7 @@ else:
                 border: 1px solid rgba(255, 255, 255, 0.05);
                 border-top: 5px solid {border_accent}; 
                 box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.4);
-                min-height: 380px;
+                min-height: 440px;
                 box-sizing: border-box;
                 display: flex;
                 flex-direction: column;
@@ -1838,6 +1846,13 @@ else:
                 <div>
                     {badge_html}
                     <h3 style="margin: 0 0 6px 0; font-size: 1.35rem; font-weight: 700;">{title}</h3>
+                    
+                    <!-- 🌟 BEAUTIFUL PRICING DISPLAY CONTENT TAGS -->
+                    <div style="margin: 14px 0; display: flex; align-items: baseline;">
+                        <span style="color: #ffffff; font-size: 1.9rem; font-weight: 800; letter-spacing: -0.02em;">{price}</span>
+                        <span style="color: #94a3b8; font-size: 0.85rem; margin-left: 6px;">{period}</span>
+                    </div>
+
                     <div style="color: #94a3b8; font-size: 0.88rem; margin: 0 0 14px 0; line-height: 1.4; min-height: 36px;">{description}</div>
                 </div>
                 <hr style="border: 0; border-top: 1px solid rgba(255,255,255,0.08); margin: 0 0 16px 0;">
@@ -1847,9 +1862,7 @@ else:
             </div>
             """
             
-            # ----------------------------------------------------
-            # FIXED: Replaced components.iframe with native st.html
-            # ----------------------------------------------------
+            # Render the structural block natively
             st.html(card_html)
             
             # Render native interactive execution buttons directly in Streamlit space below
@@ -1859,7 +1872,6 @@ else:
                 st.session_state.selected_tier = title
                 st.rerun()
             st.markdown("</div>", unsafe_allow_html=True)
-
 
 
         # --- 2. RENDER THE POLISHED PRICING SECTION ---
@@ -1880,14 +1892,16 @@ else:
         with col_free:
             render_tier_card_html(
                 title="Mwalimu AI Free", 
+                price="KES 0",                
+                period="Forever Free",         
                 description="Basic daily study toolkit for casual learners.", 
                 card_features=[
-                    "10 AI Questions / day", 
+                    "5 AI Questions / day", 
                     "5 Assessment Quizzes / day",
-                    "10 Flashcards generated / day", 
-                    "Basic Curriculum Notes", 
-                    "No Voice Tutor access", 
-                    "No Custom Study Plans"
+                    "5 Flashcards generated / day", 
+                    "Basic CBC Lessons", 
+                    "<span style='color: #ef4444;'>❌ No Custom Study Plans</span>", 
+                    "<span style='color: #ef4444;'>❌ No Voice Tutor access</span>"
                 ], 
                 color_bg="#0f172a",
                 is_premium=False,
@@ -1896,15 +1910,17 @@ else:
 
         with col_basic:
             render_tier_card_html(
-                title="Mwalimu AI Plus", 
+                title="Mwalimu AI Plus",       
+                price="KES 500",              
+                period="/ month",            
                 description="Enhanced toolkit built for dedicated study sessions.", 
                 card_features=[
-                    "50 AI Questions / day", 
+                    "30 AI Questions / day", 
                     "15 Assessment Quizzes / day", 
-                    "50 Flashcards generated / day", 
-                    "Basic Curriculum Notes", 
+                    "30 Flashcards generated / day", 
+                    "CBC Lessons", 
                     "Personalized daily Study Plans", 
-                    "No Voice Tutor access"
+                    "<span style='color: #ef4444;'>❌ No Voice Tutor access</span>"
                 ], 
                 color_bg="#111827",
                 is_premium=False,
@@ -1913,7 +1929,9 @@ else:
 
         with col_prem:
             render_tier_card_html(
-                title="Mwalimu Premium", 
+                title="Mwalimu Premium",       
+                price="KES 1,000",            
+                period="/ month",            
                 description="Complete school execution dashboard with full feature access.", 
                 card_features=[
                     "Unlimited Interactive Prompts", 
@@ -1922,12 +1940,15 @@ else:
                     "Full Voice Tutor Mode Enabled", 
                     "Personalized daily Study Plans", 
                     "Advanced Weak-Topic Detection", 
-                    "Integrated mobile checkouts"
+                    "Personalized CBC Lessons"
                 ], 
                 color_bg="#030712",
                 is_premium=True,
                 button_key="premium_tier"
             )
+
+            
+
 
 
 
