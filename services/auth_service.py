@@ -13,6 +13,21 @@ from services.database import db
 
 class MwalimuAuthService:
     @staticmethod
+    def initialize_user_profile(uid, name, email, grade, age, tier="Free"):
+        db.collection("users").document(uid).set({
+            "uid": uid,
+            "name": name,
+            "email": email.strip().lower(),
+            "grade": grade,
+            "age": int(age),
+            "created_at": datetime.utcnow().isoformat(),
+            "subscription": {
+                "tier": tier,
+                "start_date": datetime.utcnow().strftime("%Y-%m-%d"),
+                "expiry_date": None
+            }
+        }, merge=True)
+    @staticmethod
     def register_user(email, password, name, grade, age, tier="Free"):
         code = str(random.randint(100000, 999999))
         db.collection("pending_verifications").document(email.strip().lower()).set({
@@ -56,19 +71,14 @@ class MwalimuAuthService:
             
         try:
             # Create public profile in Firestore cleanly WITHOUT storing a plaintext password!
-            db.collection("users").document(user.uid).set({
-                "uid": user.uid,
-                "name": pending_data.get('name', 'Student'),
-                "email": pending_data.get('email', email).strip().lower(),
-                "grade": pending_data.get('grade', 'Grade 6'),
-                "age": int(pending_data.get('age', 12)),
-                "created_at": datetime.utcnow().isoformat(),
-                "subscription": {
-                    "tier": pending_data.get('tier', 'Free'),
-                    "start_date": datetime.utcnow().strftime("%Y-%m-%d"),
-                    "expiry_date": None
-                }
-            })
+            MwalimuAuthService.initialize_user_profile(
+                uid=user.uid,
+                name=pending_data.get("name", "Student"),
+                email=pending_data.get("email", email),
+                grade=pending_data.get("grade", "Grade 6"),
+                age=pending_data.get("age", 12),
+                tier=pending_data.get("tier", "Free"),
+            )
             doc_ref.delete()
             return {"success": True, "uid": user.uid}
         except Exception as e:

@@ -131,6 +131,11 @@ if "code" in st.query_params and not st.session_state.user_authenticated:
                     st.error("Authentication failed: Missing unique user ID from Google.")
                     st.stop()
                 
+                # Check if the document already exists in the database BEFORE writing anything
+                                # Check if the document already exists in the database BEFORE writing anything
+                check_doc = db.collection("users").document(google_uid).get()
+                
+                # 🌟 STEP 1: MOVE THIS OUTSIDE AND ABOVE THE IF BLOCK
                 # Define baseline dictionary payload matching your Firestore schema exactly
                 user_profile_payload = {
                     "uid": google_uid,
@@ -147,37 +152,43 @@ if "code" in st.query_params and not st.session_state.user_authenticated:
                     }
                 }
                 
-                # 🌟 WRITE DIRECTLY TO CLOUD FIRESTORE
-                # Using merge=True ensures you don't overwrite premium/subscription metrics on future logins!
-                db.collection("users").document(google_uid).set(user_profile_payload, merge=True)
+                # 🌟 STEP 2: KEEP YOUR CHECK LOCK (It now safely reads the payload above it)
+                # Only create baseline profiles for completely NEW signups
+                if not check_doc.exists:
+                    # WRITE DIRECTLY TO CLOUD FIRESTORE FOR FIRST-TIME SIGNUPS ONLY
+                    db.collection("users").document(google_uid).set(user_profile_payload, merge=True)
                 
                 # Fetch fresh payload back from DB to respect existing parameters
+                                # Fetch fresh payload back from DB to respect existing parameters
                 fresh_doc = db.collection("users").document(google_uid).get()
                 doc_data = fresh_doc.to_dict()
                 final_data = doc_data if (fresh_doc.exists and doc_data is not None) else user_profile_payload
                 
-                # Sync your local frontend authentication parameters
+                # 🌟 STEP 1: FORCE THE CORE ROUTING PARAMETERS TO MATCH EMAIL LOGIN EXACTLY
                 st.session_state.user_authenticated = True
+                st.session_state.uid = google_uid
                 st.session_state.user_email = final_data.get("email", email_val)
                 st.session_state.student_name = final_data.get("name", name_val)
+                
+                # Populate component parameters directly from your Firestore data fields
+                st.session_state.grade = final_data.get("grade", "Grade 6")
+                st.session_state.age = int(final_data.get("age", 12))
                 st.session_state.user_profile = final_data
                 
+                # Clear the query code from the URL bar to prevent infinite reload loops
                 st.query_params.clear()
-                st.toast("🎉 Account synced with Firebase and authenticated successfully!")
-                st.session_state.uid = google_uid
-                print("Google UID:", google_uid)
-                print("Session UID:", st.session_state.uid)
-                print("Firestore document:", final_data)
+                st.toast(f"🎉 Welcome back, {st.session_state.student_name}!")
+                
+                # 🌟 STEP 2: REMOVED REDUNDANT INITIALIZE LOCK TO PREVENT LOGOUT SQUASH
+                
+                
+                # Fire the rerun trigger to switch views into the Main Workspace Dashboard
                 st.rerun()
-            else:
-                st.error(f"OAuth Keys Missing: {token_response.get('error_description', 'Unknown Error')}")
-        else:
-            # 🌟 Displays exactly what went wrong instead of crashing your app interface
-            st.error(f"Google Server Rejected Request (Status {response.status_code}): {response.text}")
-            st.query_params.clear()
+
             
     except Exception as e:
         st.error(f"Authentication background sync failed: {str(e)}")
+
 
 
 
@@ -349,7 +360,7 @@ def render_auth_portal(context="auth"):
                     if res.get("success"):
                         st.success("Account created! Please sign in via the Login tab.")
                         del st.session_state.pending_verification
-                        st.rerun()
+        
                     else:
                         st.error(res.get("error"))
 
@@ -525,6 +536,7 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
     }}
     </style>
     """)
+    #user_data = get_student_data(st.session_state.user_email)
 
     # === SIDEBAR ACCOUNT CONFIGURATION ===
     raw_name = st.sidebar.text_input("Student Name", value=st.session_state.get("student_name") or "")
@@ -630,7 +642,11 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
         st.sidebar.info(f"**Student:** {name} \n\n**{grade}** | **Age:** {age}")
     else:
         st.sidebar.warning("Please type your Student Name at the top of the sidebar.")
-
+    
+    st.sidebar.markdown("---")
+    if st.sidebar.button("✏️ Edit Student Profile", use_container_width=True):
+        st.session_state.current_page = "Edit Profile"
+        st.rerun()
     # NAVIGATION HUB
         # =====================================================================
     # --- NAVIGATION HUB WITH DYNAMIC GENERATOR TOGGLE ---
@@ -675,12 +691,13 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
     #=== Upgrade Tier === 
     def render_workspace_sidebar():
         if "user_email" in st.session_state:
-            user_data = get_student_data(st.session_state.user_email)
+            active_target_id = st.session_state.get("uid") or st.session_state.user_email
+            user_data = get_student_data(str(active_target_id))
+            
             if user_data:
                 subscription = user_data.get('subscription', {})
                 tier = subscription.get('tier', 'Free')
             else:
-                # Fallback if no user_data is found
                 tier = 'Free'
             st.sidebar.write(f"**Current Plan:** {tier}")
 
@@ -691,7 +708,7 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
                     show_upgrade_modal()
                 
                 # MOVED INSIDE SIDEBAR: Verification button for free users who just paid
-                #if st.sidebar.button("💳 I've Paid, Check Status", use_container_width=True):
+                if st.sidebar.button("💳 I've Paid, Check Status", use_container_width=True):
                     # ----------------------------------------------------------------
                     # TEMPORARY MOCK PAYMENT TRIGGER (REMOVE BEFORE PRODUCTION)
                     # ----------------------------------------------------------------
@@ -706,24 +723,24 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
                     }
                     
                     # Directly update your Firestore user document layout
-                    #from services.database import db
-                    #uid = st.session_state.get("uid") or st.session_state.user_email
-                    #db.collection('users').document(str(uid)).update({
-                    #    "subscription": mock_subscription
-                    #})
-                    #st.sidebar.success("🔧 Mock Payment Simulated!")
+                    from services.database import db
+                    uid = st.session_state.get("uid") or st.session_state.user_email
+                    db.collection('users').document(str(uid)).update({
+                        "subscription": mock_subscription
+                    })
+                    st.sidebar.success("🔧 Mock Payment Simulated!")
                     # ----------------------------------------------------------------
 
                     # Refresh data from database to check if everything updates live
-                    #user_data = get_student_data(st.session_state.user_email)
-                   # subscription = user_data.get('subscription', {}) if user_data else {}
-                   # updated_tier = subscription.get('tier', 'Free')
+                    user_data = get_student_data(st.session_state.user_email)
+                    subscription = user_data.get('subscription', {}) if user_data else {}
+                    updated_tier = subscription.get('tier', 'Free')
                     
-                    #if str(updated_tier).strip().lower() != "free":
-                       # st.sidebar.success(f"Upgrade successful! You are now {updated_tier}")
-                       #st.rerun()
-                    #else:
-                       # st.sidebar.warning("Payment not confirmed yet. Please wait a moment.")
+                    if str(updated_tier).strip().lower() != "free":
+                       st.sidebar.success(f"Upgrade successful! You are now {updated_tier}")
+                       st.rerun()
+                    else:
+                       st.sidebar.warning("Payment not confirmed yet. Please wait a moment.")
 
 
         # 2. Trigger the modal based on state
@@ -1082,6 +1099,90 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
                 st.info("Upgrade to Premium to unlock interactive audio learning and more!")
                 if st.button("🚀 Upgrade to Premium", key="voice_upgrade"):
                     show_upgrade_modal()
+
+    #======
+    elif st.session_state.current_page == "Edit Profile":
+        st.markdown("---")
+        if st.button("⬅ Back to Main Chat Dashboard", use_container_width=True):
+            st.session_state.current_page = "Main Chat"
+            st.rerun()
+            
+        st.subheader("⚙ Edit Student Profile")
+        st.write("Keep your academic milestones up to date. Changing your baseline grade helps Mwalimu AI adjust the difficulty of quizzes and voice tasks automatically.")
+        
+        # 1. Fetch active data parameters cleanly
+        current_uid = st.session_state.get("uid") or st.session_state.get("user_email")
+        user_doc_ref = db.collection("users").document(str(current_uid))
+        active_profile = user_doc_ref.get().to_dict() or {}
+        
+        if active_profile:
+            with st.container(border=True):
+                # 2. Keep Name and Email locked (Read-Only Layout)
+                st.text_input("Student Name", value=active_profile.get("name", st.session_state.get("student_name", "Student")), disabled=True)
+                st.text_input("Registered Email Address", value=active_profile.get("email", st.session_state.get("user_email", "")), disabled=True)
+                
+                # 3. Allow only Grade and Age to change
+                grades_list = [f"Grade {i}" for i in range(1, 13)]
+                saved_grade = active_profile.get("grade", "Grade 1")
+                
+                # Dynamic fallback index detection matching schema patterns
+                try:
+                    default_grade_index = grades_list.index(saved_grade)
+                except ValueError:
+                    default_grade_index = 0
+                    
+                new_grade = st.selectbox("Current Grade Level", grades_list, index=default_grade_index)
+                new_age = st.number_input("Age", min_value=5, max_value=25, value=int(active_profile.get("age", 7)))
+                
+                # 4. Show learning reset warning message block
+                st.warning("""
+                ⚠️ **Important Progress Notice:**
+                Changing your current grade level or age parameters will reset:
+                • Active Quiz performance trends
+                • Voice tracking mastery metrics
+                • Progress dashboard status bars
+                
+                *Note: Your account billing status, historical tier details, and registration profile email will remain unaffected.*
+                """)
+                
+                # 5. Requirement confirmation checkbox gateway
+                confirm_reset = st.checkbox("I understand and authorize Mwalimu AI to re-align my progress tracking records to this new grade.")
+                
+                # 6. Execution validation button pipeline
+                if st.button("Save Profile Settings", use_container_width=True, type="primary"):
+                    if not confirm_reset:
+                        st.error("Please acknowledge the progress re-alignment warning checkbox above before saving modifications.")
+                    else:
+                        with st.spinner("Re-aligning your academic workspace profile..."):
+                            # A. Update document values inside Firestore collection mapping
+                            user_doc_ref.update({
+                                "grade": new_grade,
+                                "age": int(new_age)
+                            })
+                            
+                            # B. Clear performance collection histories matched to this specific user ID
+                            # Add whatever tracking collection schemas your system creates over time
+                            collections_to_wipe = ["quiz_history", "learning_analysis", "quiz_results", "student_progress"]
+                            for target_col in collections_to_wipe:
+                                try:
+                                    stale_docs = db.collection(target_col).where("uid", "==", str(current_uid)).stream()
+                                    for doc_item in stale_docs:
+                                        db.collection(target_col).document(doc_item.id).delete()
+                                except Exception:
+                                    pass # Prevent interruptions if an optional analytics collection doesn't exist yet
+                            
+                            # C. Synchronize state keys locally to immediate runtime context
+                            st.session_state.grade = new_grade
+                            st.session_state.age = int(new_age)
+                            if st.session_state.user_profile:
+                                st.session_state.user_profile["grade"] = new_grade
+                                st.session_state.user_profile["age"] = int(new_age)
+                                
+                            st.toast("🎉 Profile settings synchronized successfully!")
+                            st.session_state.current_page = "Main Chat"
+                            st.rerun()
+        else:
+            st.error("Unable to load active profile registry parameters from database data stores.")
 
     # PAGE VIEW MODE 3: GENERATORS WORKSPACE HUB
     elif st.session_state.current_page == "Generators Hub":
