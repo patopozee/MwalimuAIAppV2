@@ -403,7 +403,7 @@ def render_auth_portal(context="auth"):
             if google_agree:
                 google_logo_b64 = get_base64_image("assets/google.png")
                 st.markdown(f"""
-                <a href="{auth_url}" target="_self" style="
+                <a href="{auth_url}" target="_blank" style="
                     display: flex;
                     align-items: center;
                     justify-content: center;
