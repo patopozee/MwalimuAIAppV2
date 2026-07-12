@@ -13,7 +13,7 @@ from google.cloud.firestore import FieldFilter
 if not firebase_admin._apps:
     raw_json_str = None
 
-    # 1. 🌟 NEW: Primary Google Cloud Run Environment Variable Lookup
+    # 1. Primary Google Cloud Run Environment Variable Lookup
     if "FIREBASE_SERVICE_ACCOUNT" in os.environ:
         raw_json_str = os.environ["FIREBASE_SERVICE_ACCOUNT"]
     
@@ -40,11 +40,17 @@ if not firebase_admin._apps:
             except Exception as e:
                 print(f"⚠️ Failed to parse secrets toml parameters: {e}")
 
-    # 5. Compile and initialize the Firebase credential map schema safely
+    # 5. 🌟 FIXED INDENTATION ALIGNMENT HERE:
     if raw_json_str:
         try:
-            # Safely unroll the raw text configuration map directly from your string payload
-            credentials_dict = json.loads(str(raw_json_str).strip())
+            # Sanitizes and repairs backslash newline string breaks defensively
+            sanitized_str = str(raw_json_str).strip().replace('\n', '\\n')
+            
+            # If the block got wrapped in double quotes during delivery, strip them out
+            if sanitized_str.startswith('"') and sanitized_str.endswith('"'):
+                sanitized_str = sanitized_str[1:-1]
+                
+            credentials_dict = json.loads(sanitized_str)
             cred = credentials.Certificate(credentials_dict)
             firebase_admin.initialize_app(cred)
             app = firebase_admin.get_app()
@@ -57,8 +63,6 @@ if not firebase_admin._apps:
 db = firestore.client()
 
 # ... Rest of your database.py script remains completely untouched below this line ...
-
-
 
 
 def create_tables():
