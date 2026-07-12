@@ -9,14 +9,8 @@ from knowledge_layer import MwalimuKnowledgeLayer, clean_and_parse_json
 # 1. Load keys from local .env file if it exists
 load_dotenv()
 knowledge_base = MwalimuKnowledgeLayer()
-api_key = os.environ.get("OPENROUTER_API_KEY")
-
-# Safely check for st.secrets only if the environment variable is missing
-if not api_key:
-    try:
-        api_key = st.secrets.get("OPENROUTER_API_KEY")
-    except Exception:
-        api_key = None
+# 2. Unified fallback: check system environment variables first, then fallback to Streamlit secrets
+api_key = os.environ.get("OPENROUTER_API_KEY") or st.secrets.get("OPENROUTER_API_KEY")
 
 # 3. Initialize unified OpenRouter gateway client safely
 client = OpenAI(
