@@ -21,4 +21,4 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 
 # Cloud Run injects a dynamic $PORT variable. We tell Streamlit to target it directly.
-CMD streamlit run web.py --server.port=${PORT:-8080} --server.address=0.0.0.0
+CMD streamlit run main.py --server.port=${PORT:-8080} --server.address=0.0.0.0
