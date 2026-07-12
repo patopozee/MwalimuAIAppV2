@@ -10,5 +10,6 @@ EXPOSE 8080
 
 # Update this CMD line:
 CMD mkdir -p /app/.streamlit && \
-    echo "$STREAMLIT_SECRETS_TOML" > /app/.streamlit/secrets.toml && \
+    printf "%s" "$STREAMLIT_SECRETS_TOML" > /app/.streamlit/secrets.toml && \
+    cat /app/.streamlit/secrets.toml && \
     streamlit run main.py --server.port=8080 --server.address=0.0.0.0

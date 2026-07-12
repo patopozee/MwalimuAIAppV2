@@ -45,14 +45,18 @@ from services.database import (
 from voice_page import render_voice_tutor_page
 from config import CBC  # Dynamic CBC repository dictionary
 import streamlit as st
-current_host = st.context.headers.get("host", "")
+current_host = st.query_params.get("host", [""])[0] 
 
 if "localhost" in current_host or "127.0.0.1" in current_host:
-    # Running locally
     REDIRECT_URI = "http://localhost:8501"
-else:
-    # Running live on Streamlit Cloud (Matches your exact live application URL)
+elif "mwalimuaiappv2.streamlit.app" in current_host:
     REDIRECT_URI = "https://mwalimuaiappv2.streamlit.app"
+elif "run.app" in current_host:
+    # This will catch your new Google Cloud Run link automatically
+    REDIRECT_URI = f"https://{current_host}" 
+else:
+    # Fallback/Default for your specific production URL
+    REDIRECT_URI = "https://mwalimuaiapp2-1095526444919.africa-south1.run.app"
 
 # --- STREAMLIT PAGE CONFIGURATION (MUST BE ABSOLUTE FIRST COMMAND)
 st.set_page_config(
