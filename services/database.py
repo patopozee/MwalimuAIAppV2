@@ -13,14 +13,23 @@ from google.cloud.firestore import FieldFilter
 if not firebase_admin._apps:
     raw_json_str = None
 
-    try:
-        # 1. Attempt Streamlit runtime access layer lookup
-        if "firebase" in st.secrets and "service_account_json" in st.secrets["firebase"]:
-            raw_json_str = st.secrets["firebase"]["service_account_json"]
-    except Exception:
-        pass
+    # 1. 🌟 NEW: Primary Google Cloud Run Environment Variable Lookup
+    if "FIREBASE_SERVICE_ACCOUNT" in os.environ:
+        raw_json_str = os.environ["FIREBASE_SERVICE_ACCOUNT"]
+    
+    # 2. Alternative custom environment key name context check
+    elif "service_account_json" in os.environ:
+        raw_json_str = os.environ["service_account_json"]
 
-    # 2. Asynchronous background server fallback lookup context layer (e.g., Uvicorn runtime)
+    # 3. Attempt Streamlit runtime access layer lookup (Local/Streamlit Cloud)
+    if not raw_json_str:
+        try:
+            if "firebase" in st.secrets and "service_account_json" in st.secrets["firebase"]:
+                raw_json_str = st.secrets["firebase"]["service_account_json"]
+        except Exception:
+            pass
+
+    # 4. Asynchronous background server fallback lookup context layer
     if not raw_json_str:
         import toml
         secrets_path = os.environ.get("STREAMLIT_SECRETS_PATH", os.path.join(".streamlit", "secrets.toml"))
@@ -31,24 +40,24 @@ if not firebase_admin._apps:
             except Exception as e:
                 print(f"⚠️ Failed to parse secrets toml parameters: {e}")
 
-    # 3. Compile and initialize the Firebase credential map schema safely
+    # 5. Compile and initialize the Firebase credential map schema safely
     if raw_json_str:
         try:
             # Safely unroll the raw text configuration map directly from your string payload
             credentials_dict = json.loads(str(raw_json_str).strip())
             cred = credentials.Certificate(credentials_dict)
             firebase_admin.initialize_app(cred)
-
             app = firebase_admin.get_app()
         except Exception as json_err:
             raise ValueError(f"CRITICAL: Failed to decode service account string payload: {json_err}")
     else:
         # Ultimate fallback option if the configuration fields are entirely unpopulated
-        raise FileNotFoundError("Could not locate any valid 'service_account_json' settings in secrets.toml.")
+        raise FileNotFoundError("Could not locate any valid 'service_account_json' settings in environment or secrets.toml.")
 
 db = firestore.client()
 
 # ... Rest of your database.py script remains completely untouched below this line ...
+
 
 
 
