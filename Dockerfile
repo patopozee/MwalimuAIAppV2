@@ -2,14 +2,13 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# Copy only requirements first to leverage Docker layer caching
+# 1. Install dependencies first (for faster builds)
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy the rest of the application code
+# 2. Copy the entire project, including the .streamlit folder
 COPY . .
 
-EXPOSE 8080
-
-# Use a standard CMD; handle secrets via Cloud Run Environment Variables/Secrets
+# 3. No need to echo secrets anymore. Just run the app.
+# Streamlit will automatically look for .streamlit/secrets.toml inside /app
 CMD ["streamlit", "run", "main.py", "--server.port=8080", "--server.address=0.0.0.0"]
