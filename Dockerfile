@@ -2,14 +2,14 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-COPY . .
-
+# Copy only requirements first to leverage Docker layer caching
+COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy the rest of the application code
+COPY . .
 
 EXPOSE 8080
 
-# Update this CMD line:
-CMD mkdir -p /app/.streamlit && \
-    printf "%s" "$STREAMLIT_SECRETS_TOML" > /app/.streamlit/secrets.toml && \
-    cat /app/.streamlit/secrets.toml && \
-    streamlit run main.py --server.port=8080 --server.address=0.0.0.0
+# Use a standard CMD; handle secrets via Cloud Run Environment Variables/Secrets
+CMD ["streamlit", "run", "main.py", "--server.port=8080", "--server.address=0.0.0.0"]
