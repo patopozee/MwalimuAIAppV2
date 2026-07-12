@@ -1,12 +1,19 @@
-import streamlit as st
+import os
 import json
+import streamlit as st
 from datetime import datetime
 from google.oauth2 import service_account
 from google.cloud import firestore
 
 class MwalimuDBService:
-    # 1. Initialize the connection once and store it as a class attribute
-    _credentials_dict = json.loads(st.secrets["firebase"]["service_account_json"])
+    # 1. Flexible initialization: Check for environment variable, fallback to st.secrets
+    _json_str = os.environ.get("FIREBASE_SERVICE_ACCOUNT")
+    
+    if not _json_str:
+        # Fallback for local development if running via 'streamlit run'
+        _json_str = json.dumps(st.secrets["firebase"]["service_account_json"])
+    
+    _credentials_dict = json.loads(_json_str)
     _creds = service_account.Credentials.from_service_account_info(_credentials_dict)
     db = firestore.Client(credentials=_creds, project=_credentials_dict["project_id"])
 
