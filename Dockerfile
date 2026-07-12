@@ -8,6 +8,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 EXPOSE 8080
 
+# Update this CMD line:
 CMD mkdir -p /app/.streamlit && \
     echo "$STREAMLIT_SECRETS_TOML" > /app/.streamlit/secrets.toml && \
-    streamlit run main.py
+    streamlit run main.py --server.port=8080 --server.address=0.0.0.0
