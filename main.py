@@ -52,7 +52,7 @@ if "localhost" in current_host or "127.0.0.1" in current_host:
     REDIRECT_URI = "http://localhost:8501"
 else:
     # Running live on Streamlit Cloud (Matches your exact live application URL)
-    REDIRECT_URI = "https://mwalimuaiapp2-1095526444919.africa-south1.run.app"
+    REDIRECT_URI = "https://mwalimuaiapp2-1095526444919.africa-south1.run.app/_stcore/allowed_origins"
 
 # --- STREAMLIT PAGE CONFIGURATION (MUST BE ABSOLUTE FIRST COMMAND)
 st.set_page_config(
