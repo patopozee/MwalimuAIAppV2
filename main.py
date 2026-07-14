@@ -500,6 +500,18 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
         }
         </style>
     """, unsafe_allow_html=True)
+    st.markdown(
+        """
+        <style>
+        div[data-testid="stChatInput"] {
+            bottom: 20px !important;  /* Increase this value to push it higher */
+            max-width: 56rem !important;
+            left: 50% !important; 
+            transform: translateX(-50%) !important;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True)
    
         #--- BASE64 SIDEBAR IMAGE INJECTOR
     try:
