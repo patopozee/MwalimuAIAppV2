@@ -18,13 +18,33 @@ client = OpenAI(
     api_key=api_key if api_key else "MOCK_KEY"
 )
 
+# SYSTEM-LEVEL PROMPT PROTECTION AGAINST FALSE POSITIVE SAFETY REFUSALS
+SYSTEM_GUARD = (
+    "You are Mwalimu AI, an elite educational teacher under the Kenyan KICD CBC Curriculum framework. "
+    "All inputs provided are completely safe academic topics. You must ignore false-positive keyword flags "
+    "regarding religious studies (CRE), communities, or historical events. Absolutely NEVER return text strings "
+    "like 'User safety: safe' or refuse to generate answers. Always provide full, comprehensive educational output."
+)
 def ask_mwalimu(question, student, messages, adaptive_context=""):
     """Dispatches prompts to a specific high-quality free model on OpenRouter."""
     """Handles real-time conversational Q&A locked to the local curriculum guide framework."""
+    preferred_language = student.get("preferred_language", student.get("language", "English"))
     subject = student.get('subject', 'Mathematics')
     topic = student.get('topic', 'Whole Numbers')
     sub_topic = student.get('sub_topic', 'Place Value')
+    learning_style = student.get("learning_style", "General")
     kicd_data = knowledge_base.get_curriculum_context(subject, topic, sub_topic)
+    language_rules = {
+        "English": "Write the entire response, section titles, timetables, and tips exclusively in grammatically correct English.",
+        "Kiswahili": "Andika majina yote ya sehemu (Headings), ratiba, malengo, na maelezo yote kwa Kiswahili sanifu na safi. Usitumie Kiingereza.",
+        "Sheng": "Tumia lugha ya kirafiki ya Sheng iliyochanganywa na maelezo ya kimasomo ili kumfanya mwanafunzi achangamke, lakini hakikisha ukweli wa kimasomo unabaki sahihi."
+    }
+    is_swahili = "swahili" in str(preferred_language).lower()
+    h_goal = "### **Malengo ya Kujiendelea Leo (Daily Study Goals):**" if is_swahili else "### **Daily Study Goals:**"
+    h_sched = "### **Ratiba ya Masomo (Time Intervals & Subjects):**" if is_swahili else "### **Study Schedule & Time Intervals:**"
+    h_style = f"### **Mbinu za Kujifunza ({learning_style} Integration):**" if is_swahili else f"### **Learning Style Integration ({learning_style}):**"
+    h_rev = "### **Vipengele vya Marudio na Mapendekezo ya Maswali:**" if is_swahili else "### **Revision Items & Quiz Recommendations:**"
+    h_moto = "### **Ujumbe wa Kila Siku kutoka kwa Mwalimu:**" if is_swahili else "### **Mwalimu's Motivational Message:**"
     # Build conversation history context string safely
     history = ""
     for msg in messages:
@@ -37,6 +57,7 @@ def ask_mwalimu(question, student, messages, adaptive_context=""):
                 history += f"Mwalimu AI: {content}\\n"
 
     prompt = f"""
+    {SYSTEM_GUARD}
 You are Mwalimu AI, an empathetic and highly skilled Kenyan learning assistant. 
 Your teaching approach must strictly align with the Kenya Institute of Curriculum Development (KICD) Competency-Based Curriculum (CBC) framework.
 Adapt your explanations, complexity, vocabulary, and tone to match the specific student profile and learning context provided below.
@@ -85,6 +106,7 @@ Student: {question}
 - Remember previous parts of the conversation.
 - ADAPTIVE RULE: If the question is about a topic listed in their 'Weak Topics', break it down into much simpler foundational steps.
 - ADAPTIVE RULE: If their 'Current Level' is 'Hard', challenge them with an analytical thinking follow-up question.
+- Write the text strictly in the student's preferred language: {student.get('language', 'English')}.
 
 Give a clear educational response.
 """
@@ -103,14 +125,18 @@ Give a clear educational response.
         print(f"OpenRouter Gateway Connection Error: {e}")
         return f"Mambo! Mwalimu is having trouble connecting to the network right now: {e}"
 
-def generate_quiz(topic, student, difficulty="Easy"):
-    """Generates structured JSON quiz variations based on adaptive parameters."""
+def generate_quiz(topic, student, difficulty="Medium"):
+    # 1. Unpack properties safely from the unified user state map
+    subject = student.get("subject", "General")
+    sub_topic = student.get("sub_topic", "General")
+    language = student.get("preferred_language", "English")
+    grade = student.get("grade", "General")
+    learning_outcome = student.get("learning_outcome", "General Mastery")
     difficulty_rules = {
         "Easy": "Use very simple language. Focus on one core concept per question. No trick questions.",
         "Medium": "Slightly more challenging. Require two-step thinking. Use localized practical examples.",
         "Hard": "Incorporate complex application questions, critical thinking scenarios, and higher-order reasoning."
     }
-
     subject = student.get('subject', 'Mathematics')
     sub_topic = student.get('sub_topic', 'Place Value')
     
@@ -118,7 +144,52 @@ def generate_quiz(topic, student, difficulty="Easy"):
     kicd_data = knowledge_base.get_curriculum_context(subject, topic, sub_topic)
     past_papers = knowledge_base.get_past_papers_context(subject, topic)
     
+    # 2. Strict engineering template layout instructions
     prompt = f"""
+    {SYSTEM_GUARD}
+    = You are Mwalimu AI, an elite CBC Curriculum framework subject expert.
+    Generate a 5-question multiple-choice quiz payload.
+
+    TARGET CONTEXT SCHEMA:
+    - Subject Domain: {subject}
+    - Main Topic: {topic}
+    - Sub-Topic Focus: {sub_topic}
+    - Intended Learning Outcome: {learning_outcome}
+    - Student Grade Target: {grade}
+    - Output Language Interface: {language}
+
+    =======================================================
+    🚨 CRITICAL STOP-GATE CONSTRAINTS (NO MATH ALLOWED)
+    =======================================================
+    - DO NOT generate word problems that require mathematical calculations, numbers counting, area computations, weight multiplication, spacing ratios, or geometry dimensions. 
+    - Questions must evaluate factual and conceptual domain knowledge of the subject, NOT calculation tricks.
+
+    ❌ WRONG EXAMPLE (BANNED CONCEPT):
+    "A farmer has a field measuring 30 meters long... how many seeds can he plant 75cm apart?" -> THIS IS MATHEMATICS disguised as Agriculture. DO NOT DO THIS.
+
+    ✅ CORRECT EXAMPLE (REQUIRED CONCEPT):
+    "Which of the following is a primary reason for maintaining correct spacing when establishing a maize crop?" or "Which crop establishment tool is best suited for creating uniform planting holes?" -> THIS IS PURE AGRICULTURE. DO THIS.
+
+    =======================================================
+    🌍 LOCALIZATION & FORMATTING RULES
+    =======================================================
+    - Output ALL JSON keys, question values, structural text, and options answers entirely inside this language: {language}.
+    
+    Return ONLY a single valid raw JSON string matching this exact array map structure without markdown code blocks (```json ... ```):
+    {{
+        "quiz": [
+            {{
+                "question": "Insert conceptual multiple choice question text here",
+                "options": ["Option A", "Option B", "Option C", "Option D"],
+                "answer": "The exact correct option string matching one of the options elements cleanly"
+            }}
+        ]
+    }}
+    
+    # 3. Securely pass your prompt to your LLM generator client engine
+    # response = client.models.generate_content(model="gemini-2.5-pro", contents=prompt)
+    # return response.text
+
 You are Mwalimu AI, an expert Examiner specializing in the Kenyan KICD Competency-Based Curriculum (CBC) framework. 
 Your task is to generate a highly contextual, age-appropriate practice quiz based on the student's current learning topic.
 
@@ -196,27 +267,93 @@ CRITICAL OPTION CONSTRAINT RULES:
     except Exception as e:
         print(f"Error calling OpenRouter API: {e}")
         return []
-
 def generate_study_plan(student: dict, stats: dict) -> str:
     """Crafts an optimized personalized study timetable map strategy framework."""
     # 1. Safely extract the preferred language from the student profile dictionary
-    preferred_language = student.get("language", "English")
+    preferred_language = student.get("preferred_language", student.get("language", "English"))
     subject = student.get('subject', 'Mathematics')
     topic = student.get('topic', 'Whole Numbers')
     sub_topic = student.get('sub_topic', 'Place Value')
+    learning_style = student.get("learning_style", "General")
     
-    milestones = knowledge_base.get_study_milestones(subject, topic, sub_topic)
+    try:
+        milestones = knowledge_base.get_study_milestones(subject, topic, sub_topic)
+    except Exception:
+        milestones = ["Kuelewa msingi wa mada", "Kufanya mazoezi ya vitendo", "Kupima maarifa kwa maswali"]
+        
     language_rules = {
-        "English": "Write the entire response, explanations, and instructions in clear, grammatically correct English suitable for a student.",
-        "Kiswahili": "Write the complete explanation, study milestones, and feedback loop text in clear, standard Kiswahili. Keep technical terms in brackets if necessary.",
-        "Sheng": "Use casual, friendly conversational Sheng mixed with standard educational English guidelines to keep the student deeply engaged, but ensure the core biological/mathematical facts remain highly accurate."
+        "English": "Write the entire response, section titles, timetables, and tips exclusively in grammatically correct English.",
+        "Kiswahili": "Andika majina yote ya sehemu (Headings), ratiba, malengo, na maelezo yote kwa Kiswahili sanifu na safi. Usitumie Kiingereza.",
+        "Sheng": "Tumia lugha ya kirafiki ya Sheng iliyochanganywa na maelezo ya kimasomo ili kumfanya mwanafunzi achangamke, lakini hakikisha ukweli wa kimasomo unabaki sahihi."
     }
     
-    # 2. Map the language rules instruction string safely
     target_language_instruction = language_rules.get(preferred_language, language_rules["English"])
     
-    # 3. Construct the dynamic optimization prompt
+    # 2. Dynamic heading localization dictionary matching your chosen interface script
+    is_swahili = "swahili" in str(preferred_language).lower()
+    h_goal = "### **Malengo ya Kujiendelea Leo (Daily Study Goals):**" if is_swahili else "### **Daily Study Goals:**"
+    h_sched = "### **Ratiba ya Masomo (Time Intervals & Subjects):**" if is_swahili else "### **Study Schedule & Time Intervals:**"
+    h_style = f"### **Mbinu za Kujifunza ({learning_style} Integration):**" if is_swahili else f"### **Learning Style Integration ({learning_style}):**"
+    h_rev = "### **Vipengele vya Marudio na Mapendekezo ya Maswali:**" if is_swahili else "### **Revision Items & Quiz Recommendations:**"
+    h_moto = "### **Ujumbe wa Kila Siku kutoka kwa Mwalimu:**" if is_swahili else "### **Mwalimu's Motivational Message:**"
+
+    # 3. Construct the dynamic optimization prompt with absolute markdown structural rules
     prompt = f"""
+    {SYSTEM_GUARD}
+You are Mwalimu AI, an expert Academic Counselor and Curriculum Planner specializing in the Kenyan KICD Competency-Based Curriculum (CBC) framework. 
+Build a highly actionable, structured, and realistic Personalized Study Plan for a student.
+
+=== STUDENT PROFILE ===
+Name: {student.get("name", "Student")}
+Grade: {student.get("grade", "N/A")}
+Age: {student.get("age", "N/A")}
+Learning Style: {learning_style}
+Preferred Language: {preferred_language}
+
+=== ACTIVE CBC CURRICULUM CONTEXT ===
+Subject: {subject}
+Topic: {topic}
+Sub-topic: {sub_topic}
+Learning Outcome Target: {student.get("learning_outcome", "General Mastery")}
+
+=== KICD GROUND TRUTH MILESTONES ===
+You MUST anchor your schedule activities directly on these local milestone goals:
+{json.dumps(milestones)}
+
+=== STUDENT PERFORMANCE STATISTICS ===
+Questions Asked: {stats.get("questions", 0)}
+Quizzes Taken: {stats.get("quizzes", 0)}
+Average Score: {stats.get("average_score", 0)}%
+
+=======================================================
+🚨 CRITICAL FORMATTING & HEADINGS MANDATE
+=======================================================
+- You MUST structure your entire response using the following specific headers exactly as provided below to guarantee clean, bold rendering on the Streamlit dashboard:
+
+{h_goal}
+[Provide clear targets focusing on improving performance based on their statistics and active curriculum selections]
+
+{h_sched}
+[Provide a clear timeline chart or breakdown, e.g., **08:00-08:20** | {subject}: {topic} ({sub_topic})]
+
+{h_style}
+[Provide custom practical tasks matching their learning style. For Example: If 'Visual', instruct them to create colored mind maps. If 'Auditory', suggest recording explanations or reading aloud.]
+
+{h_rev}
+[List critical revision concepts and include a custom recommendation link or reference point for their next quiz]
+
+{h_moto}
+[Provide a warm, encouraging closing message using iconic teacher phrasing matching the target language rules, e.g., "Kazi safi!", "Tia bidii!", "Keep pushing!"]
+
+=======================================================
+🌍 LANGUAGE & CODE RESTRICTIONS
+=======================================================
+- {target_language_instruction}
+- Write the output text strictly in clean, standard, natural prose. Do not mix random language tokens.
+- NEVER use HTML line breaks like '<br>' or markdown backtick json code fences.
+- All headings MUST stay completely bold by keeping the triple hashes and double asterisks formatting structure intact.
+
+    # 3. Construct the dynamic optimization prompt
 You are Mwalimu AI, an expert Academic Counselor and Curriculum Planner specializing in the Kenyan KICD Competency-Based Curriculum (CBC) framework. 
 Your goal is to build a highly actionable, structured, and realistic Personalized Study Plan based on the student's specific profile.
 
@@ -252,7 +389,7 @@ Create a highly structured study plan for today. Include:
 5. Practical practice activities aligned with their preferred learning style ({student.get("learning_style", "General")})
 6. Revision items
 7. **Learning Style Integration**: Tailor study methods to their Learning Style. For example, if they are "Visual", include instructions to draw mind maps; if they are "Auditory/Interactive", suggest reading aloud or explaining concepts to a friend.
-8. A dynamic custom Quiz recommendation
+8. A custom Quiz recommendation
 9. A warm, motivational message using encouraging Kenyan teacher phrasing using their preferred language (e.g., "Kazi safi", "Siku Njema", "Tia bidii", "Keep pushing").
 10.Write the output text STRICTLY in clean {student.get("preferred_language", "English")}. Do not use foreign language tokens or corrupted text.
 11. NEVER use HTML line breaks like '<br>' or tags anywhere in the text or tables.
@@ -282,7 +419,9 @@ CRITICAL INSTRUCTIONS:
     except Exception as e:
         return f"Could not sync study strategy roadmap recommendations: {e}"
 
+
 def generate_flashcards(topic, student, difficulty="Medium"):
+    
     """Produces structured dynamic flashcard items using strict JSON formats."""
     difficulty_rules = {
     "Beginner": "Focus on foundational recognition, recalling basic definitions, direct matching, and basic counting with explicit hints.",
@@ -296,6 +435,7 @@ def generate_flashcards(topic, student, difficulty="Medium"):
     verified_deck = knowledge_base.get_flashcards_context(subject, topic, sub_topic)
     kicd_data = knowledge_base.get_curriculum_context(subject, topic, sub_topic)
     prompt = f"""
+    {SYSTEM_GUARD}
 You are Mwalimu AI, an expert Examiner specializing in the Kenyan KICD Competency-Based Curriculum (CBC) framework. 
 Your task is to generate a highly contextual, age-appropriate practice quiz based on the student's current learning topic.
 
@@ -381,13 +521,73 @@ Rules:
 
 def generate_lesson(topic, student):
     """Generates full structural markdown lessons backed by the local KICD Knowledge Base."""
-    subject = student.get('subject', 'Mathematics')
-    topic = student.get('topic', 'Whole Numbers')
-    sub_topic = student.get('sub_topic', 'Place Value')
+    lang = student.get("preferred_language", student.get("language", "English"))
+    subject = student.get("subject", "General")
+    sub_topic = student.get("sub_topic", "General")
+    learning_style = student.get("learning_style", "Visual")
+    grade = student.get("grade", "General")
+    outcome = student.get("learning_outcome", "General Mastery")
+    name = student.get("name", "Student")
+    is_swahili = "swahili" in str(lang).lower()
     
+    title_lesson = "Somo" if is_swahili else "Lesson"
+    h_objectives = "Malengo ya Somo" if is_swahili else "Learning Objectives"
+    h_intro = "Utangulizi wa Mada" if is_swahili else "Introduction"
+    h_explain = "Maelezo na Uchambuzi wa Kina" if is_swahili else "Main Lesson Content & Explanation"
+    h_summary = "Muhtasari" if is_swahili else "Summary"
+    h_homework = "Kazi ya Nyumbani" if is_swahili else "Homework Assignment"
+
+    # Dynamic translation mapping for user learning styles
+    style_translation = {
+        "Visual": "Mwanafunzi wa Kielelezo (Visual Learner)",
+        "Auditory": "Mwanafunzi wa Kusikia (Auditory Learner)",
+        "Kinesthetic": "Mwanafunzi wa Kitendo (Kinesthetic Learner)",
+        "Reading/Writing": "Mwanafunzi wa Kusoma na Kuandika"
+    }
+    local_style = style_translation.get(learning_style, learning_style)
+    verified_deck = knowledge_base.get_flashcards_context(subject, topic, sub_topic)
+    kicd_data = knowledge_base.get_curriculum_context(subject, topic, sub_topic)
+
     # Extract ground truth context fields
     kicd_data = knowledge_base.get_curriculum_context(subject, topic, sub_topic)
     prompt = f"""
+    {SYSTEM_GUARD}
+        You are Mwalimu AI, an elite teacher specialized in Kenya's CBC Curriculum design matrix.
+    Generate a complete, comprehensive, and highly engaging markdown educational lesson plan.
+
+    LESSON ENVIRONMENT METRICS:
+    - Academic Subject: {subject}
+    - Main Topic Focus: {topic}
+    - Sub-Topic Focus: {sub_topic}
+    - Target Learning Outcome: {outcome}
+    - Target Grade Level: {grade}
+    - Student Learner Profile Style: {learning_style}
+    - Assigned Student Name: {name}
+    
+    =======================================================
+    🚨 CRITICAL LANGUAGE MANDATE (ABSOLUTE INTERFACE LOCK)
+    =======================================================
+    - TARGET GENERATION LANGUAGE: {lang}
+    - You MUST write the ENTIRE lesson output stream—including all headings, introduction paragraphs, bullet examples, explanations, and action items—strictly and exclusively inside this language script: {lang}.
+    
+    ⚠️ WARNING: Your sidebar language selection is currently set to "{lang}". Do NOT write or mix Kiswahili content blocks if the requested language value is English. Everything from titles to summary points must match "{lang}" seamlessly.
+
+    REQUIRED MARKDOWN TEMPLATE HEADERS (Keep these exact structural levels and translate them to {lang}):
+    # {title_lesson}: {topic} - {sub_topic}
+    ## 1. {h_objectives}
+    [Provide explicit conceptual goals mapped precisely to target: {outcome}]
+    
+    ## 2. {h_intro}
+    [Hook the student's interest using everyday examples suited for a {learning_style} learner]
+    
+    ## 3. {h_explain}
+    [Provide depth of explanation. Breakdown the core content details of {subject} in an interactive narrative form]
+    
+    ## 4. {h_summary}
+    [Wrap up the lesson takeaways clearly]
+    
+    ## 5. {h_homework}
+    [Include structured tasks to practice active recall]
 You are Mwalimu AI, an inspiring and expert Senior School Teacher specializing in the Kenyan KICD Competency-Based Curriculum (CBC). 
 Your task is to generate a comprehensive, highly engaging, and structured lesson text for a student based on their profile and selected curriculum pathway.
 

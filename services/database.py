@@ -12,7 +12,6 @@ from google.cloud.firestore import FieldFilter
 # Initialize the app safely using your custom single-string JSON string layout
 if not firebase_admin._apps:
     raw_json_str = None
-
     try:
         # 1. Attempt Streamlit runtime access layer lookup
         if "firebase" in st.secrets and "service_account_json" in st.secrets["firebase"]:
@@ -38,7 +37,6 @@ if not firebase_admin._apps:
             credentials_dict = json.loads(str(raw_json_str).strip())
             cred = credentials.Certificate(credentials_dict)
             firebase_admin.initialize_app(cred)
-
             app = firebase_admin.get_app()
         except Exception as json_err:
             raise ValueError(f"CRITICAL: Failed to decode service account string payload: {json_err}")
@@ -48,8 +46,18 @@ if not firebase_admin._apps:
 
 db = firestore.client()
 
-# ... Rest of your database.py script remains completely untouched below this line ...
 
+# ---------------------------------------------------------------------
+# 🚀 PERFORMANCE ENGINE CACHE CLEAR IMPLEMENTATION AUTOMATION
+# ---------------------------------------------------------------------
+def flush_all_database_caches():
+    """Clears localized memory buffers on updates to maintain structural synchronization."""
+    get_student_stats.clear()
+    get_student_quiz_history.clear()
+    get_next_difficulty.clear()
+    get_student_learning_analysis.clear()
+    get_chat_history.clear()
+    get_student_data.clear()
 
 
 def create_tables():
@@ -86,6 +94,7 @@ def create_tables():
     conn.commit()
     conn.close()
 
+
 def save_student(student):
     conn = sqlite3.connect(DATABASE_NAME)
     cursor = conn.cursor()
@@ -96,6 +105,8 @@ def save_student(student):
           student["weak_subject"], student["learning_style"], student["language"]))
     conn.commit()
     conn.close()
+    flush_all_database_caches()  # 🎯 Instant RAM sync trigger
+
 
 def save_activity(student_name, student_grade, student_age, activity_type, topic, score=0,
                   subject="General", topics="General", sub_topic="General", learning_outcome="General"):
@@ -107,7 +118,14 @@ def save_activity(student_name, student_grade, student_age, activity_type, topic
     """, (student_name, student_grade, int(student_age), activity_type, topic, score, subject, topics, sub_topic, learning_outcome))
     conn.commit()
     conn.close()
+    flush_all_database_caches()  # 🎯 Instant RAM sync trigger
 
+
+# ---------------------------------------------------------------------
+# ⚡ READ CACHING OPTIMIZATIONS (RAM SPEED ENGINES)
+# ---------------------------------------------------------------------
+
+@st.cache_data(ttl=60, show_spinner=False)
 def get_student_stats(student_name: str, grade: str, age: int):
     conn = sqlite3.connect(DATABASE_NAME)
     cursor = conn.cursor()
@@ -119,7 +137,7 @@ def get_student_stats(student_name: str, grade: str, age: int):
     """, (student_name, grade, int(age)))
     quizzes = cursor.fetchone()[0]
 
-    # 2. Questions Asked Count (FIXED: Filter accurately on student input roles)
+    # 2. Questions Asked Count
     cursor.execute("""
         SELECT COUNT(*) FROM progress 
         WHERE student_name = ? AND student_grade = ? AND student_age = ? AND activity_type = 'student'
@@ -137,6 +155,8 @@ def get_student_stats(student_name: str, grade: str, age: int):
     conn.close()
     return {"quizzes": quizzes, "questions": questions, "average_score": avg_score}
 
+
+@st.cache_data(ttl=60, show_spinner=False)
 def get_student_quiz_history(student_name: str, grade: str, age: int):
     conn = sqlite3.connect(DATABASE_NAME)
     cursor = conn.cursor()
@@ -149,6 +169,8 @@ def get_student_quiz_history(student_name: str, grade: str, age: int):
     conn.close()
     return [r[0] for r in rows]
 
+
+@st.cache_data(ttl=60, show_spinner=False)
 def get_next_difficulty(student_name: str, grade: str, age: int, topic: str) -> str:
     conn = sqlite3.connect(DATABASE_NAME)
     cursor = conn.cursor()
@@ -166,6 +188,8 @@ def get_next_difficulty(student_name: str, grade: str, age: int, topic: str) -> 
         else: return "Easy"
     return "Medium"
 
+
+@st.cache_data(ttl=60, show_spinner=False)
 def get_student_learning_analysis(student_name: str, grade: str, age: int):
     conn = sqlite3.connect(DATABASE_NAME)
     cursor = conn.cursor()
@@ -176,21 +200,20 @@ def get_student_learning_analysis(student_name: str, grade: str, age: int):
     """, (student_name, grade, int(age)))
     topic_averages = cursor.fetchall()
     conn.close()
-
+    
     weak_topics = [topic for topic, avg in topic_averages if avg < 50]
     strong_topics = [topic for topic, avg in topic_averages if avg >= 80]
-
     all_scores = [avg for topic, avg in topic_averages]
     overall_avg = sum(all_scores) / len(all_scores) if all_scores else 0
-
+    
     if overall_avg < 50: current_level = "Easy"
     elif overall_avg < 80: current_level = "Medium"
     else: current_level = "Hard"
-
     return {"weak_topics": weak_topics, "strong_topics": strong_topics, "current_level": current_level}
 
+
+@st.cache_data(ttl=30, show_spinner=False)
 def get_chat_history(student_name: str, grade: str, age: int):
-    """Retrieves chat history precisely filtered by the composite keys of Name, Grade, and Age."""
     conn = sqlite3.connect(DATABASE_NAME)
     cursor = conn.cursor()
     cursor.execute("""
@@ -203,8 +226,8 @@ def get_chat_history(student_name: str, grade: str, age: int):
     conn.close()
     return [{"role": "user" if r[0] == "student" else "assistant", "content": r[1]} for r in rows]
 
+
 def save_chat_message(student_name: str, grade: str, age: int, role: str, message: str):
-    """Saves incoming messages utilizing composite targeting credentials."""
     activity = "student" if role in ["user", "student"] else "assistant"
     save_activity(
         student_name=student_name, 
@@ -215,8 +238,8 @@ def save_chat_message(student_name: str, grade: str, age: int, role: str, messag
         score=0
     )
 
+
 def clear_student_chat_history(student_name: str, grade: str, age: int):
-    """Wipes historical chat context without impacting analytics records."""
     conn = sqlite3.connect(DATABASE_NAME)
     cursor = conn.cursor()
     cursor.execute("""
@@ -226,45 +249,43 @@ def clear_student_chat_history(student_name: str, grade: str, age: int):
     """, (student_name, grade, int(age)))
     conn.commit()
     conn.close()
+    flush_all_database_caches()  # 🎯 Wipe old historical cache metrics mapping frames
 
+
+@st.cache_data(ttl=120, show_spinner=False)
 def get_student_data(uid):
-    """Retrieves student profile and prints progress to terminal."""
+    """Retrieves student profile from Firestore with high-performance query caching."""
     try:
         # 1. Attempt direct ID lookup
+                # 1. Attempt direct ID lookup
         doc_ref = db.collection('users').document(str(uid))
         doc = doc_ref.get()
-        
         if doc.exists:
-            data = doc.to_dict()
-            return data
-        
+            return doc.to_dict()
+            
         # 2. Fallback to searching the 'email' field
         query = db.collection('users').where(filter=FieldFilter('email', '==', uid)).stream()
-        
         for user_doc in query:
-            data = user_doc.to_dict()
-            return data
-                
+            return user_doc.to_dict()
         return None
-    except Exception as e:
+    except Exception:
         return None
-    
+
+
 def upgrade_user_tier(uid, new_tier):
     """Updates the user tier and sets a 30-day subscription expiry in Firestore."""
     try:
         calculated_expiry = (datetime.utcnow() + timedelta(days=30)).strftime("%Y-%m-%d")
-        
         live_subscription = {
             "tier": str(new_tier).strip(),
             "expiry_date": calculated_expiry,
             "payment_status": "Completed",
             "updated_at": datetime.utcnow().isoformat()
         }
-
+        
         # Query to look up by email first, matching old patterns
         users_ref = db.collection('users')
         query = users_ref.where('email', '==', uid).stream()
-        
         doc_found = False
         for doc in query:
             doc_found = True
@@ -277,13 +298,14 @@ def upgrade_user_tier(uid, new_tier):
         if not doc_found:
             print(f"DEBUG: User not found: {uid}")
             
+        # 🎯 FORCE PROFILE CACHE RESET: Clear out old cache data so user updates load instantly
+        get_student_data.clear()
     except Exception as e:
         print(f"An error occurred while updating Firestore: {e}")
 
+
 def save_support_message(name: str, email: str, subject: str, message: str) -> bool:
-    """
-    Saves an inbound landing page inquiry directly into Firestore support collection.
-    """
+    """Saves an inbound landing page inquiry directly into Firestore support collection."""
     try:
         support_payload = {
             "name": name.strip(),
@@ -297,7 +319,6 @@ def save_support_message(name: str, email: str, subject: str, message: str) -> b
         db.collection('support_messages').add(support_payload)
         return True
     except Exception as e:
-        print(f"❌ Failed to submit message payload structure: {str(e)}")
+        print(f" Failed to submit message payload structure: {str(e)}")
         return False
-
 

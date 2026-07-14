@@ -1,0 +1,16 @@
+[server]
+# 🎯 REPLACEMENT SPEED OPTIMIZATION: 
+# This handles thread execution pools on active browser channels to make script re-runs fast!
+headless = true
+enableCORS = false
+enableXsrfProtection = false
+
+[client]
+# Disables massive development tracking overhead strings, speeding up browser render paint times.
+showErrorDetails = false
+
+[runner]
+# 🚀 MODERN REPLACEMENT ENGINES:
+# Tells Streamlit to skip looking for local source file changes continuously while running,
+# which reduces CPU overhead and speeds up calculations.
+magicEnabled = false

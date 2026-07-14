@@ -48,7 +48,7 @@ def show_upgrade_modal():
         c1, c2 = st.columns([1, 1])
         with c1:
             st.caption("Amount")
-            st.subheader("KES 500")
+            st.subheader("KES 999")
         with c2:
             st.caption("Payment Method")
             st.write("M-Pesa STK Push")
@@ -60,7 +60,7 @@ def show_upgrade_modal():
     phone = st.text_input("Enter M-Pesa Phone Number", placeholder="2547XXXXXXXX")
 
     # 4. Action Button
-    if st.button("Pay 500 KES", type="primary", use_container_width=True):
+    if st.button("Pay 999 KES", type="primary", use_container_width=True):
         phone = phone.strip()
         if not phone.startswith("254") or len(phone) != 12:
             st.error("Please enter a valid M-Pesa number (e.g., 2547XXXXXXXX)")

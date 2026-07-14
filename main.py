@@ -1,25 +1,26 @@
 import base64
 import os
+import json
+import re
+import ast
+import requests
 import streamlit as st
 from PIL import Image
 from dotenv import load_dotenv
-import requests
 import streamlit.components.v1 as components
-from services.auth_service import MwalimuAuthService
-from services.payment_service import MpesaPaymentService
-from services.tier_guard import verify_tier_allowance
-from services.ai import ask_mwalimu, generate_quiz, generate_study_plan, generate_flashcards, generate_lesson
-from services.db_service import MwalimuDBService
-from services.ui_components import show_upgrade_modal
-from services.database import get_student_data, get_student_stats
-from services.legal_text import TERMS_AND_CONDITIONS
-import json
 import firebase_admin
 from firebase_admin import credentials, firestore
 
+# --- STREAMLIT PAGE CONFIGURATION (MUST BE ABSOLUTE FIRST COMMAND IN STREAMLIT) ---
+st.set_page_config(
+    page_title="Mwalimu AI App",
+    page_icon="assets/logo112.png",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
+
 # 1. Initialize Firebase Admin SDK (Only if it hasn't been initialized yet)
 if not firebase_admin._apps:
-    # Option A: If you are using the service account string from st.secrets
     try:
         secret_json = json.loads(st.secrets["firebase"]["service_account_json"])
         cred = credentials.Certificate(secret_json)
@@ -27,9 +28,19 @@ if not firebase_admin._apps:
     except Exception as e:
         st.error(f"Failed to initialize Firebase credentials: {e}")
 
-# 2. Define 'db' globally so line 130 can access it 🌟
+# 2. Define 'db' globally for Firestore connection reuse
 db = firestore.client()
-# ==DATABASE CALL CODE==
+
+# --- SERVICES & BACKEND IMPORTS ---
+from services.auth_service import MwalimuAuthService
+from services.payment_service import MpesaPaymentService
+from services.tier_guard import verify_tier_allowance
+from services.ai import ask_mwalimu, generate_quiz, generate_study_plan, generate_flashcards, generate_lesson
+from services.db_service import MwalimuDBService
+from services.ui_components import show_upgrade_modal
+from services.legal_text import TERMS_AND_CONDITIONS
+
+# --- DATABASE ENGINE CACHE WRAPPERS (IMPORTS REMAIN THE SAME) ---
 from services.database import (
     create_tables,
     save_activity,
@@ -44,64 +55,41 @@ from services.database import (
 )
 from voice_page import render_voice_tutor_page
 from config import CBC  # Dynamic CBC repository dictionary
-import streamlit as st
+
+# INITIALIZATION & TRANSPORT ENVIRONMENT SETTING
+load_dotenv()
 current_host = st.context.headers.get("host", "")
 
 if "localhost" in current_host or "127.0.0.1" in current_host:
-    # Running locally
     REDIRECT_URI = "http://localhost:8501"
-else:
-    # Running live on Streamlit Cloud (Matches your exact live application URL)
-    REDIRECT_URI = "https://mwalimuaiapp2-1095526444919.africa-south1.run.app"
-
-# --- STREAMLIT PAGE CONFIGURATION (MUST BE ABSOLUTE FIRST COMMAND)
-st.set_page_config(
-    page_title="Mwalimu AI App",
-    page_icon="assets/logo112.png",
-    layout="wide",
-    initial_sidebar_state="expanded"
-    
-)
-
-# INITIALIZATION
-load_dotenv()
-if "localhost" in st.context.headers.get("host", ""):
     os.environ["OAUTHLIB_INSECURE_TRANSPORT"] = "1"
 else:
+    REDIRECT_URI = "https://mwalimuaiapp2-1095526444919.africa-south1.run.app"
     if "OAUTHLIB_INSECURE_TRANSPORT" in os.environ:
         del os.environ["OAUTHLIB_INSECURE_TRANSPORT"]
 
+# Execute local database validation setup on runtime startup block
 create_tables()
 
-# --- INITIALIZE STATE WORKSPACE ---
+# --- INITIALIZE STATE WORKSPACE PARAMS (WITH PERFORMANCE PROFILE STORAGE CACHE) ---
 if "user_authenticated" not in st.session_state: st.session_state.user_authenticated = False
 if "messages" not in st.session_state: st.session_state.messages = []
-if "current_page" not in st.session_state:
-    st.session_state.current_page = "Main Chat"
-if "quiz_questions" not in st.session_state:
-    st.session_state.quiz_questions = []
-if "quiz_raw_score" not in st.session_state:
-    st.session_state.quiz_raw_score = 0
-if "quiz_score" not in st.session_state:
-    st.session_state.quiz_score = 0
-if "quiz_submitted" not in st.session_state:
-    st.session_state.quiz_submitted = False
-if "messages" not in st.session_state:
-    st.session_state.messages = []
-if "quiz" not in st.session_state:
-    st.session_state.quiz = None
-if "study_plan" not in st.session_state:
-    st.session_state.study_plan = None
-if "flashcards" not in st.session_state:
-    st.session_state.flashcards = []
-if "lesson_content" not in st.session_state:
-    st.session_state.lesson_content = None
-if "chat_history" not in st.session_state:
-    st.session_state.chat_history = []
-if "user_profile" not in st.session_state:
-    st.session_state.user_profile = None
-if "student_name" not in st.session_state:
-    st.session_state.student_name = ""
+if "current_page" not in st.session_state: st.session_state.current_page = "Main Chat"
+if "quiz_questions" not in st.session_state: st.session_state.quiz_questions = []
+if "quiz_raw_score" not in st.session_state: st.session_state.quiz_raw_score = 0
+if "quiz_score" not in st.session_state: st.session_state.quiz_score = 0
+if "quiz_submitted" not in st.session_state: st.session_state.quiz_submitted = False
+if "quiz" not in st.session_state: st.session_state.quiz = None
+if "study_plan" not in st.session_state: st.session_state.study_plan = None
+if "flashcards" not in st.session_state: st.session_state.flashcards = []
+if "lesson_content" not in st.session_state: st.session_state.lesson_content = None
+if "chat_history" not in st.session_state: st.session_state.chat_history = []
+if "student_name" not in st.session_state: st.session_state.student_name = ""
+
+# 🎯 SPEED FIX: Initialize a specific localized memory caching slot for Firestore profile row responses
+if "user_profile" not in st.session_state: st.session_state.user_profile = None
+
+
 
 # 🚀 TOP-LEVEL GOOGLE OAUTH INTERCEPTOR
 if "code" in st.query_params and not st.session_state.user_authenticated:
@@ -563,6 +551,7 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
 
     current_grade = st.session_state.get("grade", "Grade 1")
 
+
     # Safety check in case the stored grade isn't in the list
     if current_grade not in grades:
         current_grade = "Grade 1"
@@ -635,6 +624,7 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
     learning_outcome = str(raw_outcome) if raw_outcome else "General Learning Outcome"
 
     # Assemble Complete Multi-Dimensional Student Object Map
+    # Assemble Complete Multi-Dimensional Student Object Map
     student = {
         "name": name if name else "Student",
         "grade": grade,
@@ -643,11 +633,13 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
         "weak_subject": weak_subject,
         "learning_style": learning_style,
         "language": language,
+        "preferred_language": language,  # 🎯 ADD THIS LINE: This satisfies your ai.py prompts!
         "subject": subject,
         "topic": topic,
         "sub_topic": sub_topic,
         "learning_outcome": learning_outcome
     }
+
 
     #--- ACTIVE PROFILE CARD
     st.sidebar.markdown("---")
@@ -827,20 +819,20 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
 
     # 3. Read usage tracking entries using verified tracking id string keys
     sb_uid = str(st.session_state.get("uid") or st.session_state.user_email)
-    
-    # Fetch Limits Configuration Values
+
+    # Fetch Limits Configuration Values (🎯 KEYS ALIGNED TO MATCH TIER_GUARD ENGINE)
     sb_q_limit = sb_user_limits.get("quizzes", 1)
     sb_fc_limit = sb_user_limits.get("flashcards", 1)
-    sb_lesson_limit = sb_user_limits.get("lessons", 1)
     sb_ask_limit = sb_user_limits.get("questions", 1)
     sb_plan_limit = sb_user_limits.get("has_study_plan", 1)
+    sb_lesson_limit = sb_user_limits.get("lessons", 1)  # 🎯 FIXED: Changed to "lesson" to match tier_guard dictionary keys!
 
-    # Fetch Current Daily Usage Stats Metrics
+    # Fetch Current Daily Usage Stats Metrics (🎯 ALIGNED FOR STABLE STORAGE TRACKING)
     sb_q_used = MwalimuDBService.get_daily_usage(sb_uid, "quizzes")
     sb_fc_used = MwalimuDBService.get_daily_usage(sb_uid, "flashcards")
-    sb_lesson_used = MwalimuDBService.get_daily_usage(sb_uid, "lessons")
     sb_ask_used = MwalimuDBService.get_daily_usage(sb_uid, "questions")
     sb_plan_used = MwalimuDBService.get_daily_usage(sb_uid, "has_study_plan")
+    sb_lesson_used = MwalimuDBService.get_daily_usage(sb_uid, "lessons")  # 🎯 FIXED: Changed to "lesson" to match db tracking!
 
     # 4. Formulate clean conditional balance labels strings text
     def format_sb_balance(used, max_limit):
@@ -869,6 +861,7 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
     st.sidebar.markdown(f"📖 **Lessons:** `{format_sb_balance(sb_lesson_used, sb_lesson_limit)}`")
     if sb_lesson_limit != float('inf') and sb_lesson_used >= sb_lesson_limit:
         st.sidebar.caption("⚠️ Lesson limit reached for today.")
+
 
 
 
@@ -975,8 +968,10 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
 
                 with st.spinner("Creating your personalized study plan..."):
                     # Compile usage and behavioral parameters from internal metrics database
-                    local_metrics = get_student_stats(name, grade, age_int)
-                    st.session_state.study_plan = generate_study_plan(student_profile, local_metrics)
+                    local_metrics = get_student_stats(student["name"], student["grade"], student["age"])
+                    # 🎯 FIX: Pass the fully contextual 'student' dictionary instead of 'student_profile'
+                    st.session_state.study_plan = generate_study_plan(student, local_metrics)
+
                     
                     # Post transaction token balance metrics updates 
                     MwalimuDBService.increment_usage(uid, "has_study_plan")
@@ -1072,7 +1067,9 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
                 save_chat_message(name, grade, int(age), "student", user_question)
                 
                 with st.spinner("Mwalimu is thinking..."):
-                    response = ask_mwalimu(user_question, student=student, messages=st.session_state.messages[:-1])
+                    # 🎯 FIX: Match the exact order of structural arguments expected by ask_mwalimu in ai.py
+                    response = ask_mwalimu(user_question, student, st.session_state.messages[:-1])
+
                     
                 # 4. Critical: Increment usage AFTER successful response
                 MwalimuDBService.increment_usage(uid, "questions")
@@ -1081,6 +1078,586 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
                 st.session_state.messages.append({"role": "assistant", "content": response})
                 save_chat_message(name, grade, int(age), "assistant", response or "")
                 st.rerun()
+
+
+       # =====================================================================
+    # PAGE VIEW MODE 3: GENERATORS WORKSPACE HUB (WITH TIER GUARDS)
+    # =====================================================================
+    elif st.session_state.current_page == "Generators Hub":
+        st.markdown("---")
+        
+        # 1. Back Navigation Button
+        if st.button("⬅️ Go back to Main Chat Dashboard", use_container_width=True, key="back_from_generators"):
+            st.session_state.current_page = "Main Chat"
+            st.rerun()
+
+        st.markdown("---")
+        st.subheader("🎯 Mwalimu AI Learning Generators Hub")
+        st.write(f"Active Context: **{student['subject']}** ➡️ **{student['topic']}** ({student['language']})")
+
+        # 2. Fetch student tier profile data upfront using email lookup
+        user_profile_raw = get_student_data(st.session_state.user_email)
+        student_profile = user_profile_raw if user_profile_raw is not None else {}
+        
+        # Safely extract baseline profile details
+        name = str(student_profile.get("name", ""))
+        grade = str(student_profile.get("grade", ""))
+        try:
+            age_int = int(student_profile.get("age", 0))
+        except (ValueError, TypeError):
+            age_int = 0
+
+        # Safeguard Tier Lookup matching working sidebar patterns
+        subscription_tree = student_profile.get('subscription', {}) if isinstance(student_profile.get('subscription'), dict) else {}
+        raw_tier = subscription_tree.get('tier', 'Free')
+        user_tier = str(raw_tier).strip()
+        uid = str(st.session_state.get("uid") or st.session_state.user_email)
+
+        # Initialize global layout state variables if missing
+        if "quiz" not in st.session_state:
+            st.session_state.quiz = None
+        if "flashcards" not in st.session_state:
+            st.session_state.flashcards = None
+        if "lesson_content" not in st.session_state:
+            st.session_state.lesson_content = None
+
+        # Build Interactive Workspace Tabs Container
+        tab_quiz, tab_flash, tab_less = st.tabs(["📝 Quiz Generator", "🗂️ Flashcards Maker", "📖 Lesson Planner"])
+
+        # ==========================================
+        # --- 1. QUIZ GENERATOR TAB (TIER GUARDED) ---
+        # ==========================================
+        with tab_quiz:
+            st.subheader("Quiz Generator")
+            
+            # 1. Guard topic string assignment safely (Pylance Typecast Fix)
+            raw_quiz_input = st.text_input(
+                "Quiz Topic", 
+                placeholder="Defaults to current dynamic Sub topic selection", 
+                value=sub_topic if 'sub_topic' in locals() else "", 
+                key="workspace_quiz_topic"
+            )
+            quiz_topic: str = str(raw_quiz_input).strip() if raw_quiz_input else ""
+            
+            # 2. Fetch student tier profile data upfront using email lookup
+            user_profile_raw = get_student_data(st.session_state.user_email)
+            student_profile = user_profile_raw if user_profile_raw is not None else {}
+            
+            # Safely extract baseline profile details
+            name = str(student_profile.get("name", ""))
+            grade = str(student_profile.get("grade", ""))
+            try:
+                age_int = int(student_profile.get("age", 0))
+            except (ValueError, TypeError):
+                age_int = 0
+            
+            # Safeguard Tier Lookup matching working sidebar patterns
+            subscription_tree = student_profile.get('subscription', {}) if isinstance(student_profile.get('subscription'), dict) else {}
+            raw_tier = subscription_tree.get('tier', 'Free')
+            
+            # Normalize user_tier to match your tier guard system (Pylance Typecast Fix)
+            user_tier = str(raw_tier).strip()
+            
+            # ----------------------------------------------------
+            # AUTO-RESET CRITICAL BUG FIX: Clear stale limit states
+            # ----------------------------------------------------
+            if "premium" in user_tier.lower() or "plus" in user_tier.lower():
+                st.session_state.quiz_limit_reached = False
+            uid = str(st.session_state.get("uid") or st.session_state.user_email)
+            
+            # Check if there is an active quiz currently displayed on screen
+            if "quiz" not in st.session_state:
+                st.session_state.quiz = None
+            has_active_quiz = st.session_state.quiz is not None
+
+            # ----------------------------------------------------
+            # State-Driven Upgrade Gatekeeper Banner
+            # ----------------------------------------------------
+            if st.session_state.get("quiz_limit_reached") and not has_active_quiz:
+                st.error("⚠️ Quizzes Limit Reached! Wait for 24hrs or Upgrade to Premium to continue.")
+                
+                if st.button("🚀 Upgrade to Premium", key="quiz_upgrade_unique_btn"):
+                    st.session_state.pop("quiz_limit_reached", None)
+                    st.session_state.trigger_quiz_upgrade_modal = True
+                    st.rerun()
+
+            # ----------------------------------------------------
+            # Safe Modal Activation Layer (Prevents Continuous Loops)
+            # ----------------------------------------------------
+            if st.session_state.get("trigger_quiz_upgrade_modal"):
+                st.session_state.pop("trigger_quiz_upgrade_modal", None)
+                if 'show_upgrade_modal' in globals():
+                    show_upgrade_modal()
+
+            # ----------------------------------------------------
+            # Quiz Generation Action Trigger
+            # ----------------------------------------------------
+            if st.button("Generate Quiz", use_container_width=True):
+                if not quiz_topic:
+                    st.warning("Please enter a quiz topic.")
+                elif not name or not grade or age_int == 0:
+                    st.warning("Please create Student Profile in the sidebar first!")
+                
+                # Guard tier allowance at the moment of clicking using normalized variables
+                elif not verify_tier_allowance(uid, user_tier, "quizzes"):
+                    st.session_state.quiz_limit_reached = True
+                    st.rerun()
+                else:
+                    st.session_state.pop("quiz_limit_reached", None)
+                    with st.spinner("Generating quiz..."):
+                        # Ensure fallback fallback contextual arguments exist
+                        target_diff = get_next_difficulty(name, grade, age_int, quiz_topic)
+                        
+                        # 🎯 PASS CORRECTING CONTEXT: Use 'student' dict to send preferred_language and subject parameters
+                        active_context = student if 'student' in locals() else student_profile
+                        quiz_result = generate_quiz(quiz_topic, active_context, target_diff)
+                        
+                        if quiz_result:
+                            st.session_state.quiz = quiz_result
+                            st.session_state.quiz_submitted = False
+                            st.session_state.quiz_score = 0
+                            st.session_state.quiz_raw_score = 0
+                            
+                            MwalimuDBService.increment_usage(uid, "quizzes")
+                            
+                            if not verify_tier_allowance(uid, user_tier, "quizzes"):
+                                st.session_state.quiz_limit_reached = True
+                            
+                            save_activity(
+                                student_name=name,
+                                student_grade=grade,
+                                student_age=age_int,
+                                activity_type="quiz_generation",
+                                topic=quiz_topic,
+                                score=0,
+                                subject=student.get("subject", "General") if 'student' in locals() else "General",
+                                topics=student.get("topic", "General") if 'student' in locals() else "General",
+                                sub_topic=student.get("sub_topic", "General") if 'student' in locals() else "General",
+                                learning_outcome=student.get("learning_outcome", "General") if 'student' in locals() else "General"
+                            )
+                            st.rerun()
+
+            # ----------------------------------------------------
+            # 🎯 DYNAMIC LOCALIZATION LABELS FOR FRONTEND VIEW
+            # ----------------------------------------------------
+            current_lang = student.get("preferred_language", "English") if 'student' in locals() else "English"
+            is_swahili = "swahili" in str(current_lang).lower()
+            
+            label_q_prefix = "Swali" if is_swahili else "Question"
+            label_choice_title = "Chagua jibu:" if is_swahili else "Choose your answer:"
+            label_warning_unanswered = "Tafadhali jibu maswali yote kabla ya kuwasilisha." if is_swahili else "Please answer all questions before submitting."
+
+            # ----------------------------------------------------
+            # Render Active Quiz Layout (Stays open across user interactions)
+            # ----------------------------------------------------
+            if st.session_state.quiz:
+                #===
+                quiz_data = []
+                # 🎯 FIX: Declare clean_str outside the try block entirely
+                clean_str = "" 
+                
+                try:
+                    raw_json = st.session_state.quiz
+                    
+                    if isinstance(raw_json, str):
+                        clean_str = str(raw_json).strip()
+                        
+                        # 1. Clear out markdown code block wrappers
+                        if clean_str.startswith("```json"):
+                            clean_str = clean_str.replace("```json", "", 1).rstrip("`").strip()
+                        elif clean_str.startswith("```"):
+                            clean_str = clean_str.replace("```", "", 1).rstrip("`").strip()
+                        
+                        # Clean up typos like rogue operators or dangling equal signs
+                        clean_str = re.sub(r'\[\s*=\s*"', '["', clean_str)
+                        clean_str = re.sub(r',\s*=\s*"', ',"', clean_str)
+                        clean_str = re.sub(r'\[\s*:\s*"', '["', clean_str)
+                        clean_str = re.sub(r',\s*:\s*"', ',"', clean_str)
+
+                        # 2. Parse using standard JSON engine
+                        parsed_data = json.loads(clean_str)
+                    else:
+                        parsed_data = raw_json
+                    
+                    quiz_data = parsed_data.get("quiz", parsed_data.get("questions", [])) if isinstance(parsed_data, dict) else parsed_data
+                    
+                except Exception as parse_error:
+                    try:
+                        # Pylance is now guaranteed that clean_str is initialized to at least a blank string
+                        clean_ast = clean_str.replace("true", "True").replace("false", "False").replace("null", "None")
+                        parsed_data = ast.literal_eval(clean_ast)
+                        quiz_data = parsed_data.get("quiz", parsed_data.get("questions", [])) if isinstance(parsed_data, dict) else parsed_data
+                    except Exception:
+                        quiz_data = st.session_state.quiz
+
+
+
+
+                # Draw questions loop cleanly if parsed format matches
+                if isinstance(quiz_data, list):
+                    st.markdown("### Generated Quiz")
+                    for i, question in enumerate(quiz_data):
+                        st.markdown(f"#### {label_q_prefix} {i+1}")
+                        
+                        raw_opts = question.get("options", [])
+                        options_list = list(raw_opts.values()) if isinstance(raw_opts, dict) else raw_opts
+                        
+                        st.radio(
+                            question.get("question", ""),
+                            options_list,
+                            index=None,
+                            key=f"q_{i}",
+                            disabled=st.session_state.get("quiz_submitted", False),
+                            label_visibility="visible" if label_choice_title else "collapsed"
+                        )
+                    
+                    # Submit handling block
+                    if not st.session_state.get("quiz_submitted", False):
+                        if st.button("Submit Quiz", use_container_width=True):
+                            current_answers = [st.session_state.get(f"q_{i}") for i in range(len(quiz_data))]
+                            if None in current_answers:
+                                st.warning(label_warning_unanswered)
+                            else:
+                                score = 0
+                                for i, q in enumerate(quiz_data):
+                                    if current_answers[i] == q.get("answer"):
+                                        score += 1
+                                    
+                                st.session_state.quiz_raw_score = score
+                                st.session_state.quiz_score = round((score / len(quiz_data)) * 100)
+                                st.session_state.quiz_submitted = True
+                                
+                                save_activity(
+                                    student_name=name, student_grade=grade, student_age=age_int,
+                                    activity_type="quiz_score", topic=quiz_topic,
+                                    score=st.session_state.quiz_score,
+                                    subject=student.get("subject", "General") if 'student' in locals() else "General", 
+                                    topics=student.get("topic", "General") if 'student' in locals() else "General", 
+                                    sub_topic=student.get("sub_topic", "General") if 'student' in locals() else "General",
+                                    learning_outcome=student.get("learning_outcome", "General") if 'student' in locals() else "General"
+                                )
+                                st.rerun()
+
+                # ---------------------------------------------------- 
+                # Post-Submission Review Display
+                # ----------------------------------------------------
+                if st.session_state.get("quiz_submitted", False) and isinstance(quiz_data, list):
+                    raw_score = st.session_state.get("quiz_raw_score", 0)
+                    total_questions = len(quiz_data)
+                    percentage = st.session_state.get("quiz_score", 0)
+                    
+                    # Localized correction metrics card titles
+                    banner_msg = f"🎉 Umepata {raw_score}/{total_questions} ({percentage}%)" if is_swahili else f"📊 You scored {raw_score}/{total_questions} ({percentage}%)"
+                    st.success(banner_msg)
+                    
+                    review_heading = "### Uhakiki wa Majibu" if is_swahili else "### Answer Review"
+                    st.markdown(review_heading)
+                    
+                    for i, q in enumerate(quiz_data):
+                        student_answer = st.session_state.get(f"q_{i}")
+                        correct_answer = q.get("answer")
+                        
+                        st.markdown(f"**{label_q_prefix} {i+1}**")
+                        st.write(q.get("question"))
+                        
+                        answer_label = "👉 Jibu Lako:" if is_swahili else "👉 Your Answer:"
+                        correct_label = "Jibu Sahihi:" if is_swahili else "Correct Answer:"
+                        
+                        st.write(f"*{answer_label}* `{student_answer}`")
+                        
+                        if student_answer == correct_answer:
+                            st.success(f"✅ {correct_label} {correct_answer}")
+                        else:
+                            st.error(f"❌ {correct_label} {correct_answer}")
+                    
+                    # Clear layout to reset state controls cleanly
+                    reset_label = "Futa Matokeo ya Maswali" if is_swahili else "Clear Quiz Results"
+                    if st.button(reset_label, use_container_width=True, key="clear_workspace_quiz_results"):
+                        st.session_state.quiz = None
+                        st.session_state.quiz_submitted = False
+                        st.session_state.quiz_score = 0
+                        st.session_state.quiz_raw_score = 0
+                        
+                        if not verify_tier_allowance(uid, user_tier, "quizzes"):
+                            st.session_state.quiz_limit_reached = True
+                        st.rerun()
+
+
+
+        # ==========================================
+        # --- 2. FLASHCARDS TAB (TIER GUARDED) ---
+        # ==========================================
+                #=====Flash Card ====
+        with tab_flash:
+            st.subheader("AI Flashcards Maker")
+            
+            # Ensure input string extraction can never evaluate as NoneType or throw Pylance errors
+            raw_fc_input = st.text_input("Enter a topic for your flashcards:", value=sub_topic if 'sub_topic' in locals() else "", key="fc_topic")
+            flashcard_topic: str = str(raw_fc_input).strip() if raw_fc_input else ""
+            
+            # Fetch student tier profile data upfront using clean email lookups
+            user_profile_raw = get_student_data(st.session_state.user_email)
+            student_profile = user_profile_raw if user_profile_raw is not None else {}
+            
+            # Safely extract baseline profile details
+            name = str(student_profile.get("name", ""))
+            grade = str(student_profile.get("grade", ""))
+            try:
+                age_int = int(student_profile.get("age", 0))
+            except (ValueError, TypeError):
+                age_int = 0
+
+            # Safeguard Tier Lookup matching working sidebar patterns
+            subscription_tree = student_profile.get('subscription', {}) if isinstance(student_profile.get('subscription'), dict) else {}
+            raw_tier = subscription_tree.get('tier', 'Free')
+            
+            # Normalize user_tier to match your tier guard system
+            user_tier = str(raw_tier).strip()
+            
+            # ----------------------------------------------------
+            # AUTO-RESET CRITICAL BUG FIX: Clear stale limit states 
+            # ----------------------------------------------------
+            if "premium" in user_tier.lower() or "plus" in user_tier.lower():
+                st.session_state.flashcards_limit_reached = False
+
+            uid = str(st.session_state.get("uid") or st.session_state.user_email)
+            
+            # Check if there are active flashcards currently displayed on screen safely
+            if "flashcards" not in st.session_state:
+                st.session_state.flashcards = None
+                
+            has_active_flashcards = st.session_state.flashcards is not None
+
+            # ----------------------------------------------------
+            # State-Driven Upgrade Gatekeeper Banner
+            # ----------------------------------------------------
+            if st.session_state.get("flashcards_limit_reached") and not has_active_flashcards:
+                st.error("⚠️ Flashcards Limit Reached! Wait for 24hrs or Upgrade to Premium to continue.")
+                
+                if st.button("🚀 Upgrade to Premium", key="fc_upgrade_unique_btn"):
+                    st.session_state.pop("flashcards_limit_reached", None)
+                    st.session_state.trigger_fc_upgrade_modal = True
+                    st.rerun()
+
+            # ----------------------------------------------------
+            # Safe Modal Activation Layer (Prevents Continuous Loops)
+            # ----------------------------------------------------
+            if st.session_state.get("trigger_fc_upgrade_modal"):
+                st.session_state.pop("trigger_fc_upgrade_modal", None)
+                if 'show_upgrade_modal' in globals():
+                    show_upgrade_modal()
+
+            # ----------------------------------------------------
+            # Flashcards Generation Action Trigger
+            # ----------------------------------------------------
+            if st.button("Generate Flashcards", use_container_width=True, key="execute_workspace_flashcards"):
+                if not flashcard_topic:
+                    st.warning("Please enter a valid topic first!")
+                elif not name or not grade or age_int == 0:
+                    st.warning("Please create Student Profile in the sidebar first!")
+                
+                # Guard tier allowance at the moment of clicking using unified parameters
+                elif not verify_tier_allowance(uid, user_tier, "flashcards"):
+                    st.session_state.flashcards_limit_reached = True
+                    st.rerun()
+                else:
+                    st.session_state.pop("flashcards_limit_reached", None)
+
+                    with st.spinner("Mwalimu AI is writing your flashcards..."):
+                        # 🎯 FIX: Pass active contextual 'student' map to respect Subject and preferred_language
+                        active_context = student if 'student' in locals() else student_profile
+                        fc_result = generate_flashcards(flashcard_topic, active_context)
+                        
+                        if fc_result:
+                            st.session_state.flashcards = fc_result
+                            MwalimuDBService.increment_usage(uid, "flashcards")
+                            
+                            if not verify_tier_allowance(uid, user_tier, "flashcards"):
+                                st.session_state.flashcards_limit_reached = True
+                            st.rerun()
+
+            # ----------------------------------------------------
+            # SAFE DISPLAY & STRUCTURAL JSON PARSING LAYER
+            # ----------------------------------------------------
+            if st.session_state.flashcards:
+                st.info("💡 Click 'Show Answer' to test your active recall memory knowledge!")
+                
+                import json
+                try:
+                    cards_data = st.session_state.flashcards
+                    
+                    # Clean and unpack markdown string code block wrappers safely
+                    if isinstance(cards_data, str):
+                        clean_flash = str(cards_data).strip()
+                        if clean_flash.startswith("```json"):
+                            clean_flash = clean_flash.replace("```json", "", 1).rstrip("`").strip()
+                        elif clean_flash.startswith("```"):
+                            clean_flash = clean_flash.replace("```", "", 1).rstrip("`").strip()
+                        cards_data = json.loads(clean_flash)
+                    
+                    # Unroll nested payload mappings gracefully matching all potential AI output types
+                    if isinstance(cards_data, dict):
+                        actual_list = cards_data.get("flashcards", cards_data.get("cards", cards_data.get("questions", [])))
+                    elif isinstance(cards_data, list):
+                        actual_list = cards_data
+                    else:
+                        actual_list = []
+
+                    # Draw interactive elements loops safely
+                    for idx, card in enumerate(actual_list):
+                        if isinstance(card, dict):
+                            # 🎯 FIX: Check for English AND Swahili key variants generated by the AI
+                            q_text = card.get("front", card.get("question", card.get("swali", card.get("mbele", "No question context"))))
+                            a_text = card.get("back", card.get("answer", card.get("jibu", card.get("nyuma", "No answer context"))))
+                        else:
+                            q_text = f"Card Detail Element {idx + 1}"
+                            a_text = str(card)
+
+                        st.markdown(f"### Flashcard {idx + 1}")
+                        st.write(f"**❓ Question:** {q_text}")
+                        
+                        with st.expander("👁️ Show Answer"):
+                            st.success(f"**💡 Answer:** {a_text}")
+
+                            
+                except Exception as parse_error:
+                    # Absolute emergency string fallback layout to prevent crashes if JSON format breaks
+                    st.markdown(st.session_state.flashcards)
+                
+                st.markdown("---")
+                if st.button("Clear Flashcards", use_container_width=True, key="clear_workspace_flashcards"):
+                    st.session_state.flashcards = None
+                    if not verify_tier_allowance(uid, user_tier, "flashcards"):
+                        st.session_state.flashcards_limit_reached = True
+                    st.rerun()
+
+
+        # ==========================================
+        # --- 3. LESSON GENERATOR TAB (TIER GUARDED) ---
+        # ==========================================
+                # ==========================================
+        # --- 3. LESSON GENERATOR TAB (TIER GUARDED) ---
+        # ==========================================
+        with tab_less:
+            st.subheader("AI Lessons Generator")
+            
+            # 🎯 PYLANCE FIX: Protect lesson text input string binding variables from NoneType evaluations
+            # If learning_outcome is missing or local context varies, it defaults safely to an empty string
+            default_lesson_value = learning_outcome if 'learning_outcome' in locals() and learning_outcome else ""
+            raw_lesson_input = st.text_input("Enter the topic you want to learn today:", value=default_lesson_value, key="lesson_topic_input")
+            lesson_topic: str = str(raw_lesson_input).strip() if raw_lesson_input else ""
+            
+            # Fetch student tier profile data upfront using structured backend definitions
+            student_profile = get_student_data(st.session_state.user_email) or {}
+            subscription = student_profile.get("subscription", {}) if isinstance(student_profile.get("subscription"), dict) else {}
+            user_tier = str(subscription.get("tier", "Free")).strip()
+            uid = str(st.session_state.get("uid") or st.session_state.user_email)
+            
+            # Extract baseline metrics for your background firestore activity logging map layers
+            name = str(student_profile.get("name", "Student"))
+            grade = str(student_profile.get("grade", "General"))
+            try:
+                age_int = int(student_profile.get("age", 0))
+            except (ValueError, TypeError):
+                age_int = 0
+            
+            # Check if there is active lesson content currently displayed on screen safely
+            has_active_lesson = "lesson_content" in st.session_state and st.session_state.lesson_content is not None
+
+            # ----------------------------------------------------
+            # State-Driven Upgrade Gatekeeper Banner
+            # ----------------------------------------------------
+            if st.session_state.get("lessons_limit_reached") and not has_active_lesson:
+                st.error("⚠️ Lessons Limit Reached, Wait for 24hrs or Upgrade to Premium to continue!")
+                
+                if st.button("🚀 Upgrade to Premium", key="lesson_upgrade_unique_btn"):
+                    st.session_state.pop("lessons_limit_reached", None)
+                    st.session_state.trigger_lesson_upgrade_modal = True
+                    st.rerun()
+
+            # ----------------------------------------------------
+            # Safe Modal Activation Layer (Prevents Continuous Loops)
+            # ----------------------------------------------------
+            if st.session_state.get("trigger_lesson_upgrade_modal"):
+                st.session_state.pop("trigger_lesson_upgrade_modal", None)
+                if 'show_upgrade_modal' in globals():
+                    show_upgrade_modal()
+
+            # ----------------------------------------------------
+            # Lessons Generation Action Trigger
+            # ----------------------------------------------------
+            if st.button("Generate Lesson", use_container_width=True, key="execute_workspace_lessons"):
+                if not lesson_topic:
+                    st.warning("Please enter a valid lesson topic first!")
+                elif not name or name == "Student":
+                    st.warning("Please create Student Profile in the sidebar first!")
+                
+                # 🎯 1. FIX: Request allowance using the exact plural configuration key
+                elif not verify_tier_allowance(st.session_state.user_email, user_tier, "lessons"):
+                    st.session_state.lessons_limit_reached = True
+                    st.rerun()
+                else:
+                    st.session_state.pop("lessons_limit_reached", None)
+
+                    with st.spinner("Mwalimu AI is preparing your personalized lesson..."):
+                        try:
+                            active_student_context = student if 'student' in locals() else student_profile
+                            st.session_state.lesson_content = generate_lesson(lesson_topic, active_student_context)
+                            
+                            # 🎯 2. FIX: Deduct usage tokens inside the plural "lessons" registry row
+                            MwalimuDBService.increment_usage(uid, "lessons")
+                            
+                            st.session_state.user_profile = None  # Instantly wipe the view profile RAM cache
+                            
+                            if not verify_tier_allowance(st.session_state.user_email, user_tier, "lessons"):
+                                st.session_state.lessons_limit_reached = True
+                                
+                            act_subject = student.get("subject", "General") if 'student' in locals() else "General"
+                            act_topic = student.get("topic", "General") if 'student' in locals() else "General"
+                            act_sub = student.get("sub_topic", "General") if 'student' in locals() else "General"
+                            act_out = student.get("learning_outcome", "General") if 'student' in locals() else "General"
+
+                            # 🎯 3. FIX: Save activity mapping configuration tracking logs as "lessons"
+                            save_activity(
+                                student_name=name, student_grade=grade, student_age=age_int,
+                                activity_type="lessons", topic=lesson_topic, score=0,
+                                subject=act_subject, topics=act_topic, sub_topic=act_sub, learning_outcome=act_out
+                            )
+                        except Exception as e:
+                            st.error(f"Failed to generate lesson: {str(e)}")
+                        st.rerun()
+
+
+                        
+            # ----------------------------------------------------
+            # Render Active Lesson Layout (Safe String Backtick Cleaner)
+            # ----------------------------------------------------
+            if "lesson_content" in st.session_state and st.session_state.lesson_content:
+                st.markdown("---")
+                st.info("Tip: Read through the breakdown below. Mwalimu customized this explanation precisely for your style!")
+                
+                raw_lesson = st.session_state.lesson_content
+                if raw_lesson and isinstance(raw_lesson, str):
+                    # 🎯 PYLANCE FIX: Safely wrap string cast evaluations before cleaning block backticks
+                    safe_lesson: str = str(raw_lesson).strip()
+                    
+                    if safe_lesson.startswith("```markdown"):
+                        safe_lesson = safe_lesson.replace("```markdown", "", 1).rstrip("`").strip()
+                    elif safe_lesson.startswith("```"):
+                        safe_lesson = safe_lesson.replace("```", "", 1).rstrip("`").strip()
+                    st.markdown(safe_lesson)
+                else:
+                    st.write(raw_lesson)
+                    
+                if st.button("Clear Lesson Content", use_container_width=True, key="clear_workspace_lessons"):
+                    st.session_state.lesson_content = None
+                    
+                    if not verify_tier_allowance(st.session_state.user_email, user_tier, "lessons"):
+                        st.session_state.lessons_limit_reached = True
+                    st.rerun()
+
+
+
 
    # PAGE VIEW MODE 2: VOICE TUTOR DASHBOARD MODE
     elif st.session_state.current_page == "Voice Tutor":
@@ -1198,442 +1775,7 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
         else:
             st.error("Unable to load active profile registry parameters from database data stores.")
 
-    # PAGE VIEW MODE 3: GENERATORS WORKSPACE HUB
-    elif st.session_state.current_page == "Generators Hub":
-        st.markdown("---")
-        student_profile = get_student_data(st.session_state.user_email)
-        if st.button("Go back to Main Chat Dashboard", use_container_width=True, key="back_from_generators"):
-            st.session_state.current_page = "Main Chat"
-            st.rerun()
-
-        st.markdown("---")
-
-        #=== GENERATOR TABS======
-       
-        tab1, tab2, tab3 = st.tabs(["Quiz Generator Engine", "AI Flashcards Maker", "AI Lessons Generator"])
-        with tab1:
-            st.subheader("Quiz Generator")
-            
-            # 1. Guard topic string assignment safely
-            raw_quiz_input = st.text_input(
-                "Quiz Topic", 
-                placeholder="Defaults to current dynamic Sub topic selection", 
-                value=sub_topic if 'sub_topic' in locals() else "", 
-                key="workspace_quiz_topic"
-            )
-            quiz_topic: str = raw_quiz_input.strip() if raw_quiz_input else ""
-            
-            # 2. Fetch student tier profile data upfront using email lookup
-            user_profile_raw = get_student_data(st.session_state.user_email)
-            student_profile = user_profile_raw if user_profile_raw is not None else {}
-            
-            # Safely extract baseline profile details
-            name = str(student_profile.get("name", ""))
-            grade = str(student_profile.get("grade", ""))
-            try:
-                age_int = int(student_profile.get("age", 0))
-            except (ValueError, TypeError):
-                age_int = 0
-
-            # Safeguard Tier Lookup matching working sidebar patterns
-            subscription_tree = student_profile.get('subscription', {}) if isinstance(student_profile.get('subscription'), dict) else {}
-            raw_tier = subscription_tree.get('tier', 'Free')
-            
-            # Normalize user_tier to match your tier guard system
-            user_tier = str(raw_tier).strip()
-            
-            # ----------------------------------------------------
-            # AUTO-RESET CRITICAL BUG FIX: Clear stale limit states 
-            # ----------------------------------------------------
-            if "premium" in user_tier.lower() or "plus" in user_tier.lower():
-                st.session_state.quiz_limit_reached = False
-
-            uid = str(st.session_state.get("uid") or st.session_state.user_email)
-            
-            # Check if there is an active quiz currently displayed on screen
-            if "quiz" not in st.session_state:
-                st.session_state.quiz = None
-            has_active_quiz = st.session_state.quiz is not None
-
-            # ----------------------------------------------------
-            # State-Driven Upgrade Gatekeeper Banner
-            # ----------------------------------------------------
-            if st.session_state.get("quiz_limit_reached") and not has_active_quiz:
-                st.error("⚠️ Quizzes Limit Reached! Wait for 24hrs or Upgrade to Premium to continue.")
-                
-                if st.button("🚀 Upgrade to Premium", key="quiz_upgrade_unique_btn"):
-                    st.session_state.pop("quiz_limit_reached", None)
-                    st.session_state.trigger_quiz_upgrade_modal = True
-                    st.rerun()
-
-            # ----------------------------------------------------
-            # Safe Modal Activation Layer (Prevents Continuous Loops)
-            # ----------------------------------------------------
-            if st.session_state.get("trigger_quiz_upgrade_modal"):
-                st.session_state.pop("trigger_quiz_upgrade_modal", None)
-                show_upgrade_modal()
-
-            # ----------------------------------------------------
-            # Quiz Generation Action Trigger
-            # ----------------------------------------------------
-            if st.button("Generate Quiz", use_container_width=True):
-                if not quiz_topic:
-                    st.warning("Please enter a quiz topic.")
-                elif not name or not grade or age_int == 0:
-                    st.warning("Please create Student Profile in the sidebar first!")
-                
-                # Guard tier allowance at the moment of clicking using normalized variables
-                elif not verify_tier_allowance(uid, user_tier, "quizzes"):
-                    st.session_state.quiz_limit_reached = True
-                    st.rerun()
-                else:
-                    st.session_state.pop("quiz_limit_reached", None)
-
-                    with st.spinner("Generating quiz..."):
-                        # Ensure fallback fallback contextual arguments exist
-                        target_diff = get_next_difficulty(name, grade, age_int, quiz_topic)
-                        
-                        # Replace undefined variable references safely with dictionary values
-                        quiz_result = generate_quiz(quiz_topic, student_profile, target_diff)
-                        
-                        if quiz_result:
-                            st.session_state.quiz = quiz_result
-                            st.session_state.quiz_submitted = False
-                            st.session_state.quiz_score = 0
-                            st.session_state.quiz_raw_score = 0
-                            
-                            MwalimuDBService.increment_usage(uid, "quizzes")
-                            
-                            if not verify_tier_allowance(uid, user_tier, "quizzes"):
-                                st.session_state.quiz_limit_reached = True
-                            
-                            save_activity(
-                                student_name=name,
-                                student_grade=grade,
-                                student_age=age_int,
-                                activity_type="quiz_generation",
-                                topic=quiz_topic,
-                                score=0,
-                                subject=subject if 'subject' in locals() and subject else "General",
-                                topics=topic if 'topic' in locals() and topic else "General",
-                                sub_topic=sub_topic if 'sub_topic' in locals() and sub_topic else "General",
-                                learning_outcome=learning_outcome if 'learning_outcome' in locals() and learning_outcome else "General"
-                            )
-                            st.rerun()
-                            
-            # ----------------------------------------------------
-            # Render Active Quiz Layout (Stays open across user interactions)
-            # ----------------------------------------------------
-            if st.session_state.quiz:
-                st.markdown("### Generated Quiz")
-                for i, question in enumerate(st.session_state.quiz):
-                    st.markdown(f"#### Question {i+1}")
-                    st.radio(
-                        question["question"],
-                        question["options"],
-                        index=None,
-                        key=f"q_{i}",
-                        disabled=st.session_state.get("quiz_submitted", False)
-                    )
-                    
-                # Submit handling block
-                if not st.session_state.get("quiz_submitted", False):
-                    if st.button("Submit Quiz", use_container_width=True):
-                        current_answers = [st.session_state.get(f"q_{i}") for i in range(len(st.session_state.quiz))]
-                        if None in current_answers:
-                            st.warning("Please answer all questions before submitting.")
-                        else:
-                            score = 0
-                            for i, q in enumerate(st.session_state.quiz):
-                                if current_answers[i] == q["answer"]:
-                                    score += 1
-                            st.session_state.quiz_raw_score = score
-                            st.session_state.quiz_score = round((score / len(st.session_state.quiz)) * 100)
-                            st.session_state.quiz_submitted = True
-                            
-                            save_activity(
-                                student_name=name, student_grade=grade, student_age=age_int,
-                                activity_type="quiz_score", topic=quiz_topic,
-                                score=st.session_state.quiz_score,
-                                subject=subject if 'subject' in locals() and subject else "General", 
-                                topics=topic if 'topic' in locals() and topic else "General", 
-                                sub_topic=sub_topic if 'sub_topic' in locals() and sub_topic else "General",
-                                learning_outcome=learning_outcome if 'learning_outcome' in locals() and learning_outcome else "General"
-                            )
-                            st.rerun()
-
-                # ----------------------------------------------------                               
-                # Post-Submission Review Display
-                # ----------------------------------------------------
-                if st.session_state.get("quiz_submitted", False):
-                    raw_score = st.session_state.get("quiz_raw_score", 0)
-                    total_questions = len(st.session_state.quiz) if st.session_state.quiz else 0
-                    percentage = st.session_state.get("quiz_score", 0)
-                    
-                    st.success(f"📊 You scored {raw_score}/{total_questions} ({percentage}%)")
-                    
-                    st.markdown("### 🔍 Answer Review")
-                    for i, q in enumerate(st.session_state.quiz):
-                        student_answer = st.session_state.get(f"q_{i}")
-                        correct_answer = q.get("answer")
-                        
-                        st.markdown(f"**Question {i+1}**")
-                        st.write(q.get("question"))
-                        st.write(f"👉 **Your Answer:** {student_answer}")
-                        
-                        if student_answer == correct_answer:
-                            st.success(f"✅ Correct Answer: {correct_answer}")
-                        else:
-                            st.error(f"❌ Correct Answer: {correct_answer}")
-                            
-                    # Clear layout to reset state controls cleanly
-                    if st.button("Clear Quiz Results", use_container_width=True):
-                        st.session_state.quiz = None
-                        st.session_state.quiz_submitted = False
-                        st.session_state.quiz_score = 0
-                        st.session_state.quiz_raw_score = 0
-                        
-                        # Check remaining limits using the validated tracking parameters
-                        if not verify_tier_allowance(uid, user_tier, "quizzes"):
-                            st.session_state.quiz_limit_reached = True
-                        st.rerun()
-
-
-
-        #=====Flash Card ====
-                        
-        with tab2:
-            st.subheader("AI Flashcards Maker")
-            
-            # Ensure input string extraction can never evaluate as NoneType
-            raw_fc_input = st.text_input("Enter a topic for your flashcards:", value=sub_topic if 'sub_topic' in locals() else "", key="fc_topic")
-            flashcard_topic: str = raw_fc_input.strip() if raw_fc_input else ""
-            
-            # Fetch student tier profile data upfront using clean email lookups
-            user_profile_raw = get_student_data(st.session_state.user_email)
-            student_profile = user_profile_raw if user_profile_raw is not None else {}
-            
-            # Safely extract baseline profile details
-            name = str(student_profile.get("name", ""))
-            grade = str(student_profile.get("grade", ""))
-            try:
-                age_int = int(student_profile.get("age", 0))
-            except (ValueError, TypeError):
-                age_int = 0
-
-            # Safeguard Tier Lookup matching working sidebar patterns
-            subscription_tree = student_profile.get('subscription', {}) if isinstance(student_profile.get('subscription'), dict) else {}
-            raw_tier = subscription_tree.get('tier', 'Free')
-            
-            # Normalize user_tier to match your tier guard system
-            user_tier = str(raw_tier).strip()
-            
-            # ----------------------------------------------------
-            # AUTO-RESET CRITICAL BUG FIX: Clear stale limit states 
-            # ----------------------------------------------------
-            if "premium" in user_tier.lower() or "plus" in user_tier.lower():
-                st.session_state.flashcards_limit_reached = False
-
-            uid = str(st.session_state.get("uid") or st.session_state.user_email)
-            
-            # Check if there are active flashcards currently displayed on screen safely
-            if "flashcards" not in st.session_state or not isinstance(st.session_state.flashcards, list):
-                st.session_state.flashcards = []
-                
-            has_active_flashcards = len(st.session_state.flashcards) > 0
-
-            # ----------------------------------------------------
-            # State-Driven Upgrade Gatekeeper Banner
-            # ----------------------------------------------------
-            if st.session_state.get("flashcards_limit_reached") and not has_active_flashcards:
-                st.error("⚠️ Flashcards Limit Reached! Wait for 24hrs or Upgrade to Premium to continue.")
-                
-                if st.button("🚀 Upgrade to Premium", key="fc_upgrade_unique_btn"):
-                    st.session_state.pop("flashcards_limit_reached", None)
-                    st.session_state.trigger_fc_upgrade_modal = True
-                    st.rerun()
-
-            # ----------------------------------------------------
-            # Safe Modal Activation Layer (Prevents Continuous Loops)
-            # ----------------------------------------------------
-            if st.session_state.get("trigger_fc_upgrade_modal"):
-                st.session_state.pop("trigger_fc_upgrade_modal", None)
-                show_upgrade_modal()
-
-            # ----------------------------------------------------
-            # Flashcards Generation Action Trigger
-            # ----------------------------------------------------
-            if st.button("Generate Flashcards", use_container_width=True):
-                if not flashcard_topic:
-                    st.warning("Please enter a valid topic first!")
-                elif not name or not grade or age_int == 0:
-                    st.warning("Please create Student Profile in the sidebar first!")
-                
-                # Guard tier allowance at the moment of clicking using unified parameters
-                elif not verify_tier_allowance(uid, user_tier, "flashcards"):
-                    st.session_state.flashcards_limit_reached = True
-                    st.rerun()
-                else:
-                    st.session_state.pop("flashcards_limit_reached", None)
-
-                    with st.spinner("Mwalimu AI is writing your flashcards..."):
-                        # Replace undefined 'student' reference with clean dictionary payload
-                        fc_result = generate_flashcards(flashcard_topic, student_profile)
-                        
-                        # Fallback parsing support if model output is a raw JSON string instead of an unrolled list
-                        if isinstance(fc_result, str):
-                            import json
-                            try:
-                                fc_result = json.loads(fc_result)
-                            except Exception:
-                                # Convert raw text strings directly to a valid card format to prevent system crashes
-                                fc_result = [{"question": "Topic Summary", "answer": fc_result}]
-
-                        st.session_state.flashcards = fc_result if isinstance(fc_result, list) else []
-                        
-                        MwalimuDBService.increment_usage(uid, "flashcards")
-                        
-                        if not verify_tier_allowance(uid, user_tier, "flashcards"):
-                            st.session_state.flashcards_limit_reached = True
-                        st.rerun()
-
-            # ----------------------------------------------------
-            # SAFE DISPLAY LAYER: Prevents 'str object has no attribute get'
-            # ----------------------------------------------------
-            if st.session_state.flashcards:
-                st.info("💡 Click 'Show Answer' to test your active recall memory knowledge!")
-                
-                for idx, card in enumerate(st.session_state.flashcards):
-                    # Direct data mutation guard check: ensure item is a dictionary object
-                    if isinstance(card, dict):
-                        q_text = card.get("question", "No question text provided")
-                        a_text = card.get("answer", "No answer text provided")
-                    else:
-                        # Fallback if list contains raw string objects
-                        q_text = f"Card details text format variant {idx + 1}"
-                        a_text = str(card)
-
-                    st.markdown(f"### Flashcard {idx + 1}")
-                    st.write(f"**❓ Question:** {q_text}")
-                    
-                    with st.expander("👁️ Show Answer"):
-                        st.success(f"**💡 Answer:** {a_text}")
-                
-                if st.button("Clear Flashcards", use_container_width=True):
-                    st.session_state.flashcards = []
-                    if not verify_tier_allowance(uid, user_tier, "flashcards"):
-                        st.session_state.flashcards_limit_reached = True
-                    st.rerun()
-
-
-                    
-        with tab3:
-            st.subheader("AI Lessons Generator")
-            
-            # Protect lesson text input string binding variables
-            raw_lesson_input = st.text_input("Enter the topic you want to learn today:", value=learning_outcome, key="lesson_topic_input")
-            lesson_topic: str = raw_lesson_input.strip() if raw_lesson_input else ""
-            
-            # Fetch student tier profile data upfront
-            student_profile = get_student_data(st.session_state.user_email)
-            subscription = student_profile.get("subscription", {}) if student_profile else {}
-            user_tier = subscription.get("tier", "Free")
-            uid = st.session_state.get("uid") or st.session_state.user_email
-            
-            # Check if there is active lesson content currently displayed on screen
-            has_active_lesson = "lesson_content" in st.session_state and st.session_state.lesson_content is not None
-
-            # ----------------------------------------------------
-            # State-Driven Upgrade Gatekeeper Banner
-            # ----------------------------------------------------
-            # Only show the limit banner if they reached the limit and are NOT currently reading a lesson
-            if st.session_state.get("lessons_limit_reached") and not has_active_lesson:
-                st.error("⚠️ Lessons Limit Reached, Wait for 24hrs or Upgrade to Premium to continue!")
-                
-                if st.button("🚀 Upgrade to Premium", key="lesson_upgrade_unique_btn"):
-                    # 1. Clear the banner state flag immediately 
-                    st.session_state.pop("lessons_limit_reached", None)
-                    
-                    # 2. Stage a temporary trigger instead of a permanent True state
-                    st.session_state.trigger_lesson_upgrade_modal = True
-                    st.rerun()
-
-            # ----------------------------------------------------
-            # Safe Modal Activation Layer (Prevents Continuous Loops)
-            # ----------------------------------------------------
-            if st.session_state.get("trigger_lesson_upgrade_modal"):
-                # Instantly remove the flag so it only runs EXACTLY once
-                st.session_state.pop("trigger_lesson_upgrade_modal", None)
-                show_upgrade_modal()
-
-            # ----------------------------------------------------
-            # Lessons Generation Action Trigger
-            # ----------------------------------------------------
-            if st.button("Generate Lesson", use_container_width=True):
-                if not lesson_topic:
-                    st.warning("Please enter a valid lesson topic first!")
-                elif not name:
-                    st.warning("Please create Student Profile in the sidebar first!")
-                
-                # Guard tier allowance at the moment of clicking (matches the specific 'lessons' rule context)
-                elif not verify_tier_allowance(st.session_state.user_email, user_tier, "lessons"):
-                    # Flag the limit state to render the warning button block safely on next loop pass
-                    st.session_state.lessons_limit_reached = True
-                    st.rerun()
-                else:
-                    # Clear any lingering warning states since execution is valid
-                    st.session_state.pop("lessons_limit_reached", None)
-
-                    with st.spinner("Mwalimu AI is preparing your personalized lesson..."):
-                        try:
-                            st.session_state.lesson_content = generate_lesson(lesson_topic, student)
-                            
-                            # Deduct the remaining balance token instantly after generation
-                            MwalimuDBService.increment_usage(st.session_state.user_email, "lessons")
-                            
-                            # Double-check if that last click used up the allowance balance
-                            if not verify_tier_allowance(st.session_state.user_email, user_tier, "lessons"):
-                                st.session_state.lessons_limit_reached = True
-                                
-                            save_activity(
-                                student_name=name, student_grade=grade, student_age=int(age),
-                                activity_type="lesson", topic=lesson_topic, score=0,
-                                subject=subject if subject else "General", 
-                                topics=topic if topic else "General", 
-                                sub_topic=sub_topic if sub_topic else "General",
-                                learning_outcome=learning_outcome if learning_outcome else "General"
-                            )
-                        except Exception as e:
-                            st.error(f"Failed to generate lesson: {str(e)}")
-                        st.rerun()
-                        
-            # ----------------------------------------------------
-            # Render Active Lesson Layout
-            # ----------------------------------------------------
-            if "lesson_content" in st.session_state and st.session_state.lesson_content:
-                st.markdown("---")
-                st.info("Tip: Read through the breakdown below. Mwalimu customized this explanation precisely for your style!")
-                
-                raw_lesson = st.session_state.lesson_content
-                if raw_lesson and isinstance(raw_lesson, str):
-                    safe_lesson: str = raw_lesson
-                    
-                    if safe_lesson.startswith("```markdown"):
-                        safe_lesson = safe_lesson.replace("```markdown", "", 1).rstrip("```")
-                    elif safe_lesson.startswith("```"):
-                        safe_lesson = safe_lesson.strip("```")
-                    st.markdown(safe_lesson)
-                else:
-                    st.write(raw_lesson)
-                    
-                if st.button("Clear Lesson Content", use_container_width=True):
-                    st.session_state.lesson_content = None
-                    
-                    # Check limits again. If they were out of limits, the banner will now reappear cleanly
-                    if not verify_tier_allowance(st.session_state.user_email, user_tier, "lessons"):
-                        st.session_state.lessons_limit_reached = True
-                    st.rerun()
-
+   
 
 
 #===========================
@@ -1768,10 +1910,11 @@ else:
 
         # Feature Grid (Card Layout)
         st.subheader("Everything You Need to Excel")
-        grid_cols = st.columns(3)
+        grid_cols = st.columns(4)
         features = [
             ("📚 CBC Coverage", "Comprehensive content for Grades 1–12."),
             ("🎯 Personalized Study Plans", "AI-driven goals for every student."),
+            ("💬 Live Chat With Mwalimu AI", "Personalized learning in Swahili & English."),
             ("🎙️ AI Voice Tutor", "Interactive learning in Swahili & English.")
         ]
         for i, (title, body) in enumerate(features):
@@ -1911,7 +2054,7 @@ else:
         with col_basic:
             render_tier_card_html(
                 title="Mwalimu AI Plus",       
-                price="KES 500",              
+                price="KES 499",              
                 period="/ month",            
                 description="Enhanced toolkit built for dedicated study sessions.", 
                 card_features=[
@@ -1930,7 +2073,7 @@ else:
         with col_prem:
             render_tier_card_html(
                 title="Mwalimu Premium",       
-                price="KES 1,000",            
+                price="KES 999",            
                 period="/ month",            
                 description="Complete school execution dashboard with full feature access.", 
                 card_features=[
@@ -1996,11 +2139,11 @@ else:
             with st.form(key="landing_contact_tab_form", clear_on_submit=True):
                 col_sender, col_mail = st.columns(2)
                 with col_sender:
-                    sender_name = st.text_input("Your Name", placeholder="e.g., Jp Cyber")
+                    sender_name = st.text_input("Your Name", placeholder="e.g., Patrick Wachira")
                 with col_mail:
-                    sender_email = st.text_input("Your Email Address", placeholder="name@domain.com")
+                    sender_email = st.text_input("Your Email Address", placeholder="name@gmail.com")
                     
-                msg_subject = st.text_input("Subject", placeholder="How can our CBC support desk assist you today?")
+                msg_subject = st.text_input("Subject", placeholder="How can Mwalimu AI support desk assist you today?")
                 msg_body = st.text_area("Your Message Details", placeholder="Type your question or revision inquiry here...", height=120)
                 
                 submit_support_btn = st.form_submit_button(label="Submit Secure Message ✨", use_container_width=True)
@@ -2045,7 +2188,7 @@ else:
 
         # --- CLEAN LOW-PROFILE FOOTER (REMOVE OLD SEPARATE BLUE BUTTON) ---
         st.markdown("---")
-        st.markdown("<p style='text-align: center; color: #64748b; font-size: 0.85rem;'>© 2026 Mwalimu AI App. All Rights Reserved. Mapping Kenyan CBC Excellence.</p>", unsafe_allow_html=True)
+        st.markdown("<p style='text-align: center; color: #64748b; font-size: 0.85rem;'>© 2026 Mwalimu AI App. All Rights Reserved. CBC Curriculum Engine.</p>", unsafe_allow_html=True)
 
 
 
@@ -2081,7 +2224,7 @@ st.markdown(
     <div class="sticky-footer-container">
         <hr style='margin: 10px auto 15px auto; width: 80%; border: 0; height: 1px; background-image: linear-gradient(to right, rgba(255,255,255,0), rgba(255,255,255,0.1), rgba(255,255,255,0));'>
         <p style='color: gray; font-size: 0.85rem; display: flex; align-items: center; justify-content: center; margin: 0;'>
-        {logo_html_tag} Mwalimu AI App Version 2.0 | CBC Curriculum Engine | © 2026 Copyright
+        {logo_html_tag} Mwalimu AI App Version 2.0 | CBC Curriculum Engine | © 2026 All Rights Reserved
         </p>
     </div>
     """,
