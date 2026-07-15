@@ -89,6 +89,7 @@ if "student_name" not in st.session_state: st.session_state.student_name = ""
 
 # 🎯 SPEED FIX: Initialize a specific localized memory caching slot for Firestore profile row responses
 if "user_profile" not in st.session_state: st.session_state.user_profile = None
+if "new_message" not in st.session_state:st.session_state.new_message = False
 
 
 
@@ -620,46 +621,65 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
         st.session_state.student_name = name
 
     # CBC CURRICULUM INTEGRATION SELECTORS
-    st.sidebar.markdown("---")
-    st.sidebar.subheader(" Curriculum Context")
+    # =====================================================================
+    # --- FRAGMENT 1: SANDBOXED CBC CURRICULUM SELECTORS ---
+    
+    @st.fragment
+    def render_cbc_selectors(grade, CBC):
+        st.sidebar.markdown("---")
+        st.sidebar.subheader(" Curriculum Context")
+        
+        grade_dict = CBC.get(grade, {})
+        if not isinstance(grade_dict, dict):
+            grade_dict = {}
+        subjects = list(grade_dict.keys()) or ["General Studies"]
+        
+        subject = st.sidebar.selectbox("Subject", subjects, key="sidebar_subject_select")
+        subject_dict = grade_dict.get(subject, {})
+        
+        if not isinstance(subject_dict, dict):
+            subject_dict = {}
+        topics = list(subject_dict.keys()) or ["General Topic"]
+        topic = st.sidebar.selectbox("Topic", topics, key="sidebar_topic_select")
+        
+        inner_data = subject_dict.get(topic, {})
+        if isinstance(inner_data, dict):
+            sub_topics = list(inner_data.keys()) or ["General Sub-Topic"]
+            sub_topic = st.sidebar.selectbox("Sub-topic", sub_topics, key="sidebar_subtopic_dict_select")
+            outcomes = inner_data.get(sub_topic, []) or ["General Learning Outcome"]
+        else:
+            sub_topic = st.sidebar.selectbox("Sub-topic", ["General Sub-Topic"], key="sidebar_subtopic_list_select")
+            outcomes = inner_data if isinstance(inner_data, (list, tuple)) else ["General Learning Outcome"]
+            
+        raw_outcome = st.sidebar.selectbox("Learning Outcome", outcomes, key="sidebar_outcome_select")
+        learning_outcome = str(raw_outcome) if raw_outcome else "General Learning Outcome"
+        
+        # Store globally in session state so the main script can see them!
+        st.session_state["active_subject"] = subject
+        st.session_state["active_topic"] = topic
+        st.session_state["active_sub_topic"] = sub_topic
+        st.session_state["active_learning_outcome"] = learning_outcome
 
-    # 1. Safely pull Grade dictionary
-    grade_dict = CBC.get(grade, {})
-    if not isinstance(grade_dict, dict):
-        grade_dict = {}
+    # Fire selector and build variables globally
+    if name:
+        if (st.session_state.get("last_checked_name") != name or 
+            st.session_state.get("last_checked_grade") != grade or 
+            st.session_state.get("last_checked_age") != int(age)):
+            st.session_state.messages = get_chat_history(name, grade, int(age))
+            st.session_state.last_checked_name = name
+            st.session_state.last_checked_grade = grade
+            st.session_state.last_checked_age = int(age)
+            st.session_state.student_name = name
 
-    subjects = list(grade_dict.keys()) or ["General Studies"]
-    # Added unique key
-    subject = st.sidebar.selectbox("Subject", subjects, key="sidebar_subject_select")
+        render_cbc_selectors(grade, CBC)
 
-    # 2. Safely pull Subject dictionary
-    subject_dict = grade_dict.get(subject, {})
-    if not isinstance(subject_dict, dict):
-        subject_dict = {}
+    # 2. Extract values safely for the rest of the script to read
+    subject = st.session_state.get("active_subject", "Mathematics")
+    topic = st.session_state.get("active_topic", "Whole Numbers")
+    sub_topic = st.session_state.get("active_sub_topic", "Place Value")
+    learning_outcome = st.session_state.get("active_learning_outcome", "General Learning Outcome")
 
-    topics = list(subject_dict.keys()) or ["General Topic"]
-    # Added unique key
-    topic = st.sidebar.selectbox("Topic", topics, key="sidebar_topic_select")
-
-    # 3. Handle structure split gracefully (3-level vs 4-level deep data layouts)
-    inner_data = subject_dict.get(topic, {})
-
-    if isinstance(inner_data, dict):
-        sub_topics = list(inner_data.keys()) or ["General Sub-Topic"]
-        # Added unique key for dictionary branch
-        sub_topic = st.sidebar.selectbox("Sub-topic", sub_topics, key="sidebar_subtopic_dict_select")
-        outcomes = inner_data.get(sub_topic, []) or ["General Learning Outcome"]
-    else:
-        # Added unique key for list branch
-        sub_topic = st.sidebar.selectbox("Sub-topic", ["General Sub-Topic"], key="sidebar_subtopic_list_select")
-        outcomes = inner_data if isinstance(inner_data, (list, tuple)) else ["General Learning Outcome"]
-
-    # 4. Enforce strict unique key for outcomes selectbox
-    raw_outcome = st.sidebar.selectbox("Learning Outcome", outcomes, key="sidebar_outcome_select")
-    learning_outcome = str(raw_outcome) if raw_outcome else "General Learning Outcome"
-
-    # Assemble Complete Multi-Dimensional Student Object Map
-    # Assemble Complete Multi-Dimensional Student Object Map
+    # 3. Create the global student dictionary map
     student = {
         "name": name if name else "Student",
         "grade": grade,
@@ -668,12 +688,13 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
         "weak_subject": weak_subject,
         "learning_style": learning_style,
         "language": language,
-        "preferred_language": language,  # 🎯 ADD THIS LINE: This satisfies your ai.py prompts!
+        "preferred_language": language,
         "subject": subject,
         "topic": topic,
         "sub_topic": sub_topic,
         "learning_outcome": learning_outcome
     }
+
 
 
     #--- ACTIVE PROFILE CARD
@@ -802,9 +823,15 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
 
 
     #--- SIDEBAR PROGRESS DASHBOARD GENERATION
-    st.sidebar.markdown("---")
-    st.sidebar.subheader(" Progress Dashboard")
-    if name:
+    # =====================================================================
+    # --- FRAGMENT 2: SANDBOXED METRICS & DAILY USAGE BALANCES ---
+    # =====================================================================
+    @st.fragment
+    def render_sandboxed_metrics_dashboard(name, grade, age):
+        # 1. Render Progress Charts and Trends
+        st.sidebar.markdown("---")
+        st.sidebar.subheader(" Progress Dashboard")
+        
         stats = get_student_stats(name, grade, int(age))
         st.sidebar.metric(label="Quizzes Taken", value=stats["quizzes"])
         st.sidebar.metric("Average Score", f"{stats.get('average_score', 0)}%")
@@ -815,8 +842,7 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
         if analysis.get('weak_topics'):
             st.sidebar.markdown("**Needs Improvement:**")
             for t in analysis['weak_topics']:
-                st.sidebar.caption(f"⚠️ {t}")
-                
+                st.sidebar.caption(f"❌ {t}")
         if analysis.get('strong_topics'):
             st.sidebar.markdown("**Mastered Areas:**")
             for t in analysis['strong_topics']:
@@ -826,76 +852,71 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
         if len(history_scores) > 0:
             st.sidebar.markdown("**Performance Trend**")
             st.sidebar.line_chart(history_scores)
+
+        # 2. Render Quota Limits Indicators (Firestore Checks Sandbox)
+        st.sidebar.markdown("---")
+        st.sidebar.subheader(" Daily Generation Limits")
+        
+        sidebar_profile_raw = get_student_data(st.session_state.user_email)
+        sidebar_profile = sidebar_profile_raw if sidebar_profile_raw is not None else {}
+        sb_sub_tree = sidebar_profile.get('subscription', {}) if isinstance(sidebar_profile.get('subscription'), dict) else {}
+        sb_current_plan = str(sb_sub_tree.get('tier', 'Free')).strip()
+        
+        from services.tier_guard import TIER_LIMITS
+        sb_limits_key = "Free"
+        if "plus" in sb_current_plan.lower():
+            sb_limits_key = "Mwalimu AI Plus"
+        elif "premium" in sb_current_plan.lower():
+            sb_limits_key = "Premium"
+        sb_user_limits = TIER_LIMITS.get(sb_limits_key, TIER_LIMITS["Free"])
+        
+        sb_uid = str(st.session_state.get("uid") or st.session_state.user_email)
+        
+        sb_q_limit = sb_user_limits.get("quizzes", 1)
+        sb_fc_limit = sb_user_limits.get("flashcards", 1)
+        sb_ask_limit = sb_user_limits.get("questions", 1)
+        sb_plan_limit = sb_user_limits.get("has_study_plan", 1)
+        sb_lesson_limit = sb_user_limits.get("lessons", 1)
+        
+        sb_q_used = MwalimuDBService.get_daily_usage(sb_uid, "quizzes")
+        sb_fc_used = MwalimuDBService.get_daily_usage(sb_uid, "flashcards")
+        sb_ask_used = MwalimuDBService.get_daily_usage(sb_uid, "questions")
+        sb_plan_used = MwalimuDBService.get_daily_usage(sb_uid, "has_study_plan")
+        sb_lesson_used = MwalimuDBService.get_daily_usage(sb_uid, "lessons")
+        
+        def format_sb_balance(used, max_limit):
+            if max_limit == float('inf'):
+                return f"{used} / ∞ (Unlimited)"
+            remaining = max(0, max_limit - used)
+            return f"{remaining} left (of {max_limit})"
+            
+        st.sidebar.markdown(f"💬 **Ask Mwalimu:** `{format_sb_balance(sb_ask_used, sb_ask_limit)}`")
+        if sb_ask_limit != float('inf') and sb_ask_used >= sb_ask_limit:
+            st.sidebar.caption("⚠️ AI Ask limit reached for today.")
+            
+        st.sidebar.markdown(f"📅 **Study Plans:** `{format_sb_balance(sb_plan_used, sb_plan_limit)}`")
+        if sb_plan_limit != float('inf') and sb_plan_used >= sb_plan_limit:
+            st.sidebar.caption("⚠️ Study Plan limit reached for today.")
+            
+        st.sidebar.markdown(f"📝 **Quizzes:** `{format_sb_balance(sb_q_used, sb_q_limit)}`")
+        if sb_q_limit != float('inf') and sb_q_used >= sb_q_limit:
+            st.sidebar.caption("⚠️ Quiz limit reached for today.")
+            
+        st.sidebar.markdown(f"🎴 **Flashcards:** `{format_sb_balance(sb_fc_used, sb_fc_limit)}`")
+        if sb_fc_limit != float('inf') and sb_fc_used >= sb_fc_limit:
+            st.sidebar.caption("⚠️ Flashcard limit reached for today.")
+            
+        st.sidebar.markdown(f"📚 **Lessons:** `{format_sb_balance(sb_lesson_used, sb_lesson_limit)}`")
+        if sb_lesson_limit != float('inf') and sb_lesson_used >= sb_lesson_limit:
+            st.sidebar.caption("⚠️ Lesson limit reached for today.")
+
+    # Safe initialization trigger at runtime execution context
+    if name:
+        render_sandboxed_metrics_dashboard(name, grade, age)
     else:
+        st.sidebar.markdown("---")
+        st.sidebar.subheader(" Progress Dashboard")
         st.sidebar.caption("Fill in your name to start tracking parameters.")
-
-    #======
-                    # =====================================================================
-    # --- INTEGRATED SIDEBAR USAGE BALANCES ---
-    # =====================================================================
-    st.sidebar.markdown("---")
-    st.sidebar.subheader("🔋 Daily Generation Limits")
-
-    # 1. Pipeline profile & data lookups cleanly inside sidebar scope
-    sidebar_profile_raw = get_student_data(st.session_state.user_email)
-    sidebar_profile = sidebar_profile_raw if sidebar_profile_raw is not None else {}
-    sb_sub_tree = sidebar_profile.get('subscription', {}) if isinstance(sidebar_profile.get('subscription'), dict) else {}
-    sb_current_plan = str(sb_sub_tree.get('tier', 'Free')).strip()
-
-    # 2. Extract specific limit structures mapping from tier_guard module configs
-    from services.tier_guard import TIER_LIMITS
-    sb_limits_key = "Free"
-    if "plus" in sb_current_plan.lower():
-        sb_limits_key = "Mwalimu AI Plus"
-    elif "premium" in sb_current_plan.lower():
-        sb_limits_key = "Premium"
-
-    sb_user_limits = TIER_LIMITS.get(sb_limits_key, TIER_LIMITS["Free"])
-
-    # 3. Read usage tracking entries using verified tracking id string keys
-    sb_uid = str(st.session_state.get("uid") or st.session_state.user_email)
-
-    # Fetch Limits Configuration Values (🎯 KEYS ALIGNED TO MATCH TIER_GUARD ENGINE)
-    sb_q_limit = sb_user_limits.get("quizzes", 1)
-    sb_fc_limit = sb_user_limits.get("flashcards", 1)
-    sb_ask_limit = sb_user_limits.get("questions", 1)
-    sb_plan_limit = sb_user_limits.get("has_study_plan", 1)
-    sb_lesson_limit = sb_user_limits.get("lessons", 1)  # 🎯 FIXED: Changed to "lesson" to match tier_guard dictionary keys!
-
-    # Fetch Current Daily Usage Stats Metrics (🎯 ALIGNED FOR STABLE STORAGE TRACKING)
-    sb_q_used = MwalimuDBService.get_daily_usage(sb_uid, "quizzes")
-    sb_fc_used = MwalimuDBService.get_daily_usage(sb_uid, "flashcards")
-    sb_ask_used = MwalimuDBService.get_daily_usage(sb_uid, "questions")
-    sb_plan_used = MwalimuDBService.get_daily_usage(sb_uid, "has_study_plan")
-    sb_lesson_used = MwalimuDBService.get_daily_usage(sb_uid, "lessons")  # 🎯 FIXED: Changed to "lesson" to match db tracking!
-
-    # 4. Formulate clean conditional balance labels strings text
-    def format_sb_balance(used, max_limit):
-        if max_limit == float('inf'):
-            return f"{used} / ∞ (Unlimited)"
-        remaining = max(0, max_limit - used)
-        return f"{remaining} left (of {max_limit})"
-
-    # 5. Render compact, text-based metric slots inside the dark sidebar
-    st.sidebar.markdown(f"💬 **Ask Mwalimu:** `{format_sb_balance(sb_ask_used, sb_ask_limit)}`")
-    if sb_ask_limit != float('inf') and sb_ask_used >= sb_ask_limit:
-        st.sidebar.caption("⚠️ AI Ask limit reached for today.")
-
-    st.sidebar.markdown(f"📅 **Study Plans:** `{format_sb_balance(sb_plan_used, sb_plan_limit)}`")
-    if sb_plan_limit != float('inf') and sb_plan_used >= sb_plan_limit:
-        st.sidebar.caption("⚠️ Study Plan limit reached for today.")
-
-    st.sidebar.markdown(f"📝 **Quizzes:** `{format_sb_balance(sb_q_used, sb_q_limit)}`")
-    if sb_q_limit != float('inf') and sb_q_used >= sb_q_limit:
-        st.sidebar.caption("⚠️ Quiz limit reached for today.")
-
-    st.sidebar.markdown(f"🎴 **Flashcards:** `{format_sb_balance(sb_fc_used, sb_fc_limit)}`")
-    if sb_fc_limit != float('inf') and sb_fc_used >= sb_fc_limit:
-        st.sidebar.caption("⚠️ Flashcard limit reached for today.")
-
-    st.sidebar.markdown(f"📖 **Lessons:** `{format_sb_balance(sb_lesson_used, sb_lesson_limit)}`")
-    if sb_lesson_limit != float('inf') and sb_lesson_used >= sb_lesson_limit:
-        st.sidebar.caption("⚠️ Lesson limit reached for today.")
 
 
 
@@ -1040,13 +1061,14 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
         # =====================================================
         st.markdown("---")
         st.write("### 💬 Chat with Mwalimu")
+        # Display previous chat messages (State-Guarded Scroll Tracker)
+        # -----------------------------
+        assistant_messages_count = sum(1 for m in st.session_state.messages if m["role"] not in ["student", "user"])
+        current_ai_index = 0
 
-        # -----------------------------
-        # Display previous chat messages
-        # -----------------------------
         for msg in st.session_state.messages:
             if msg["role"] in ["student", "user"]:
-                # 👤 STUDENT CONTAINER: Text pill aligned left with a circular avatar on the far right
+                # 👤 STUDENT CONTAINER
                 st.markdown(f"""
                 <div style="display: flex; justify-content: flex-end; align-items: flex-start; gap: 10px; margin-bottom: 20px; width: 100%;">
                     <div style="background-color: #2F3037; color: #ECECF1; padding: 12px 18px; border-radius: 20px; max-width: 70%; font-family: sans-serif; font-size: 15px; line-height: 1.6; box-shadow: 0 1px 2px rgba(0,0,0,0.1);">
@@ -1058,7 +1080,6 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
                 </div>
                 """, unsafe_allow_html=True)
                 
-                # Render the Student's Image attachment right below on the right side
                 if "image_preview" in msg and msg["image_preview"]:
                     st.markdown(f"""
                     <div style="display: flex; justify-content: flex-end; margin-bottom: 20px; width: 100%; padding-right: 42px; box-sizing: border-box;">
@@ -1068,7 +1089,6 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
                     </div>
                     """, unsafe_allow_html=True)
 
-                # Render the Student's PDF text badge right below on the right side
                 if "file_preview" in msg and msg["file_preview"]:
                     st.markdown(f"""
                     <div style="display: flex; justify-content: flex-end; margin-bottom: 20px; width: 100%; padding-right: 42px; box-sizing: border-box;">
@@ -1079,9 +1099,12 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
                     """, unsafe_allow_html=True)
 
             else:
-                # 🤖 MWALIMU CONTAINER: Minimalist left-aligned head avatar avatar row
+                current_ai_index += 1
+                # Create anchor tags directly matching your document strategy
+                id_tag = f"msg_{current_ai_index}"
+
                 st.markdown(f"""
-                <div style="display: flex; justify-content: flex-start; align-items: center; gap: 10px; margin-bottom: 12px; width: 100%;">
+                <div id="{id_tag}" style="display: flex; justify-content: flex-start; align-items: center; gap: 10px; margin-bottom: 12px; width: 100%; scroll-margin-top: 80px;">
                     <div style="width: 32px; height: 32px; background-color: #FF4B4B; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 15px; flex-shrink: 0; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">
                         👨‍🏫
                     </div>
@@ -1091,14 +1114,30 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
                 </div>
                 """, unsafe_allow_html=True)
                 
-                # Render Mwalimu's markdown response block cleanly with proper layout offsets
                 st.markdown(msg["content"])
                 st.markdown("<div style='margin-bottom: 32px;'></div>", unsafe_allow_html=True)
 
+        # ----------------------------------------------------
+        # 🛠️ SCROLL ENGINE AUTOMATION MANAGER (DOCUMENT METHOD)
+        # ----------------------------------------------------
+        # Target the absolute newest assistant message ID block
+        target_scroll_id = f"msg_{assistant_messages_count}"
 
-
-
-
+        # ONLY execute scroll action once when the flag is raised!
+        if st.session_state.new_message and assistant_messages_count > 0:
+            st.session_state.new_message = False  # 👈 DEACTIVATE IMMEDIATELY TO FREE UP SCROLLING
+            
+            # Inject modern compliant production HTML script snippet
+            st.html(f"""
+                <script>
+                    setTimeout(() => {{
+                        const element = window.parent.document.getElementById("{target_scroll_id}");
+                        if (element) {{
+                            element.scrollIntoView({{ behavior: "smooth", block: "start" }});
+                        }}
+                    }}, 150);
+                </script>
+            """)
 
         # ----------------------------------------------------
         # State-Driven Upgrade Gatekeeper Banner
@@ -1124,8 +1163,7 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
 
         # ----------------------------------------------------
         # Chat Input
-        # ----------------------------------------------------
-        
+        # ----------------------------------------------------        
         chat_payload = st.chat_input(
             "Ask Mwalimu anything...",
             accept_file=True,
@@ -1180,7 +1218,10 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
                 st.session_state.messages.append(user_message_block)
                 save_chat_message(name, grade, int(age), "student", user_question)
 
-                # 5. Fire up your AI generation request safely
+                # 5. Flip the state-locking scroll flag to True right here!
+                st.session_state.new_message = True
+
+                # 6. Fire up your AI generation request safely
                 with st.spinner("Mwalimu is thinking..."):
                     response = ask_mwalimu(
                         question=user_question,
@@ -1189,11 +1230,13 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
                         attachment=attachment_payload
                     )
 
-                # 6. Save final assistant response values and refresh canvas workspace
+                # 7. Save final assistant response values and refresh canvas workspace
                 MwalimuDBService.increment_usage(uid, "questions")
                 st.session_state.messages.append({"role": "assistant", "content": response})
                 save_chat_message(name, grade, int(age), "assistant", response or "")
                 st.rerun()
+
+
 
 
 

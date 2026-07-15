@@ -35,17 +35,14 @@ def ask_mwalimu(question, student, messages, adaptive_context="", attachment=Non
     sub_topic = student.get('sub_topic', 'Place Value')
     learning_style = student.get("learning_style", "General")
     kicd_data = knowledge_base.get_curriculum_context(subject, topic, sub_topic)
+    
+    # Clean language rules focusing on conversational interaction instead of timetables
     language_rules = {
-        "English": "Write the entire response, section titles, timetables, and tips exclusively in grammatically correct English.",
-        "Kiswahili": "Andika majina yote ya sehemu (Headings), ratiba, malengo, na maelezo yote kwa Kiswahili sanifu na safi. Usitumie Kiingereza.",
-        "Sheng": "Tumia lugha ya kirafiki ya Sheng iliyochanganywa na maelezo ya kimasomo ili kumfanya mwanafunzi achangamke, lakini hakikisha ukweli wa kimasomo unabaki sahihi."
+        "English": "Respond naturally and directly in grammatically correct English like an empathetic Kenyan classroom teacher.",
+        "Kiswahili": "Andika majibu yako yote kwa Kiswahili sanifu, fasaha, na safi kabisa kinachofaa mazingira ya shule za Kenya. Usitumie Kiingereza.",
+        "Sheng": "Tumia lugha ya kirafiki ya Sheng iliyochanganywa na maelezo ya kimasomo ili kumfanya mwanafunzi achangamke, lakini hakikisha ukweli wa kimasomo unabaki sahihi na rahisi kuelewa."
     }
-    is_swahili = "swahili" in str(preferred_language).lower()
-    h_goal = "### **Malengo ya Kujiendelea Leo (Daily Study Goals):**" if is_swahili else "### **Daily Study Goals:**"
-    h_sched = "### **Ratiba ya Masomo (Time Intervals & Subjects):**" if is_swahili else "### **Study Schedule & Time Intervals:**"
-    h_style = f"### **Mbinu za Kujifunza ({learning_style} Integration):**" if is_swahili else f"### **Learning Style Integration ({learning_style}):**"
-    h_rev = "### **Vipengele vya Marudio na Mapendekezo ya Maswali:**" if is_swahili else "### **Revision Items & Quiz Recommendations:**"
-    h_moto = "### **Ujumbe wa Kila Siku kutoka kwa Mwalimu:**" if is_swahili else "### **Mwalimu's Motivational Message:**"
+    
     # Build conversation history context string safely
     history = ""
     for msg in messages:
@@ -53,15 +50,16 @@ def ask_mwalimu(question, student, messages, adaptive_context="", attachment=Non
             role = str(msg["role"]).lower()
             content = msg["content"]
             if role in ["student", "user"]:
-                history += f"Student: {content}\\n"
+                history += f"Student: {content}\n"
             elif role in ["assistant", "mwalimu"]:
-                history += f"Mwalimu AI: {content}\\n"
-    pdf_text_context = ""
-        # Build text prompt context elements
+                history += f"Mwalimu AI: {content}\n"
+
+    # Build text prompt context elements for local files
     pdf_text_context = ""
     if attachment and attachment.get("type") == "text_extraction":
         pdf_text_context = f"\n\n=== ATTACHED PDF DOCUMENT CONTENT ({attachment['filename']}) ===\n{attachment['content']}"
 
+    # RESTRUCTURED PROMPT: Natural chat guidelines, zero study plan leaks
     prompt = f"""
 {SYSTEM_GUARD}
 
@@ -69,26 +67,22 @@ def ask_mwalimu(question, student, messages, adaptive_context="", attachment=Non
 - **Subject**: {subject}
 - **Topic**: {topic} (Sub-topic: {sub_topic})
 - **Preferred Language**: {preferred_language}
-- **Learning Style**: {learning_style}
+- **Learning Style**: {learning_style} (Adapt your explanations to match this style, e.g., use descriptions or analogies if visual/auditory)
 - **Curriculum KICD Guidelines**: {json.dumps(kicd_data, ensure_ascii=False)}
 - **Adaptive Remediation Notes**: {adaptive_context} {pdf_text_context}
 
-=== LANGUAGE & STRUCTURAL INSTRUCTIONS ===
+=== LANGUAGE & TEACHING INSTRUCTIONS ===
 {language_rules.get(preferred_language, language_rules["English"])}
-
-=== REQUIRED FORMATTING HEADERS ===
-Use these exact visual anchors based on language rules:
-{h_goal}
-{h_sched}
-{h_style}
-{h_rev}
-{h_moto}
+- Break down difficult educational topics into simple, snackable student steps.
+- If the user uploaded an image attachment snippet, deeply scan it for math problems, handwritten errors, diagrams, or reading exercises. Address its visual elements directly.
+- NEVER output headers like 'Daily Study Goals', 'Study Schedule', or 'Time Intervals'. 
+- Respond directly, warmly, and helpfully to the current student query below.
 
 === CONVERSATION HISTORY ===
 {history}
 
 === CURRENT STUDENT INQUIRY ===
-Student Question: {question}
+Student Question/Attachment upload: {question}
 Mwalimu AI response:
 """
 
@@ -99,7 +93,6 @@ Mwalimu AI response:
     user_content_blocks = [{"type": "text", "text": prompt}]
     
     # If the file is an image, attach it via base64 object notation
-
     if attachment and attachment.get("type") == "image_base64":
         image_payload = {
             "type": "image_url",
@@ -115,7 +108,7 @@ Mwalimu AI response:
         completion = client.chat.completions.create(
             model="google/gemini-2.5-flash",
             messages=api_messages,
-            max_tokens=1500  # 👈 ADD THIS LINE HERE
+            max_tokens=1500
         )
         return completion.choices[0].message.content
 
@@ -273,7 +266,7 @@ CRITICAL OPTION CONSTRAINT RULES:
         return []
 
 def generate_study_plan(student: dict, stats: dict) -> str:
-    """Crafts an optimized personalized study timetable map strategy framework."""
+    """Crafts an optimized personalized study timetable map strategy framework with grid layouts."""
     # 1. Safely extract the preferred language from the student profile dictionary
     preferred_language = student.get("preferred_language", student.get("language", "English"))
     subject = student.get('subject', 'Mathematics')
@@ -302,9 +295,15 @@ def generate_study_plan(student: dict, stats: dict) -> str:
     h_rev = "### **Vipengele vya Marudio na Mapendekezo ya Maswali:**" if is_swahili else "### **Revision Items & Quiz Recommendations:**"
     h_moto = "### **Ujumbe wa Kila Siku kutoka kwa Mwalimu:**" if is_swahili else "### **Mwalimu's Motivational Message:**"
 
-    # 3. Construct the dynamic optimization prompt with absolute markdown structural rules
+    # Define localized column headers for the markdown grid table matrix array
+    if is_swahili:
+        col_time, col_sub, col_act = "Muda (Time)", "Somo na Mada (Subject/Topic)", "Shughuli ya Kufanya (Activity)"
+    else:
+        col_time, col_sub, col_act = "Time Interval", "Subject & Topic", "Planned Learning Activity"
+
+    # 3. Construct the streamlined optimization prompt with absolute markdown table constraints
     prompt = f"""
-    {SYSTEM_GUARD}
+{SYSTEM_GUARD}
 You are Mwalimu AI, an expert Academic Counselor and Curriculum Planner specializing in the Kenyan KICD Competency-Based Curriculum (CBC) framework. 
 Build a highly actionable, structured, and realistic Personalized Study Plan for a student.
 
@@ -323,7 +322,7 @@ Learning Outcome Target: {student.get("learning_outcome", "General Mastery")}
 
 === KICD GROUND TRUTH MILESTONES ===
 You MUST anchor your schedule activities directly on these local milestone goals:
-{json.dumps(milestones)}
+{json.dumps(milestones, ensure_ascii=False)}
 
 === STUDENT PERFORMANCE STATISTICS ===
 Questions Asked: {stats.get("questions", 0)}
@@ -333,16 +332,25 @@ Average Score: {stats.get("average_score", 0)}%
 =======================================================
 🚨 CRITICAL FORMATTING & HEADINGS MANDATE
 =======================================================
-- You MUST structure your entire response using the following specific headers exactly as provided below to guarantee clean, bold rendering on the Streamlit dashboard:
+You MUST structure your entire response using the following specific headers exactly as provided below to guarantee clean rendering on the Streamlit dashboard:
 
 {h_goal}
 [Provide clear targets focusing on improving performance based on their statistics and active curriculum selections]
 
 {h_sched}
-[Provide a clear timeline chart or breakdown, e.g., **08:00-08:20** | {subject}: {topic} ({sub_topic})]
+You MUST output the schedule exclusively as a clean Markdown Grid Table using pipe signs (|) and dashes (-). Follow this exact structural layout template:
+
+| {col_time} | {col_sub} | {col_act} |
+| :--- | :--- | :--- |
+| **08:00 - 08:30** | {subject}: {topic} | Introduction & reviewing baseline definitions. |
+| **08:30 - 09:15** | {subject}: {sub_topic} | Step-by-step practical problem-solving exercises. |
+| **09:15 - 09:30** | *Muda wa Mapumziko (Break)* | Take a short walk or stretch. |
+| **09:30 - 10:15** | {subject} Revision | Deep practice covering milestones. |
+
+Ensure there are no line-breaks or unescaped symbols inside row cells that break table rendering!
 
 {h_style}
-[Provide custom practical tasks matching their learning style. For Example: If 'Visual', instruct them to create colored mind maps. If 'Auditory', suggest recording explanations or reading aloud.]
+[Provide custom practical tasks matching their learning style. For Example: If 'Visual', instruct them to create colored mind maps or visual diagrams. If 'Auditory', suggest recording explanations or reading definitions aloud.]
 
 {h_rev}
 [List critical revision concepts and include a custom recommendation link or reference point for their next quiz]
@@ -357,68 +365,20 @@ Average Score: {stats.get("average_score", 0)}%
 - Write the output text strictly in clean, standard, natural prose. Do not mix random language tokens.
 - NEVER use HTML line breaks like '<br>' or markdown backtick json code fences.
 - All headings MUST stay completely bold by keeping the triple hashes and double asterisks formatting structure intact.
-
-    # 3. Construct the dynamic optimization prompt
-You are Mwalimu AI, an expert Academic Counselor and Curriculum Planner specializing in the Kenyan KICD Competency-Based Curriculum (CBC) framework. 
-Your goal is to build a highly actionable, structured, and realistic Personalized Study Plan based on the student's specific profile.
-
-Student Profile
-Name: {student.get("name", "Student")}
-Grade: {student.get("grade", "N/A")}
-Age: {student.get("age", "N/A")}
-Learning Style: {student.get("learning_style", "General")}
-Preferred Language: {preferred_language}
-
-
-=== KICD GROUND TRUTH MILESTONES ===
-You MUST anchor your schedule layout directly on these local milestone profiles:
-{json.dumps(milestones)}
-
-=== ACTIVE CBC CURRICULUM CONTEXT ===
-Subject: {student.get("subject", "General")}
-Topic: {student.get("topic", "General")}
-Sub-topic: {student.get("sub_topic", "General")}
-Learning Outcome Target: {student.get("learning_outcome", "General")}
-
-Student Statistics
-Questions Asked: {stats.get("questions", 0)}
-Quizzes Taken: {stats.get("quizzes", 0)}
-Average Score: {stats.get("average_score", 0)}%
-
-Requirements:
-Create a highly structured study plan for today. Include:
-1. Study Goal (focused on improving their weak subject while keeping them engaged with their favorite subject)
-2. Subjects to study
-3. Specific Topics
-4. Time allocation (e.g., 08:00-08:20)
-5. Practical practice activities aligned with their preferred learning style ({student.get("learning_style", "General")})
-6. Revision items
-7. **Learning Style Integration**: Tailor study methods to their Learning Style. For example, if they are "Visual", include instructions to draw mind maps; if they are "Auditory/Interactive", suggest reading aloud or explaining concepts to a friend.
-8. A custom Quiz recommendation
-9. A warm, motivational message using encouraging Kenyan teacher phrasing using their preferred language (e.g., "Kazi safi", "Siku Njema", "Tia bidii", "Keep pushing").
-10.Write the output text STRICTLY in clean {student.get("preferred_language", "English")}. Do not use foreign language tokens or corrupted text.
-11. NEVER use HTML line breaks like '<br>' or tags anywhere in the text or tables.
-12. When giving motivational messages, always use clean {student.get("preferred_language", "English")} and avoid any slang or informal text that could be misinterpreted.
-
-CRITICAL INSTRUCTIONS:
-- {target_language_instruction}
-- Write the entire plan in plain, natural format.
-- NEVER use "Lorem ipsum", placeholder words, or dummy text.
-- NEVER include bracketed source numbers or tokens. All content must be completely real and readable.
+- NEVER include bracketed source numbers or placeholder texts.
 """
-    #======
+
     try:
         response = client.chat.completions.create(
             extra_headers={
                 "HTTP-Referer": "https://mwalimu-ai.streamlit.app",
                 "X-Title": "Mwalimu AI Study Planner",
             },
-            model="google/gemini-2.5-flash",  # 👈 BYPASSES ROUTER QUEUE
+            model="google/gemini-2.5-flash",
             messages=[{"role": "user", "content": prompt}],
-            max_tokens=4000  # 👈 SIZES THE WINDOW PERFECTLY FOR ROADMAPS
+            max_tokens=4000
         )
         
-        # 4. CRITICAL FIX: OpenRouter/OpenAI compatibility wrapper indexing syntax
         raw_content = response.choices[0].message.content
         return raw_content if raw_content is not None else "Error: Mwalimu AI received an empty study plan from the generation model."
         
@@ -428,77 +388,54 @@ CRITICAL INSTRUCTIONS:
 
 
 def generate_flashcards(topic, student, difficulty="Medium"):
-    
-    """Produces structured dynamic flashcard items using strict JSON formats."""
+    """Produces a structured dataset containing exactly 10 flashcard items using strict JSON schemas."""
     difficulty_rules = {
-    "Beginner": "Focus on foundational recognition, recalling basic definitions, direct matching, and basic counting with explicit hints.",
-    "Intermediate": "Focus on application scenarios, multi-step problem solving, simple comparative relationships, and foundational word problems.",
-    "Advanced": "Focus on critical thinking, complex contextual word problems, combining cross-topic parameters, and logical reasoning structures."
-}
+        "Beginner": "Focus on foundational recognition, recalling basic definitions, direct matching, and basic counting with explicit hints.",
+        "Intermediate": "Focus on application scenarios, multi-step problem solving, simple comparative relationships, and foundational word problems.",
+        "Advanced": "Focus on critical thinking, complex contextual word problems, combining cross-topic parameters, and logical reasoning structures."
+    }
     subject = student.get('subject', 'Mathematics')
     topic = student.get('topic', 'Whole Numbers')
     sub_topic = student.get('sub_topic', 'Place Value')
 
     verified_deck = knowledge_base.get_flashcards_context(subject, topic, sub_topic)
     kicd_data = knowledge_base.get_curriculum_context(subject, topic, sub_topic)
+    
+    # CLEANED PROMPT: Focuses 100% on flashcards and explicitly requests a clean parent object
     prompt = f"""
-    {SYSTEM_GUARD}
-You are Mwalimu AI, an expert Examiner specializing in the Kenyan KICD Competency-Based Curriculum (CBC) framework. 
-Your task is to generate a highly contextual, age-appropriate practice quiz based on the student's current learning topic.
-
-Generate a multiple-choice quiz about '{topic}' for a student in {student.get('grade')} ({student.get('age')} years old).
-
-=== CURRICULUM DATA BASELINE ===
-Anchor your facts on this verified knowledge data:
-- Core Definition: {kicd_data['definition']}
-- Pre-approved Deck Flashcards: {json.dumps(verified_deck)}
-
-CRITICAL STRUCTURE RULE: You MUST generate exactly 5 distinct multiple-choice questions. 
-
-Target Difficulty Level: {difficulty}
-Difficulty Context Rules: {difficulty_rules.get(difficulty, "")}
-Preferred Learning Style: {student.get('learning_style', 'General')}
-Preferred Delivery Language: {student.get('language', 'English')}
-=== STUDENT PROFILE ===
-Name: {student.get("name", "Student")}
-Grade: {student.get("grade", "N/A")}
-Age: {student.get("age", "N/A")}
-Favorite Subject: {student.get("favorite_subject", "N/A")}
-Weak Subject: {student.get("weak_subject", "N/A")}
-Learning Style: {student.get("learning_style", "General")}
-Language: {student.get("language", "English")}
+{SYSTEM_GUARD}
+You are Mwalimu AI, an elite educational system and expert curriculum designer under the Kenyan KICD Competency-Based Curriculum (CBC) framework.
+Your task is to generate a highly contextual set of study flashcards for a student in {student.get('grade')} ({student.get('age')} years old).
 
 === ACTIVE CBC CURRICULUM CONTEXT ===
-Subject: {student.get("subject", "General")}
-Topic: {student.get("topic", "General")}
-Sub-topic: {student.get("sub_topic", "General")}
-Learning Outcome Target: {student.get("learning_outcome", "General")}
+- Subject: {subject}
+- Topic: {topic}
+- Sub-topic: {sub_topic}
+- Core Baseline Definition: {kicd_data.get('definition', 'Standard parameters apply.')}
+- Pre-approved Deck Context: {json.dumps(verified_deck, ensure_ascii=False)}
 
-Create exactly 10 revision flashcards about: {topic}
-Return ONLY valid JSON.
+=== CORE RECOGNITION RULES ===
+- Target Difficulty Level: {difficulty}
+- Difficulty Rules: {difficulty_rules.get(difficulty, "")}
+- Preferred Learning Style: {student.get('learning_style', 'General')}
+- Preferred Delivery Language: {student.get('language', 'English')}
 
-Format:
-[
-  {{
-    "question": "...",
-    "answer": "..."
-  }}
-]
+=== CRITICAL BOUNDARY COUNT RULE ===
+You MUST generate EXACTLY 10 distinct flashcard pairs in total. No more, no less.
+Count your array meticulously before returning the final text payload.
 
-=== ACTIVE CBC CURRICULUM CONTEXT ===
-Subject: {student.get("subject", "General")}
-Topic: {student.get("topic", "General")}
-Sub-topic: {student.get("sub_topic", "General")}
-Learning Outcome Target: {student.get("learning_outcome", "General")}
+=== REAL-WORLD SCENARIOS ===
+Use Kenyan context, local real-world examples, Kenyan currency (KES), towns, and popular local names (e.g., Juma, Wanjiku, Amina, Mwangi) to make the cards relatable and interactive.
 
-Rules:
-- Grade appropriate
-- Simple language
-- No markdown wrappers around json array
-- No explanations
-- No extra text
-- **Context**: Use Kenyan names, locations, and real-world local scenarios to make the word problems relatable.
-- **Difficulty**: Match the cognitive expectations of a {student.get('grade')} student under CBC guidelines.
+=== OUTPUT VALIDATION FORMAT ===
+Return ONLY a raw, valid JSON object containing an array list of exactly 10 question-and-answer pairs. Do not include any markdown backticks or filler text. Follow this schema layout:
+{{
+  "flashcards": [
+    {{"question": "Question 1 goes here...", "answer": "Answer 1 goes here..."}},
+    {{"question": "Question 2 goes here...", "answer": "Answer 2 goes here..."}},
+    ... up to exactly 10 items
+  ]
+}}
 """
 
     try:
@@ -507,28 +444,40 @@ Rules:
                 "HTTP-Referer": "https://mwalimu-ai.streamlit.app",
                 "X-Title": "Mwalimu AI Flashcard Processor",
             },
-            model="google/gemini-2.5-flash",  # 👈 DIRECT SPEED ROUTING BYPASS
+            model="google/gemini-2.5-flash",
             messages=[{"role": "user", "content": prompt}],
-            max_tokens=1500,  # 👈 SIZED PERFECTLY FOR FLASHCARD SETS
-            response_format={"type": "json_object"}  # 👈 FORCES INSTANT STRUCTURED DATA WITHOUT FILLER TEXT
+            max_tokens=2500,  # 2500 provides plenty of room for 10 rich cards
+            response_format={"type": "json_object"}
         )
-        # CRITICAL FIX: Safe indexing using standard [0] array retrieval syntax
+        
         raw_content = response.choices[0].message.content
         clean_content = (raw_content if raw_content is not None else "").strip()
         
+        # Strip out any lingering markdown text elements if present
         if clean_content.startswith("```json"):
             clean_content = clean_content.replace("```json", "", 1).rstrip("```")
         elif clean_content.startswith("```"):
             clean_content = clean_content.strip("```")
             
-        return json.loads(clean_content.strip())
+        parsed_data = json.loads(clean_content.strip())
+        
+        # Unpack the list from the parent "flashcards" object tag safely
+        if isinstance(parsed_data, dict) and "flashcards" in parsed_data:
+            flashcard_list = parsed_data["flashcards"]
+        elif isinstance(parsed_data, list):
+            flashcard_list = parsed_data
+        else:
+            flashcard_list = []
+            
+        # DEFENSIVE PROGRAMMING CLOSURE CELL: Always force an upper array ceiling clip of exactly 10
+        return flashcard_list[:10]
+        
     except Exception as e:
         print(f"Flashcard Generator Engine Parsing Error: {e}")
+        # Return fallback deck block if generation fails completely
         return [
-            {
-                "question": f"What is the core baseline principle behind {topic}?", 
-                "answer": "Refer to your standard class curriculum documentation notes for context definitions."
-            }
+            {"question": f"What is the core baseline definition behind {topic}?", "answer": f"{kicd_data.get('definition')}"},
+            {"question": f"How can we apply our understanding of {sub_topic} in everyday tasks?", "answer": "By breaking down local real-world scenarios into basic CBC competency steps."}
         ]
 
 

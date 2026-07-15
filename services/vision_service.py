@@ -9,15 +9,15 @@ class MwalimuVisionService:
             return None
             
         try:
-            # FIX: If Streamlit passes a list wrapper, extract the first file object instantly
+            # FIX: Properly extract the first file element out of the list container index [0]
             if isinstance(uploaded_file, list):
                 if len(uploaded_file) == 0:
                     return None
-                target_file = uploaded_file[0]
+                target_file = uploaded_file[0]  # 👈 CHANGED FROM uploaded_file TO uploaded_file[0]
             else:
                 target_file = uploaded_file
 
-            # Explicitly convert attributes to strings now that we have the single file object
+            # Safely extract attributes from the isolated file object
             mime_type = str(target_file.type).lower()
             
             # 1. Handle PDF Documents using local text extraction
@@ -28,7 +28,7 @@ class MwalimuVisionService:
                 extracted_text = ""
                 for page in doc:
                     page_text = str(page.get_text())
-                    extracted_text += page_text  # FIX: Clean string addition cleared
+                    extracted_text += page_text
                 
                 doc.close()
                 
