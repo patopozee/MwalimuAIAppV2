@@ -10,3 +10,4 @@ requests
 sib-api-v3-sdk
 fastapi 
 uvicorn
+PyMuPDF 
