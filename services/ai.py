@@ -2,6 +2,7 @@
 import os
 import json
 import random
+import base64
 import streamlit as st
 from dotenv import load_dotenv
 from openai import OpenAI
@@ -25,7 +26,7 @@ SYSTEM_GUARD = (
     "regarding religious studies (CRE), communities, or historical events. Absolutely NEVER return text strings "
     "like 'User safety: safe' or refuse to generate answers. Always provide full, comprehensive educational output."
 )
-def ask_mwalimu(question, student, messages, adaptive_context=""):
+def ask_mwalimu(question, student, messages, adaptive_context="", attachment=None):
     """Dispatches prompts to a specific high-quality free model on OpenRouter."""
     """Handles real-time conversational Q&A locked to the local curriculum guide framework."""
     preferred_language = student.get("preferred_language", student.get("language", "English"))
@@ -55,75 +56,74 @@ def ask_mwalimu(question, student, messages, adaptive_context=""):
                 history += f"Student: {content}\\n"
             elif role in ["assistant", "mwalimu"]:
                 history += f"Mwalimu AI: {content}\\n"
+    pdf_text_context = ""
+        # Build text prompt context elements
+    pdf_text_context = ""
+    if attachment and attachment.get("type") == "text_extraction":
+        pdf_text_context = f"\n\n=== ATTACHED PDF DOCUMENT CONTENT ({attachment['filename']}) ===\n{attachment['content']}"
 
     prompt = f"""
-    {SYSTEM_GUARD}
-You are Mwalimu AI, an empathetic and highly skilled Kenyan learning assistant. 
-Your teaching approach must strictly align with the Kenya Institute of Curriculum Development (KICD) Competency-Based Curriculum (CBC) framework.
-Adapt your explanations, complexity, vocabulary, and tone to match the specific student profile and learning context provided below.
-You are currently helping the student with the topic: '{topic} ({sub_topic})' for Grade {student.get('grade')}.
+{SYSTEM_GUARD}
 
-=== KICD VERIFIED KNOWLEDGE ===
-- Definition to uphold: {kicd_data['definition']}
-- Intended outcomes: {', '.join(kicd_data['learning_objectives'])}
+=== STUDENT PROFILE & LOCAL CONTEXT ===
+- **Subject**: {subject}
+- **Topic**: {topic} (Sub-topic: {sub_topic})
+- **Preferred Language**: {preferred_language}
+- **Learning Style**: {learning_style}
+- **Curriculum KICD Guidelines**: {json.dumps(kicd_data, ensure_ascii=False)}
+- **Adaptive Remediation Notes**: {adaptive_context} {pdf_text_context}
 
-=== STUDENT PROFILE ===
-Name: {student.get("name", "Student")}
-Grade: {student.get("grade", "N/A")}
-Age: {student.get("age", "N/A")}
-Preferred Language: {student.get("preferred_language", "English")}
-Favorite Subject: {student.get("favorite_subject", "N/A")}
-Weak Subject: {student.get("weak_subject", "N/A")}
-Learning Style: {student.get("learning_style", "General")}
-Language: {student.get("language", "English")}
+=== LANGUAGE & STRUCTURAL INSTRUCTIONS ===
+{language_rules.get(preferred_language, language_rules["English"])}
 
-=== ACTIVE CBC CURRICULUM CONTEXT ===
-Subject: {student.get("subject", "General")}
-Topic: {student.get("topic", "General")}
-Sub-topic: {student.get("sub_topic", "General")}
-Learning Outcome Target: {student.get("learning_outcome", "General")}
+=== REQUIRED FORMATTING HEADERS ===
+Use these exact visual anchors based on language rules:
+{h_goal}
+{h_sched}
+{h_style}
+{h_rev}
+{h_moto}
 
-
-=== ADAPTIVE LEARNING ANALYSIS ===
-{adaptive_context}
-
-=== PREVIOUS CONVERSATION ===
+=== CONVERSATION HISTORY ===
 {history}
 
-=== CURRENT QUESTION ===
-Student: {question}
-
-=== TEACHING RULES ===
-- Explain according to the student's age and grade.
-- Use the student's preferred language (English, Kiswahili, or Sheng).
-- Adapt directly to the student's learning style.
-- Be encouraging and patient.
-- Give examples and short practice questions.
-- Avoid overly complex explanations; break down concepts into simple, digestible steps.
-- Ensure all responses are culturally relevant and appropriate for the Kenyan context.
-- Use localized Kenyan examples where applicable (e.g., local currency, towns, context) to keep it relatable.
-- Teach or answer questions using the active context topic.
-- Remember previous parts of the conversation.
-- ADAPTIVE RULE: If the question is about a topic listed in their 'Weak Topics', break it down into much simpler foundational steps.
-- ADAPTIVE RULE: If their 'Current Level' is 'Hard', challenge them with an analytical thinking follow-up question.
-- Write the text strictly in the student's preferred language: {student.get('language', 'English')}.
-
-Give a clear educational response.
+=== CURRENT STUDENT INQUIRY ===
+Student Question: {question}
+Mwalimu AI response:
 """
 
+    # Assemble structural payload for OpenRouter's API wrapper
+    api_messages = []
+    
+    # User content block assembly
+    user_content_blocks = [{"type": "text", "text": prompt}]
+    
+    # If the file is an image, attach it via base64 object notation
+
+    if attachment and attachment.get("type") == "image_base64":
+        image_payload = {
+            "type": "image_url",
+            "image_url": {
+                "url": str(attachment["content"])
+            }
+        }
+        user_content_blocks.append(image_payload)
+
+    api_messages.append({"role": "user", "content": user_content_blocks})
+
     try:
-        response = client.chat.completions.create(
-            extra_headers={
-                "HTTP-Referer": "https://mwalimu-ai.streamlit.app",
-                "X-Title": "Mwalimu AI Chat Engine",
-            },
-            model="openrouter/free",
-            messages=[{"role": "user", "content": prompt}]
+        completion = client.chat.completions.create(
+            model="google/gemini-2.5-flash",
+            messages=api_messages,
+            max_tokens=1500  # 👈 ADD THIS LINE HERE
         )
-        return response.choices[0].message.content
-    except Exception as e:
-        print(f"OpenRouter Gateway Connection Error: {e}")
-        return f"Mambo! Mwalimu is having trouble connecting to the network right now: {e}"
+        return completion.choices[0].message.content
+
+    except Exception as api_err:
+        return f"Mwalimu Connection Timeout: {str(api_err)}"
+
+
+
 
 def generate_quiz(topic, student, difficulty="Medium"):
     # 1. Unpack properties safely from the unified user state map
@@ -238,16 +238,20 @@ CRITICAL OPTION CONSTRAINT RULES:
 7. Write the text strictly in the student's preferred language: {student.get('language', 'English')}.
 8. **Consistent Units**: Ensure all options include the correct unit matching the question (e.g., "shillings", "passengers").
 """
-
+    #=======
     try:
         response = client.chat.completions.create(
             extra_headers={
                 "HTTP-Referer": "https://mwalimu-ai.streamlit.app",
                 "X-Title": "Mwalimu AI App Quiz",
             },
-            model="openrouter/free",
-            messages=[{"role": "user", "content": prompt}]
+            model="google/gemini-2.5-flash",  # 👈 CHANGED FROM "openrouter/free"
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=2000,  # 👈 ADDED FOR SWIFT INITIALIZATION (Plenty for JSON quiz)
+            response_format={"type": "json_object"}  # 👈 FORCES RAPID NATIVE JSON PARSING
         )
+        
+        # FIX: OpenRouter/OpenAI compatibility wrapper parsing requires indexing choices[0]
         quiz_text = response.choices[0].message.content
         if quiz_text is None:
             print("No content returned from model")
@@ -267,6 +271,7 @@ CRITICAL OPTION CONSTRAINT RULES:
     except Exception as e:
         print(f"Error calling OpenRouter API: {e}")
         return []
+
 def generate_study_plan(student: dict, stats: dict) -> str:
     """Crafts an optimized personalized study timetable map strategy framework."""
     # 1. Safely extract the preferred language from the student profile dictionary
@@ -401,23 +406,25 @@ CRITICAL INSTRUCTIONS:
 - NEVER use "Lorem ipsum", placeholder words, or dummy text.
 - NEVER include bracketed source numbers or tokens. All content must be completely real and readable.
 """
-
+    #======
     try:
         response = client.chat.completions.create(
             extra_headers={
                 "HTTP-Referer": "https://mwalimu-ai.streamlit.app",
                 "X-Title": "Mwalimu AI Study Planner",
             },
-            model="openrouter/free",
-            messages=[{"role": "user", "content": prompt}]
+            model="google/gemini-2.5-flash",  # 👈 BYPASSES ROUTER QUEUE
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=4000  # 👈 SIZES THE WINDOW PERFECTLY FOR ROADMAPS
         )
         
-        # 4. CRITICAL FIX: Extract content safely and guarantee a string return type using fallback
+        # 4. CRITICAL FIX: OpenRouter/OpenAI compatibility wrapper indexing syntax
         raw_content = response.choices[0].message.content
         return raw_content if raw_content is not None else "Error: Mwalimu AI received an empty study plan from the generation model."
         
     except Exception as e:
         return f"Could not sync study strategy roadmap recommendations: {e}"
+
 
 
 def generate_flashcards(topic, student, difficulty="Medium"):
@@ -500,10 +507,12 @@ Rules:
                 "HTTP-Referer": "https://mwalimu-ai.streamlit.app",
                 "X-Title": "Mwalimu AI Flashcard Processor",
             },
-            model="openrouter/free",
-            messages=[{"role": "user", "content": prompt}]
+            model="google/gemini-2.5-flash",  # 👈 DIRECT SPEED ROUTING BYPASS
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=1500,  # 👈 SIZED PERFECTLY FOR FLASHCARD SETS
+            response_format={"type": "json_object"}  # 👈 FORCES INSTANT STRUCTURED DATA WITHOUT FILLER TEXT
         )
-        # FIX: Safely unpack content with a fallback empty string to prevent Pylance None type warnings
+        # CRITICAL FIX: Safe indexing using standard [0] array retrieval syntax
         raw_content = response.choices[0].message.content
         clean_content = (raw_content if raw_content is not None else "").strip()
         
@@ -516,8 +525,12 @@ Rules:
     except Exception as e:
         print(f"Flashcard Generator Engine Parsing Error: {e}")
         return [
-            {"question": f"What is the core baseline principle behind {topic}?", "answer": "Refer to your standard class curriculum documentation notes for context definitions."}
+            {
+                "question": f"What is the core baseline principle behind {topic}?", 
+                "answer": "Refer to your standard class curriculum documentation notes for context definitions."
+            }
         ]
+
 
 def generate_lesson(topic, student):
     """Generates full structural markdown lessons backed by the local KICD Knowledge Base."""
@@ -653,12 +666,14 @@ Please construct the lesson using clean Markdown headers. The lesson MUST includ
     try:
         response = client.chat.completions.create(
             extra_headers={
-                "HTTP-Referer": "[https://mwalimu-ai.streamlit.app](https://mwalimu-ai.streamlit.app)",
+                "HTTP-Referer": "https://mwalimu-ai.streamlit.app",
                 "X-Title": "Mwalimu AI Lesson Plan Engine",
             },
-            model="openrouter/free",
-            messages=[{"role": "user", "content": prompt}]
+            model="google/gemini-2.5-flash",  # 👈 DIRECT SPEED ROUTING BYPASS
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=4000  # 👈 GENEROUS ROOM FOR EXTENSIVE CBC LESSON STEPS & SCHEMES
         )
+        # CRITICAL FIX: Safe indexing using standard array retrieval syntax
         return response.choices[0].message.content
     except Exception as e:
         print(f"OpenRouter Lesson Generation Error: {e}")

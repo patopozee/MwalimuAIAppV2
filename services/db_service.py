@@ -12,7 +12,6 @@ class MwalimuDBService:
 
     @staticmethod
     def save_quiz_result(uid, topic, score, total_questions):
-        # Use MwalimuDBService.db
         result_ref = MwalimuDBService.db.collection("users").document(uid).collection("quiz_results").document()
         result_ref.set({
             "topic": topic,
@@ -24,7 +23,9 @@ class MwalimuDBService:
 
     @staticmethod
     def log_interaction(uid, action_type):
-        # Use MwalimuDBService.db
+        # Force cache invalidation since user stats just changed
+        st.cache_data.clear()
+        
         today = datetime.utcnow().strftime("%Y-%m-%d")
         log_ref = MwalimuDBService.db.collection("users").document(uid).collection("usage_logs").document(today)
         
@@ -36,8 +37,12 @@ class MwalimuDBService:
             log_ref.set({action_type: 1, "date": today})
 
     @staticmethod
+    @st.cache_data(ttl=10, show_spinner=False)  # 👈 CACHES NETWORK READ FOR 10 SECONDS
     def get_daily_usage(uid, action_type):
-        # Use MwalimuDBService.db
+        """
+        Pulls usage data from Firestore on the first run, then serves it 
+        from server RAM instantly on subsequent rapid clicks.
+        """
         today = datetime.utcnow().strftime("%Y-%m-%d")
         doc = MwalimuDBService.db.collection("users").document(uid).collection("usage_logs").document(today).get()
         if doc.exists:
@@ -47,10 +52,12 @@ class MwalimuDBService:
     @staticmethod
     def increment_usage(uid, action_type):
         """
-        Increments usage in the SAME collection used by get_daily_usage.
+        Increments usage and immediately clears memory cache to ensure data precision.
         """
+        # 👈 PURGES MEMORY COPIES INSTANTLY SO COUNTS REMAIN PRECISE
+        st.cache_data.clear()
+        
         today = datetime.utcnow().strftime("%Y-%m-%d")
-        # Use the exact same path as get_daily_usage
         log_ref = MwalimuDBService.db.collection("users").document(uid).collection("usage_logs").document(today)
         
         # Atomically increment in the usage_logs document

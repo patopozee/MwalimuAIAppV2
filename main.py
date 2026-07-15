@@ -36,6 +36,7 @@ from services.auth_service import MwalimuAuthService
 from services.payment_service import MpesaPaymentService
 from services.tier_guard import verify_tier_allowance
 from services.ai import ask_mwalimu, generate_quiz, generate_study_plan, generate_flashcards, generate_lesson
+from services.vision_service import MwalimuVisionService
 from services.db_service import MwalimuDBService
 from services.ui_components import show_upgrade_modal
 from services.legal_text import TERMS_AND_CONDITIONS
@@ -550,6 +551,28 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
     }}
     </style>
     """)
+    # Look for your existing st.html styles block and add this rule inside it:
+    st.html("""
+        <style>
+            /* Force the student (user) chat message row to flip to the right side */
+            div[data-testid="stChatMessage"]:has(img[alt="Avatar for user"]),
+            div[data-testid="stChatMessage"]:has(span[data-testid="stChatMessageAvatarUser"]) {
+                flex-direction: row-reverse !important;
+                text-align: right !important;
+            }
+            
+            /* Make sure the internal text alignments inside the bubble remain clean */
+            div[data-testid="stChatMessage"]:has(img[alt="Avatar for user"]) div[data-testid="stMarkdownContainer"],
+            div[data-testid="stChatMessage"]:has(span[data-testid="stChatMessageAvatarUser"]) div[data-testid="stMarkdownContainer"] {
+                text-align: left !important;
+                background-color: #2F3037 !important; /* Optional: Makes student bubble look slightly darker/distinct */
+                padding: 10px 15px !important;
+                border-radius: 15px !important;
+                display: inline-block !important;
+            }
+        </style>
+        """)
+
     #user_data = get_student_data(st.session_state.user_email)
 
     # === SIDEBAR ACCOUNT CONFIGURATION ===
@@ -1022,10 +1045,60 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
         # Display previous chat messages
         # -----------------------------
         for msg in st.session_state.messages:
-            role = "user" if msg["role"] in ["student", "user"] else "assistant"
+            if msg["role"] in ["student", "user"]:
+                # 👤 STUDENT CONTAINER: Text pill aligned left with a circular avatar on the far right
+                st.markdown(f"""
+                <div style="display: flex; justify-content: flex-end; align-items: flex-start; gap: 10px; margin-bottom: 20px; width: 100%;">
+                    <div style="background-color: #2F3037; color: #ECECF1; padding: 12px 18px; border-radius: 20px; max-width: 70%; font-family: sans-serif; font-size: 15px; line-height: 1.6; box-shadow: 0 1px 2px rgba(0,0,0,0.1);">
+                        <div style="text-align: left;">{msg["content"]}</div>
+                    </div>
+                    <div style="width: 32px; height: 32px; background-color: #40414F; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 15px; flex-shrink: 0; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                        👤
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+                
+                # Render the Student's Image attachment right below on the right side
+                if "image_preview" in msg and msg["image_preview"]:
+                    st.markdown(f"""
+                    <div style="display: flex; justify-content: flex-end; margin-bottom: 20px; width: 100%; padding-right: 42px; box-sizing: border-box;">
+                        <div style="max-width: 320px; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.15); border: 1px solid #424656;">
+                            <img src="{msg["image_preview"]}" style="width: 100%; display: block;" />
+                        </div>
+                    </div>
+                    """, unsafe_allow_html=True)
 
-            with st.chat_message(role):
+                # Render the Student's PDF text badge right below on the right side
+                if "file_preview" in msg and msg["file_preview"]:
+                    st.markdown(f"""
+                    <div style="display: flex; justify-content: flex-end; margin-bottom: 20px; width: 100%; padding-right: 42px; box-sizing: border-box;">
+                        <div style="background-color: #2F3037; color: #ECECF1; padding: 10px 14px; border-radius: 12px; border: 1px solid #424656; display: flex; align-items: center; gap: 8px; font-size: 13px; font-family: sans-serif;">
+                            📄 {msg["file_preview"]}
+                        </div>
+                    </div>
+                    """, unsafe_allow_html=True)
+
+            else:
+                # 🤖 MWALIMU CONTAINER: Minimalist left-aligned head avatar avatar row
+                st.markdown(f"""
+                <div style="display: flex; justify-content: flex-start; align-items: center; gap: 10px; margin-bottom: 12px; width: 100%;">
+                    <div style="width: 32px; height: 32px; background-color: #FF4B4B; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 15px; flex-shrink: 0; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">
+                        👨‍🏫
+                    </div>
+                    <div style="font-family: sans-serif; font-size: 13px; font-weight: 600; color: #FF4B4B; text-transform: uppercase; letter-spacing: 0.5px;">
+                        Mwalimu AI
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+                
+                # Render Mwalimu's markdown response block cleanly with proper layout offsets
                 st.markdown(msg["content"])
+                st.markdown("<div style='margin-bottom: 32px;'></div>", unsafe_allow_html=True)
+
+
+
+
+
 
         # ----------------------------------------------------
         # State-Driven Upgrade Gatekeeper Banner
@@ -1052,44 +1125,76 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
         # ----------------------------------------------------
         # Chat Input
         # ----------------------------------------------------
-        user_question = st.chat_input("Ask Mwalimu anything...")
+        
+        chat_payload = st.chat_input(
+            "Ask Mwalimu anything...",
+            accept_file=True,
+            file_type=["pdf", "png", "jpg", "jpeg"]
+        )
 
-        if user_question:
-            # 1. Safely retrieve user data
+        if chat_payload:
+            # 1. Extract text and uploaded files from payload safely
+            user_question = str(chat_payload.text) if hasattr(chat_payload, "text") else str(chat_payload)
+            
+            uploaded_file = None
+            if hasattr(chat_payload, "files") and chat_payload.files:
+                uploaded_file = chat_payload.files
+
+            # 2. Retrieve student metadata details for verification
             student_profile = get_student_data(st.session_state.user_email)
             subscription = student_profile.get("subscription", {}) if student_profile else {}
             tier = subscription.get("tier", "Free")
             uid = st.session_state.get("uid") or st.session_state.user_email
-
+            
             if not name:
                 st.warning("Please create Student Profile in the sidebar first!")
-            
-            # 2. Gatekeeper Check
             elif not verify_tier_allowance(uid, tier, "questions"):
-                # Flag the limit state to render the warning button block safely on next loop pass
                 st.session_state.chat_limit_reached = True
                 st.rerun()
-                    
             else:
-                # Clear any lingering warning states since execution is valid
                 st.session_state.pop("chat_limit_reached", None)
 
-                # 3. Process Request
-                st.session_state.messages.append({"role": "student", "content": user_question})
-                save_chat_message(name, grade, int(age), "student", user_question)
-                
-                with st.spinner("Mwalimu is thinking..."):
-                    # 🎯 FIX: Match the exact order of structural arguments expected by ask_mwalimu in ai.py
-                    response = ask_mwalimu(user_question, student, st.session_state.messages[:-1])
+                # 3. 🔒 PREMIUM TIER FILE ATTACHMENT GUARD LOCK
+                attachment_payload = None
+                if uploaded_file:
+                    if str(tier).strip().lower() != "premium":
+                        st.error("🔒 **Mwalimu Document Scanner is a Premium Feature.** Please upgrade your subscription package to scan notes, images, or textbook PDFs!")
+                        
+                        # Show an instant upgrade button below the error message
+                        if st.button("🚀 Upgrade to Premium Now", key="upload_guard_upgrade_btn"):
+                            st.session_state.trigger_chat_upgrade_modal = True
+                            st.rerun()
+                        st.stop()  # Aborts execution to save token usage
+                    else:
+                        # Process files only if student holds a Premium tier status
+                        attachment_payload = MwalimuVisionService.process_chat_input_file(uploaded_file)
 
-                    
-                # 4. Critical: Increment usage AFTER successful response
+                # 4. Build message payload dictionary and append to state history
+                user_message_block = {"role": "student", "content": user_question}
+                if attachment_payload:
+                    if attachment_payload.get("type") == "image_base64":
+                        user_message_block["image_preview"] = attachment_payload["content"]
+                    elif attachment_payload.get("type") == "text_extraction":
+                        user_message_block["file_preview"] = attachment_payload["filename"]
+
+                st.session_state.messages.append(user_message_block)
+                save_chat_message(name, grade, int(age), "student", user_question)
+
+                # 5. Fire up your AI generation request safely
+                with st.spinner("Mwalimu is thinking..."):
+                    response = ask_mwalimu(
+                        question=user_question,
+                        student=student,
+                        messages=st.session_state.messages[:-1],
+                        attachment=attachment_payload
+                    )
+
+                # 6. Save final assistant response values and refresh canvas workspace
                 MwalimuDBService.increment_usage(uid, "questions")
-                
-                # Save and Rerun
                 st.session_state.messages.append({"role": "assistant", "content": response})
                 save_chat_message(name, grade, int(age), "assistant", response or "")
                 st.rerun()
+
 
 
        # =====================================================================
