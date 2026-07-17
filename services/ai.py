@@ -3,6 +3,7 @@ import os
 import json
 import random
 import base64
+import re
 import streamlit as st
 from dotenv import load_dotenv
 from openai import OpenAI
@@ -87,33 +88,37 @@ Mwalimu AI response:
 """
 
     # Assemble structural payload for OpenRouter's API wrapper
-    api_messages = []
+    api_messages = [{"role": "user", "content": [{"type": "text", "text": prompt}]}]
     
-    # User content block assembly
-    user_content_blocks = [{"type": "text", "text": prompt}]
-    
-    # If the file is an image, attach it via base64 object notation
     if attachment and attachment.get("type") == "image_base64":
-        image_payload = {
+        api_messages[0]["content"].append({
             "type": "image_url",
-            "image_url": {
-                "url": str(attachment["content"])
-            }
-        }
-        user_content_blocks.append(image_payload)
-
-    api_messages.append({"role": "user", "content": user_content_blocks})
+            "image_url": {"url": str(attachment["content"])}
+        })
 
     try:
-        completion = client.chat.completions.create(
-            model="google/gemini-2.5-flash",
-            messages=api_messages,
-            max_tokens=1500
+        # 🚀 PRE-EMPTIVE CEILING: Lower max_tokens to 400 *before* the call so you stay well under your 812 budget limit
+        response_stream = client.chat.completions.create(
+            model="openrouter/free",
+            messages=api_messages,  # type: ignore
+            max_tokens=1500,  
+            stream=True  
         )
-        return completion.choices[0].message.content
-
+        return response_stream  
+        
     except Exception as api_err:
-        return f"Mwalimu Connection Timeout: {str(api_err)}"
+        error_diagnostic_string = str(api_err)
+        print(f"[Terminal Log] Main Chat API Fault: {error_diagnostic_string}")
+        
+        # 🛡️ SYSTEM GUARD: Catch 402/Credit errors explicitly before returning to prevent SSE/JSON pipeline crashes
+        if "402" in error_diagnostic_string or "credits" in error_diagnostic_string.lower():
+            def error_generator():
+                yield "Mwalimu's connection is low on OpenRouter credits. Please add a small credit top-up to your API wallet dashboard!"
+            return error_generator()
+            
+        def fallback_generator():
+            yield f"Mwalimu encountered a brief connection stutter. Details: {error_diagnostic_string}"
+        return fallback_generator()
 
 
 
@@ -238,7 +243,7 @@ CRITICAL OPTION CONSTRAINT RULES:
                 "HTTP-Referer": "https://mwalimu-ai.streamlit.app",
                 "X-Title": "Mwalimu AI App Quiz",
             },
-            model="google/gemini-2.5-flash",  # 👈 CHANGED FROM "openrouter/free"
+            model="openrouter/free",  # 👈 CHANGED FROM "openrouter/free"
             messages=[{"role": "user", "content": prompt}],
             max_tokens=2000,  # 👈 ADDED FOR SWIFT INITIALIZATION (Plenty for JSON quiz)
             response_format={"type": "json_object"}  # 👈 FORCES RAPID NATIVE JSON PARSING
@@ -374,9 +379,9 @@ Ensure there are no line-breaks or unescaped symbols inside row cells that break
                 "HTTP-Referer": "https://mwalimu-ai.streamlit.app",
                 "X-Title": "Mwalimu AI Study Planner",
             },
-            model="google/gemini-2.5-flash",
+            model="openrouter/free",
             messages=[{"role": "user", "content": prompt}],
-            max_tokens=4000
+            max_tokens=3000
         )
         
         raw_content = response.choices[0].message.content
@@ -384,7 +389,6 @@ Ensure there are no line-breaks or unescaped symbols inside row cells that break
         
     except Exception as e:
         return f"Could not sync study strategy roadmap recommendations: {e}"
-
 
 
 def generate_flashcards(topic, student, difficulty="Medium"):
@@ -444,7 +448,7 @@ Return ONLY a raw, valid JSON object containing an array list of exactly 10 ques
                 "HTTP-Referer": "https://mwalimu-ai.streamlit.app",
                 "X-Title": "Mwalimu AI Flashcard Processor",
             },
-            model="google/gemini-2.5-flash",
+            model="openrouter/free",
             messages=[{"role": "user", "content": prompt}],
             max_tokens=2500,  # 2500 provides plenty of room for 10 rich cards
             response_format={"type": "json_object"}
@@ -618,12 +622,97 @@ Please construct the lesson using clean Markdown headers. The lesson MUST includ
                 "HTTP-Referer": "https://mwalimu-ai.streamlit.app",
                 "X-Title": "Mwalimu AI Lesson Plan Engine",
             },
-            model="google/gemini-2.5-flash",  # 👈 DIRECT SPEED ROUTING BYPASS
+            model="openrouter/free",  # 👈 DIRECT SPEED ROUTING BYPASS
             messages=[{"role": "user", "content": prompt}],
-            max_tokens=4000  # 👈 GENEROUS ROOM FOR EXTENSIVE CBC LESSON STEPS & SCHEMES
+            max_tokens=2900  # 👈 GENEROUS ROOM FOR EXTENSIVE CBC LESSON STEPS & SCHEMES
         )
         # CRITICAL FIX: Safe indexing using standard array retrieval syntax
         return response.choices[0].message.content
     except Exception as e:
         print(f"OpenRouter Lesson Generation Error: {e}")
         return f"Mwalimu encountered an issue preparing your lesson roadmap: {e}. Please click generate again!"
+
+def ask_mwalimu_voice(question, student, messages, adaptive_context):
+    """Dedicated text-driven voice streaming engine with pre-emptive credit ceilings."""
+    preferred_language = student.get("preferred_language", student.get("language", "English"))
+    subject = student.get('subject', 'Science')
+    topic = student.get('topic', 'Living Things')
+    sub_topic = student.get('sub_topic', 'Plants')
+    learning_style = student.get("learning_style", "General")
+    
+    # Safely look up curriculum details from your knowledge base
+    kicd_data = knowledge_base.get_curriculum_context(subject, topic, sub_topic)
+    
+    language_rules = {
+        "English": "Respond naturally and directly in grammatically correct English like an empathetic Kenyan classroom teacher.",
+        "Kiswahili": "Andika majibu yako yote kwa Kiswahili sanifu, fasaha, na safi kabisa kinachofaa mazingira ya shule za Kenya. Usitumie Kiingereza.",
+        "Sheng": "Tumia lugha ya kirafiki ya Sheng iliyochanganywa na maelezo ya kimasomo ili kumfanya mwanafunzi achangamke, lakini hakikisha ukweli wa kimasomo unabaki sahihi."
+    }
+    
+    # Get the language instruction string based on student choice
+    selected_language_rule = language_rules.get(preferred_language, language_rules["English"])
+    
+    # 🏎️ CRITICAL OPTIMIZATION: Tight sliding window. Never send more than the last 4 messages to save tokens!
+    recent_messages = messages[-4:] if messages else []
+    
+    # Build history string strictly using the recent_messages slice
+    voice_history_string = ""
+    for msg in recent_messages:
+        role_label = "Mwanafunzi" if msg.get("role") in ["user", "student", "voice_student"] else "Mwalimu"
+        voice_history_string += f"{role_label}: {msg.get('content')}\n"
+
+    # Assemble the final, isolated prompt string
+    prompt = f"""
+{SYSTEM_GUARD}
+
+=== CRITICAL CONTEXT CONFLICT PROTECTION WALL ===
+- THIS IS A COMPLETELY SEPARATE, INDEPENDENT VOICE LEARNING SESSION.
+- NEVER read, reference, or use information from the student's normal text chat window history.
+- Treat this voice session as its own isolated classroom environment.
+- Ignore any text chat messages that are not present in the Voice Tutor history block below.
+
+=== VOICE TUTOR RULES (STRICT CAP) ===
+- YOU ARE SPEAKING ALOUD. NEVER EXCEED 50 WORDS TOTAL.
+- Keep answers brief, conversational, warm, and highly snackable.
+- Avoid asterisks, bolding markdown, or symbols completely.
+- Language Instruction: {selected_language_rule}
+
+=== EXCLUSIVE VOICE TUTOR INTERACTION HISTORY ===
+{voice_history_string}
+================================================
+
+=== STUDENT PROFILE & CURRENT SUBJECT CONTEXT ===
+- **Student Name**: {student.get('name', 'Student')}
+- **Subject**: {subject} | **Topic**: {topic} ({sub_topic})
+- **Learning Style**: {learning_style}
+
+=== CURRENT STUDENT SPOKEN INQUIRY ===
+Student Spoken Question: {question}
+Mwalimu AI verbal response:
+"""
+
+    api_messages = [{"role": "user", "content": prompt}]
+
+    try:
+        # 🚀 PRE-EMPTIVE CEILING: Lower voice max_tokens to 350 to provide super-fast text chunks and stay well within your 812 budget
+        response_stream = client.chat.completions.create(
+            model="openrouter/free",
+            messages=api_messages,  # type: ignore
+            max_tokens=350,  
+            stream=True  
+        )
+        return response_stream  
+        
+    except Exception as api_err:
+        error_diagnostic_string = str(api_err)
+        print(f"[Terminal Log] Voice Tutor API Fault: {error_diagnostic_string}")
+        
+        # 🛡️ SYSTEM GUARD: Catch 402/Credit errors explicitly before returning to prevent SSE/JSON pipeline crashes
+        if "402" in error_diagnostic_string or "credits" in error_diagnostic_string.lower():
+            def error_generator():
+                yield "Mwalimu's voice box is currently offline due to low OpenRouter credits. Please add a small credit top-up to your API wallet dashboard!"
+            return error_generator()
+
+        def fallback_generator():
+            yield f"Mwalimu Voice Engine encountered a stutter. Details: {error_diagnostic_string}"
+        return fallback_generator()

@@ -56,13 +56,15 @@ def flush_all_database_caches():
     get_student_quiz_history.clear()
     get_next_difficulty.clear()
     get_student_learning_analysis.clear()
-    get_chat_history.clear()
+    get_ask_mwalimu_history.clear()
     get_student_data.clear()
 
 
 def create_tables():
     conn = sqlite3.connect(DATABASE_NAME)
     cursor = conn.cursor()
+    
+    # 1. Create the students table layout
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS students (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -75,6 +77,8 @@ def create_tables():
         language TEXT
     )
     """)
+    
+    # 2. Create the fully updated progress table layout
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS progress (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -88,11 +92,16 @@ def create_tables():
         strand TEXT,
         sub_strand TEXT,
         learning_outcome TEXT,
+        attachment TEXT,
+        is_voice INTEGER DEFAULT 0,    -- 🎙️ Tracks if message is voice
+        audio_bytes BLOB DEFAULT NULL,  -- 🎙️ Stores raw generated audio files
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
     """)
+
     conn.commit()
     conn.close()
+
 
 
 def save_student(student):
@@ -109,16 +118,27 @@ def save_student(student):
 
 
 def save_activity(student_name, student_grade, student_age, activity_type, topic, score=0,
-                  subject="General", topics="General", sub_topic="General", learning_outcome="General"):
+                  subject="General", topics="General", sub_topic="General", 
+                  learning_outcome="General", attachment=None, is_voice=0, audio_bytes=None): # <-- Add variables here
     conn = sqlite3.connect(DATABASE_NAME)
     cursor = conn.cursor()
+    print("ATTACHMENT BEFORE SAVE:")
+    print(attachment)
+    
+    attachment_json = json.dumps(attachment) if attachment is not None else None
+
+    
     cursor.execute("""
-    INSERT INTO progress (student_name, student_grade, student_age, activity_type, topic, score, subject, strand, sub_strand, learning_outcome)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    """, (student_name, student_grade, int(student_age), activity_type, topic, score, subject, topics, sub_topic, learning_outcome))
+    INSERT INTO progress (student_name, student_grade, student_age, activity_type, topic, 
+    score, subject, strand, sub_strand, learning_outcome, attachment, is_voice, audio_bytes)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    """, (student_name, student_grade, int(student_age), activity_type, topic, score, subject, 
+          topics, sub_topic, learning_outcome, attachment_json, is_voice, audio_bytes)) # <-- Add mapping params here
     conn.commit()
     conn.close()
-    flush_all_database_caches()  # 🎯 Instant RAM sync trigger
+    flush_all_database_caches()
+
+
 
 
 # ---------------------------------------------------------------------
@@ -212,31 +232,167 @@ def get_student_learning_analysis(student_name: str, grade: str, age: int):
     return {"weak_topics": weak_topics, "strong_topics": strong_topics, "current_level": current_level}
 
 
-@st.cache_data(ttl=30, show_spinner=False)
-def get_chat_history(student_name: str, grade: str, age: int):
+@st.cache_data(ttl=5)
+def get_ask_mwalimu_history(student_name, grade, age):
+    """Pulls text messages and their corresponding upload preview payload configurations safely."""
     conn = sqlite3.connect(DATABASE_NAME)
+    conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
+    
     cursor.execute("""
-        SELECT activity_type, topic FROM progress
-        WHERE student_name = ? AND student_grade = ? AND student_age = ?
-        AND (activity_type = 'student' OR activity_type = 'assistant')
-        ORDER BY id ASC
-    """, (student_name, grade, int(age)))
+        SELECT activity_type, topic, attachment FROM progress
+        WHERE student_name=? AND student_grade=? AND student_age=?
+        AND activity_type IN ('ask_user', 'ask_assistant')
+        ORDER BY id
+    """, (student_name, grade, age))
+    
     rows = cursor.fetchall()
     conn.close()
-    return [{"role": "user" if r[0] == "student" else "assistant", "content": r[1]} for r in rows]
+    
+    history = []
+    for row in rows:
+        role = "user" if row["activity_type"] == "ask_user" else "assistant"
+        
+        # Build standard base text dictionary matching your main.py structures
+        msg_node = {
+            "role": role,
+            "content": row["topic"]
+        }
+        
+        # If a valid attachment payload string exists, unpack its visual mappings!
+        if row["attachment"]:
+            try:
+                attachment_data = json.loads(row["attachment"])
+                if isinstance(attachment_data, dict):
+                    if attachment_data.get("type") == "image_base64":
+                        msg_node["image_preview"] = attachment_data.get("content")
+                    elif attachment_data.get("type") == "text_extraction":
+                        msg_node["file_preview"] = attachment_data.get("filename")
+            except Exception:
+                pass  # Avoid history loop breaks if an individual block fails decoding
+                
+        history.append(msg_node)
+        
+    return history
 
 
-def save_chat_message(student_name: str, grade: str, age: int, role: str, message: str):
-    activity = "student" if role in ["user", "student"] else "assistant"
-    save_activity(
-        student_name=student_name, 
-        student_grade=grade, 
-        student_age=int(age),
-        activity_type=activity, 
-        topic=message, 
-        score=0
-    )
+@st.cache_data(ttl=5)
+def get_voice_chat_history(student_name, grade, age):
+    """Pulls vocal histories and structural attachments with high-efficiency query caching."""
+    conn = sqlite3.connect(DATABASE_NAME)
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+    
+    # Explicitly add attachment to the columns selection query
+    cursor.execute("""
+        SELECT activity_type, topic, audio_bytes, attachment FROM progress
+        WHERE student_name=? AND student_grade=? AND student_age=?
+        AND activity_type IN ('voice_user', 'voice_assistant')
+        ORDER BY id
+    """, (student_name, grade, age))
+    
+    rows = cursor.fetchall()
+    conn.close()
+    
+    history = []
+    for row in rows:
+        role = "user" if row["activity_type"] == "voice_user" else "assistant"
+        
+        msg_node = {
+            "role": role,
+            "content": row["topic"],
+            "audio_bytes": row["audio_bytes"],
+            "is_voice": True
+        }
+        
+        # Safely unroll potential attachments into matching visual dictionary flags
+        if row["attachment"]:
+            try:
+                attachment_data = json.loads(row["attachment"])
+                if isinstance(attachment_data, dict):
+                    if attachment_data.get("type") == "image_base64":
+                        msg_node["image_preview"] = attachment_data.get("content")
+                    elif attachment_data.get("type") == "text_extraction":
+                        msg_node["file_preview"] = attachment_data.get("filename")
+            except Exception:
+                pass  # Skip corrupted rows without breaking the loop
+                
+        history.append(msg_node)
+        
+    return history
+
+
+
+def save_ask_mwalimu_message(student_name, grade, age, role, message, attachment=None):
+    """Saves a conversational chat message entry exactly once along with any attachments."""
+    conn = sqlite3.connect(DATABASE_NAME)
+    cursor = conn.cursor()
+    
+    # Correctly parse database role mappings matching your system
+    activity = "ask_user" if role == "user" else "ask_assistant"
+    
+    # Serialize attachments dictionary safely to a string payload if present
+    attachment_json = json.dumps(attachment) if attachment else None
+    
+    cursor.execute("""
+        INSERT INTO progress (
+            student_name, 
+            student_grade, 
+            student_age, 
+            activity_type, 
+            topic, 
+            attachment, 
+            is_voice
+        ) VALUES (?, ?, ?, ?, ?, ?, 0)
+    """, (student_name, grade, int(age), activity, message, attachment_json))
+    
+    conn.commit()
+    conn.close()
+    
+    # Instantly clear read caches so updates show up in real-time
+    get_ask_mwalimu_history.clear()
+
+
+def save_voice_chat_message(
+    student_name,
+    grade,
+    age,
+    role,
+    message,
+    audio_bytes=None
+):
+    conn = sqlite3.connect(DATABASE_NAME)
+    cursor = conn.cursor()
+
+    activity = "voice_user" if role == "user" else "voice_assistant"
+
+    cursor.execute("""
+        INSERT INTO progress
+        (
+            student_name,
+            student_grade,
+            student_age,
+            activity_type,
+            topic,
+            is_voice,
+            audio_bytes
+        )
+        VALUES (?, ?, ?, ?, ?, 1, ?)
+    """,
+    (
+        student_name,
+        grade,
+        age,
+        activity,
+        message,
+        audio_bytes
+    ))
+
+    conn.commit()
+    conn.close()
+
+    get_voice_chat_history.clear()
+
 
 
 def clear_student_chat_history(student_name: str, grade: str, age: int):
@@ -321,4 +477,25 @@ def save_support_message(name: str, email: str, subject: str, message: str) -> b
     except Exception as e:
         print(f" Failed to submit message payload structure: {str(e)}")
         return False
+
+def clear_voice_chat_history_only(student_name: str, grade: str, age: int):
+    """Purges only voice records and audio bytes for the student profile."""
+    conn = sqlite3.connect(DATABASE_NAME)
+    cursor = conn.cursor()
+    
+    # Strictly deletes voice_user and voice_assistant rows
+    cursor.execute("""
+        DELETE FROM progress 
+        WHERE student_name = ? AND student_grade = ? AND student_age = ?
+        AND activity_type IN ('voice_user', 'voice_assistant')
+    """, (student_name, grade, int(age)))
+    
+    conn.commit()
+    conn.close()
+    
+    # Reset only the voice read cache
+    if hasattr(get_voice_chat_history, "clear"):
+        get_voice_chat_history.clear()
+
+
 

@@ -6,19 +6,21 @@ from services.database import get_student_data
 # Business Rule Constraints Dictionary Mapping
 TIER_LIMITS = {
     "Free": {
-        "questions": 1,
-        "quizzes": 1,
-        "flashcards": 1,
+        "questions": 15,
+        "quizzes": 5,
+        "flashcards": 5,
         "lessons": 1,
         "has_study_plan": 1,
-        "has_voice": 1,
+        "has_upload" : 0,
+        "has_voice": 0,
     },
     "Mwalimu AI Plus": {
         "questions": 50,
         "quizzes": 15,
-        "flashcards": 50,
-        "lessons": 1,
-        "has_study_plan": 1,
+        "flashcards": 30,
+        "lessons": 5,
+        "has_study_plan": 5,
+        "has_voice": 10,
         "has_voice": False
     },
     "Premium": {
@@ -27,6 +29,7 @@ TIER_LIMITS = {
         "flashcards": float('inf'),
         "lessons": float('inf'),
         "has_study_plan": float('inf'),
+        "has_upload": float('inf'),
         "has_voice": True
     }
 }
