@@ -1,115 +1,240 @@
-# voice_page.py
 import streamlit as st
-from streamlit_mic_recorder import mic_recorder
-from voice import speech_to_text
-from services.ai import ask_mwalimu
-from services.database import save_chat_message
+import io
+import json
+import sqlite3
+from gtts import gTTS  
+from streamlit_mic_recorder import speech_to_text  
+from services.ai import ask_mwalimu_voice  
+from services.database import (
+    save_voice_chat_message, 
+    get_voice_chat_history, 
+    clear_voice_chat_history_only
+)
 
 def render_voice_tutor_page(client):
     st.title("🎙️ Mwalimu AI - Voice Tutor")
     st.write("Click the microphone below to talk with your AI Teacher. Speak clearly!")
 
-    # Track a version number to break the microphone's stubborn cache loop
+    # 1. State Management Setup
     if "voice_recorder_version" not in st.session_state:
         st.session_state.voice_recorder_version = 0
+    if "voice_session_active" not in st.session_state:
+        st.session_state.voice_session_active = False
+    if "voice_chat_history" not in st.session_state:
+        st.session_state.voice_chat_history = []
+    if "voice_cache" not in st.session_state:
+        st.session_state.voice_cache = {}
 
-    # Persistent Pipeline State Initialization
-    if "user_spoken_text" not in st.session_state:
-        st.session_state.user_spoken_text = ""
-    if "mwalimu_response_text" not in st.session_state:
-        st.session_state.mwalimu_response_text = ""
-    if "chat_history" not in st.session_state:
-        st.session_state.chat_history = []
-
-    # Extract student profile properties from session state
+    # Gather Student Parameters Safely
     name = st.session_state.get("student_name", "Student")
-    grade = st.session_state.get("grade", "Grade 7")
-    age = st.session_state.get("age", 10)
-    favorite_subject = st.session_state.get("favorite_subject", "General")
-    weak_subject = st.session_state.get("weak_subject", "")
+    grade = st.session_state.get("grade", "Grade 6")
+    age = st.session_state.get("age", 13)
     learning_style = st.session_state.get("learning_style", "Interactive")
     language = st.session_state.get("language", "English")
+    
+    current_subject = st.session_state.get("active_subject", "Science and Technology")
+    current_topic = st.session_state.get("active_topic", "Living Things and Their Environment")
+    current_sub_topic = st.session_state.get("active_sub_topic", "Classification of Living Things")
 
-    student = {
-        "name": name, "grade": grade, "age": age,
-        "favorite_subject": favorite_subject, "weak_subject": weak_subject,
-        "learning_style": learning_style, "language": language
+    # 🛡️ FIX 1: ISOLATE THE STUDENT DICTIONARY OBJECT NAME
+    voice_student_profile = {
+        "name": name, 
+        "grade": grade, 
+        "age": int(age),
+        "subject": current_subject,    
+        "topic": current_topic,        
+        "sub_topic": current_sub_topic,
+        "learning_style": learning_style, 
+        "language": language
     }
 
-    # Dynamic version keying breaks the cache loop
-    audio = mic_recorder(
+    # 2. Database Fetch & Initial Normalization
+    if not st.session_state.voice_chat_history and name:
+        try:
+            all_raw_history = get_voice_chat_history(name, grade, int(age))
+            st.session_state.voice_chat_history = []
+            for msg in all_raw_history:
+                # Clean up inconsistent role definitions coming out of storage records
+                role_type = msg.get("role")
+                if role_type in ["voice_user", "voice_student", "user"]:
+                    msg["role"] = "user"
+                elif role_type in ["voice_assistant", "assistant"]:
+                    msg["role"] = "assistant"
+                st.session_state.voice_chat_history.append(msg)
+        except Exception:
+            st.session_state.voice_chat_history = []
+
+    # 3. Message Render Loop (Includes File / Image Attachments Previewer)
+    for msg in st.session_state.voice_chat_history:
+        if msg["role"] == "user":
+            st.info(f"🗣️ **Mwanafunzi ({name}):** {msg['content']}")
+            if msg.get("audio_bytes"):
+                st.audio(msg["audio_bytes"], format="audio/wav")
+            # If the text message row contains an associated media payload, show it
+            if msg.get("image_preview"):
+                st.image(msg["image_preview"], caption="Uploaded Workspace Screenshot", width=350)
+                
+        elif msg["role"] == "assistant":
+            st.success(f"🧙‍♂️ **Mwalimu:** {msg['content']}")
+            msg_content = msg['content']
+            cached_audio = st.session_state.voice_cache.get(msg_content) or msg.get("audio_bytes")
+            if cached_audio:
+                st.audio(cached_audio, format="audio/mp3")
+
+    live_response_container = st.container()
+    st.write("---") 
+
+    # 4. Voice Input Microphones Stream Processing Context
+    target_stt_lang = "sw" if "swahili" in str(language).lower() else "en"
+    transcribed_text = speech_to_text(
         start_prompt="🎙️ Click & Start Speaking",
-        stop_prompt="🛑 Stop & Send",
-        key=f"voice_recorder_v_{st.session_state.voice_recorder_version}"  
+        stop_prompt="🛑 Stop & Send Voice Note",
+        language=target_stt_lang,
+        key=f"voice_stt_v_{st.session_state.voice_recorder_version}"  
     )
 
-    # State flag to keep track of errors across the runtime flow
-    has_error = False
-
-    if audio:
-        with st.spinner("Transcribing your voice..."):
-            transcription = speech_to_text(audio['bytes'])
-            
-            if transcription:
-                # ─── CRITICAL CRASH & ERROR SHIELD GUARDRAIL ───
-                error_keywords = ["failed", "402", "error", "client error", "payment required"]
-                if any(keyword in transcription.lower() for keyword in error_keywords):
-                    st.error(f"🛑 Transcription API Error: {transcription}")
-                    st.info("💡 Mwalimu Tip: Your OpenRouter audio billing credits might be empty. Please check your dashboard balance!")
-                    
-                    # Log the error state in session memory so the bottom layout knows to render
-                    if not st.session_state.chat_history:
-                        st.session_state.chat_history.append({"role": "system", "content": "error_state_active"})
-                    has_error = True
-
-                # If it's a valid speech string, proceed safely
-                elif transcription != st.session_state.user_spoken_text:
-                    st.session_state.user_spoken_text = transcription
-                    st.session_state.mwalimu_response_text = ""  
-                    st.session_state.chat_history.append({"role": "user", "content": transcription})
-                    save_chat_message(name, grade, age, "user", transcription)
-
-    # Check existing history to catch an active error state on page refresh
-    if any(msg.get("content") == "error_state_active" for msg in st.session_state.chat_history):
-        has_error = True
-
-    # STEP 2: Render user speech text & trigger LLM context pipelines (ONLY IF NO ERROR)
-    if st.session_state.user_spoken_text and not has_error:
-        st.info(f"🗣️ **What you said:** {st.session_state.user_spoken_text}")
+    if transcribed_text and not st.session_state.voice_session_active:
+        st.session_state.voice_session_active = True
+        transcribed_text = str(transcribed_text).strip()
         
-        if not st.session_state.mwalimu_response_text:
-            with st.spinner("🧙‍♂️ Mwalimu is thinking..."):
-                try:
-                    preferred_language = student.get("language", "English")
-                    adaptive_context = f"Learning Style: {learning_style}, Favorite Subject: {favorite_subject}, Preferred Language: {preferred_language}"
+        # Cleanup unwanted smart assistant phrasing triggers
+        transcribed_text = transcribed_text.replace("play music by", "")
+        transcribed_text = transcribed_text.replace("play music", "")
+        transcribed_text = transcribed_text.strip()
+        
+        if transcribed_text:
+            # 🛡️ FIX 2: ISOLATE THE TIMELINE REPLICATOR VARIABLE NAME
+            voice_history_payload = list(st.session_state.voice_chat_history)
+            
+            user_msg_dict = {"role": "user", "content": transcribed_text, "is_voice": True, "audio_bytes": None}
+            st.session_state.voice_chat_history.append(user_msg_dict)
+
+            with live_response_container:
+                st.info(f"🗣️ **Mwanafunzi ({name}):** {transcribed_text}")
+                st.write("") 
+                st.markdown("🧙‍♂️ **Mwalimu AI is typing...**")
+                assistant_placeholder = st.empty()
+            
+            # Save User Input Message EXACTLY Once
+            save_voice_chat_message(
+                student_name=name,
+                grade=grade,
+                age=int(age),
+                role="user",
+                message=transcribed_text,
+                audio_bytes=None
+            )
+
+            try:
+                adaptive_context = f"Voice Session. Subject: {current_subject}, Topic: {current_topic}"
+                
+                # 🛡️ FIX 3: PASS THE ENTIRELY ISOLATED POINTER FIELDS DOWN
+                response_stream = ask_mwalimu_voice(
+                    question=transcribed_text,
+                    student=voice_student_profile,
+                    messages=st.session_state.voice_chat_history,
+                    adaptive_context=adaptive_context
+                )
+
+                ai_response_text = ""
+                for chunk in response_stream:
+                    if isinstance(chunk, str):
+                        if not any(token in chunk for token in ["We need to", "Current context:", "Let's count:", "Under 50"]):
+                            ai_response_text += chunk
+                            assistant_placeholder.markdown(ai_response_text)
+                        continue
+
+                    if hasattr(chunk, 'choices') and chunk.choices:
+                        try:
+                            choice_item = chunk.choices[0]
+                            if hasattr(choice_item, 'delta') and choice_item.delta:
+                                delta_content = getattr(choice_item.delta, 'content', None)
+                                if delta_content is not None:
+                                    delta_str = str(delta_content)
+                                    if "We need to" in delta_str or "Current context" in delta_str:
+                                        continue
+                                    ai_response_text += delta_str
+                                    assistant_placeholder.markdown(ai_response_text)
+                        except (IndexError, AttributeError, KeyError):
+                            continue
+
+                if ai_response_text and ai_response_text.strip():
+                    ai_response_text = ai_response_text.replace("User Safety: safe", "").strip()
                     
-                    ai_response_text = ask_mwalimu(
-                        question=st.session_state.user_spoken_text,
-                        student=student,
-                        messages=st.session_state.chat_history[:-1],
-                        adaptive_context=adaptive_context
-                    )
-                    if ai_response_text:
-                        ai_response_text = ai_response_text.replace("User Safety: safe", "").strip()
-                        st.session_state.mwalimu_response_text = ai_response_text
-                        st.session_state.chat_history.append({"role": "assistant", "content": ai_response_text})
-                        save_chat_message(name, grade, age, "assistant", ai_response_text)
-                    else:
-                        st.session_state.mwalimu_response_text = "Mambo! I missed that, let's try again."
-                except Exception as e:
-                    st.error(f"Mwalimu setup issue: {str(e)}")
+                    with live_response_container:
+                        with st.spinner("🔊 Generating Mwalimu's voice file..."):
+                            try:
+                                speak_lang = "sw" if "swahili" in str(language).lower() else "en"
+                                tts_live = gTTS(text=ai_response_text, lang=speak_lang, slow=False)
+                                live_audio_fp = io.BytesIO()
+                                tts_live.write_to_fp(live_audio_fp)
+                                
+                                audio_bytes = live_audio_fp.getvalue()
+                                st.session_state.voice_cache[ai_response_text] = audio_bytes
+                                
+                                # Save AI response message EXACTLY once with generated speech binary
+                                save_voice_chat_message(
+                                    student_name=name,
+                                    grade=grade,
+                                    age=int(age),
+                                    role="assistant",
+                                    message=ai_response_text,
+                                    audio_bytes=audio_bytes
+                                )
+                                
+                                # Sync update to memory state model array
+                                st.session_state.voice_chat_history.append({
+                                    "role": "assistant", 
+                                    "content": ai_response_text,
+                                    "is_voice": True,
+                                    "audio_bytes": audio_bytes
+                                })
+                                
+                                # Play out aloud instantly on browser layer
+                                st.audio(audio_bytes, format="audio/mp3", autoplay=True)
+                            except Exception as audio_err:
+                                print(f"gTTS network generation latency: {audio_err}")
 
-    # STEP 3: Display clean response text (ONLY IF NO ERROR)
-    if st.session_state.mwalimu_response_text and not has_error:
-        st.success(f"🧙‍♂️ **Mwalimu:** {st.session_state.mwalimu_response_text}")
+            except Exception as e:
+                st.error(f"Mwalimu setup issue: {str(e)}")
 
-    # ─── FIXED: THE DYNAMIC RESET BUTTON AT THE ABSOLUTE BOTTOM ───
-    # Since we removed st.stop(), the script safely runs through here even on transcription crashes!
-    if len(st.session_state.chat_history) > 0:
-        st.write("")  # Clear vertical padding spacer
-        if st.button("🧹 Clear Voice Session & Reset Cache"):
-            st.session_state.user_spoken_text = ""
-            st.session_state.mwalimu_response_text = ""
-            st.session_state.chat_history = []
+            # 🏎️ Page Re-initialization Optimization
             st.session_state.voice_recorder_version += 1
+            st.session_state.voice_session_active = False
             st.rerun()
+
+  
+    # --- DEDICATED CONFIRMATION DIALOG MODAL ---
+    @st.dialog("⚠️ Clear Voice Data")
+    def confirm_clear_voice_dialog():
+        st.write("Are you sure you want to permanently clear your voice chat history data? This action cannot be undone.")
+        st.write("")
+        
+        col_yes, col_cancel = st.columns(2)
+        with col_yes:
+            if st.button("Yes, Clear Everything", use_container_width=True, type="primary"):
+                # 1. Clean the backend database rows
+                clear_voice_chat_history_only(name, grade, int(age))
+                
+                # 2. Reset visual RAM session storage arrays
+                st.session_state.voice_chat_history = []
+                st.session_state.voice_cache = {}
+                st.session_state.voice_session_active = False
+                
+                # 3. Change component key to reset widget state smoothly
+                st.session_state.voice_recorder_version += 1
+                
+                st.toast("Voice database history records removed completely!")
+                st.rerun()
+                
+        with col_cancel:
+            if st.button("Cancel", use_container_width=True):
+                st.rerun()
+
+    # 5. Cleaned Single Action Button Trigger Panel
+    if len(st.session_state.voice_chat_history) > 0:
+        st.write("") 
+        
+        # Kept only the permanent deletion button as requested
+        if st.button("🗑️ Permanently Delete Voice DB Logs", use_container_width=True):
+            confirm_clear_voice_dialog()

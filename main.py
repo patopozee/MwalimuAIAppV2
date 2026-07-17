@@ -49,13 +49,16 @@ from services.database import (
     get_student_quiz_history,
     get_next_difficulty,
     get_student_learning_analysis,
-    get_chat_history,
-    save_chat_message,
+    get_ask_mwalimu_history,
+    save_ask_mwalimu_message,
+    get_voice_chat_history,
     clear_student_chat_history,
-    get_student_data
+    get_student_data,
+    clear_voice_chat_history_only  #  ADD THIS LINE HERE
 )
 from voice_page import render_voice_tutor_page
 from config import CBC  # Dynamic CBC repository dictionary
+
 
 # INITIALIZATION & TRANSPORT ENVIRONMENT SETTING
 load_dotenv()
@@ -74,7 +77,6 @@ create_tables()
 
 # --- INITIALIZE STATE WORKSPACE PARAMS (WITH PERFORMANCE PROFILE STORAGE CACHE) ---
 if "user_authenticated" not in st.session_state: st.session_state.user_authenticated = False
-if "messages" not in st.session_state: st.session_state.messages = []
 if "current_page" not in st.session_state: st.session_state.current_page = "Main Chat"
 if "quiz_questions" not in st.session_state: st.session_state.quiz_questions = []
 if "quiz_raw_score" not in st.session_state: st.session_state.quiz_raw_score = 0
@@ -84,8 +86,19 @@ if "quiz" not in st.session_state: st.session_state.quiz = None
 if "study_plan" not in st.session_state: st.session_state.study_plan = None
 if "flashcards" not in st.session_state: st.session_state.flashcards = []
 if "lesson_content" not in st.session_state: st.session_state.lesson_content = None
-if "chat_history" not in st.session_state: st.session_state.chat_history = []
 if "student_name" not in st.session_state: st.session_state.student_name = ""
+# 🎯 SPEED FIX: Initialize a specific localized memory caching slot for Firestore profile row responses
+if "user_profile" not in st.session_state: st.session_state.user_profile = None
+if "ask_mwalimu_history" not in st.session_state: 
+    st.session_state.ask_mwalimu_history = []
+if "voice_chat_history" not in st.session_state: 
+    st.session_state.voice_chat_history = []
+if "new_message" not in st.session_state:
+    st.session_state.new_message = False
+
+
+if "active_view" not in st.session_state:
+    st.session_state.active_view = "main"
 
 # 🎯 SPEED FIX: Initialize a specific localized memory caching slot for Firestore profile row responses
 if "user_profile" not in st.session_state: st.session_state.user_profile = None
@@ -614,11 +627,20 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
             st.session_state.get("last_checked_grade") != grade or 
             st.session_state.get("last_checked_age") != int(age)):
             
-            st.session_state.messages = get_chat_history(name, grade, int(age))
+            # 1. Pull the full mixed history list from SQLite
+            all_historical_chats = get_ask_mwalimu_history(name, grade, int(age))
+            
+            # 2. 🛡️ FILTER LOCK: Only assign text/attachment chats to the main view, skip voice entries
+            st.session_state.ask_mwalimu_history = [
+                msg for msg in all_historical_chats 
+                if not msg.get("is_voice")
+            ]
+            
             st.session_state.last_checked_name = name
             st.session_state.last_checked_grade = grade
             st.session_state.last_checked_age = int(age)
         st.session_state.student_name = name
+
 
     # CBC CURRICULUM INTEGRATION SELECTORS
     # =====================================================================
@@ -665,7 +687,7 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
         if (st.session_state.get("last_checked_name") != name or 
             st.session_state.get("last_checked_grade") != grade or 
             st.session_state.get("last_checked_age") != int(age)):
-            st.session_state.messages = get_chat_history(name, grade, int(age))
+            st.session_state.ask_mwalimu_history = get_ask_mwalimu_history(name, grade, int(age))
             st.session_state.last_checked_name = name
             st.session_state.last_checked_grade = grade
             st.session_state.last_checked_age = int(age)
@@ -709,16 +731,28 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
     if st.sidebar.button("✏️ Edit Student Profile", use_container_width=True):
         st.session_state.current_page = "Edit Profile"
         st.rerun()
-    # NAVIGATION HUB
-        # =====================================================================
-    # --- NAVIGATION HUB WITH DYNAMIC GENERATOR TOGGLE ---
+    
+    # =====================================================================
+    # --- NAVIGATION HUB WITH DYNAMIC GENERATOR TOGGLE ---    
     # =====================================================================
     st.sidebar.markdown("### Navigation Hub")
     
-    # 1. Voice Tutor Mode Button (Stays at the top of the hub)
-    if st.sidebar.button("🎙️ Voice Tutor Mode", use_container_width=True, key="sb_nav_voice"):
-        st.session_state.current_page = "Voice Tutor"
-        st.rerun()
+    # ---------------------------------------------------------------------
+    # 1. DYNAMIC VOICE TUTOR BUTTON: Switches text based on active page
+    # ---------------------------------------------------------------------
+    current_active_page = st.session_state.get("current_page", "Main Chat")
+
+    if current_active_page == "Voice Tutor":
+        # 🔄 If the user is inside the Voice Tutor, show the path to go back
+        if st.sidebar.button("💬 Back to Ask Mwalimu", use_container_width=True, key="sb_nav_back_to_chat"):
+            st.session_state.current_page = "Main Chat"
+            st.rerun()
+    else:
+        # 🎙️ If the user is anywhere else, show the entrance button to Voice Mode
+        if st.sidebar.button("🎙️ Voice Tutor Mode", use_container_width=True, key="sb_nav_go_voice"):
+            st.session_state.current_page = "Voice Tutor"
+            st.rerun()
+
         
     # ---------------------------------------------------------------------
     # DYNAMIC BUTTON: Switches text and behavior based on the active page
@@ -737,17 +771,36 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
             st.rerun()
     # ---------------------------------------------------------------------
 
-    # 3. Clear Chat Button (Moved cleanly to the bottom of the navigation block)
+    # --- DEDICATED MAIN CHAT CONFIRMATION DIALOG ---
+    @st.dialog("⚠️ Clear Main Chat History")
+    def confirm_clear_main_chat_dialog():
+        st.write("Are you sure you want to permanently clear your main text chat history? This action cannot be undone.")
+        st.write("")
+        
+        col_yes, col_cancel = st.columns(2)
+        with col_yes:
+            if st.button("Yes, Clear Main Chat", use_container_width=True, type="primary"):
+                # 1. Clean the backend text database records
+                clear_student_chat_history(
+                    student_name=st.session_state.get("student_name", "Student"),
+                    grade=st.session_state.get("grade", "Grade 6"),
+                    age=int(st.session_state.get("age", 12))
+                )
+                
+                # 2. Reset visual RAM session storage arrays
+                st.session_state.ask_mwalimu_history = []
+                
+                st.toast("Chat history cleared cleanly!", icon="🗑️")
+                st.rerun()
+                
+        with col_cancel:
+            if st.button("Cancel", use_container_width=True):
+                st.rerun()
+
+    # --- SIDEBAR BUTTON TRIGGER PANEL ---
     if st.sidebar.button("🗑️ Clear Chat", use_container_width=True, key="sb_nav_clear_chat"):
-        # Ensure your student_name, grade, and age fallbacks exist inside local scopes
-        clear_student_chat_history(
-            student_name=st.session_state.get("student_name", "Student"),
-            grade=st.session_state.get("grade", "Grade 6"),
-            age=int(st.session_state.get("age", 12))
-        )
-        st.session_state.messages = []
-        st.toast("Chat history cleared cleanly!", icon="🗑️")
-        st.rerun()
+        confirm_clear_main_chat_dialog()
+
 
 
     #=== Upgrade Tier === 
@@ -805,18 +858,48 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
                        st.sidebar.warning("Payment not confirmed yet. Please wait a moment.")
 
 
-        # 2. Trigger the modal based on state
-        if st.session_state.get("show_upgrade_modal"):
-            show_upgrade_modal()
+        # --- DEDICATED LOGOUT CONFIRMATION DIALOG ---
+        @st.dialog("🚪 Confirm Logout")
+        def confirm_logout_dialog():
+            st.write("Are you sure you want to log out of your account? Your active session will be closed.")
+            st.write("")
+            
+            col_yes, col_cancel = st.columns(2)
+            with col_yes:
+                if st.button("Yes, Log Out", use_container_width=True, type="primary"):
+                    # 🚨 FIX: Forcefully clear state-guard tracker tokens from browser memory
+                    tracking_keys_to_purge = [
+                        "user_authenticated", 
+                        "user_profile", 
+                        "messages", 
+                        "show_upgrade_modal",
+                        "last_checked_name", 
+                        "last_checked_grade", 
+                        "last_checked_age", 
+                        "student_name", 
+                        "uid", 
+                        "user_email"
+                    ]
+                    
+                    for target_key in tracking_keys_to_purge:
+                        if target_key in st.session_state:
+                            del st.session_state[target_key]
+                            
+                    # Re-initialize basic interface state flags safely back to the onboarding layer
+                    st.session_state.current_page = "Main Chat"
+                    
+                    # Force an environment reload to trigger clean database queries on subsequent sign-ins
+                    st.rerun()
+                    
+            with col_cancel:
+                if st.button("Cancel", use_container_width=True):
+                    st.rerun()
 
-        # 3. Log Out Button (Kept at the bottom of the sidebar)
+        # --- 3. Log Out Button (Kept at the bottom of the sidebar) ---
         st.sidebar.markdown("---") # Visual separator
         if st.sidebar.button("Logout", use_container_width=True):
-            st.session_state.user_authenticated = False
-            st.session_state.user_profile = None
-            st.session_state.messages = []
-            st.session_state.show_upgrade_modal = False
-            st.rerun()
+            confirm_logout_dialog()
+
 
     # Call the function to render the complete sidebar layout
     render_workspace_sidebar()
@@ -877,12 +960,14 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
         sb_ask_limit = sb_user_limits.get("questions", 1)
         sb_plan_limit = sb_user_limits.get("has_study_plan", 1)
         sb_lesson_limit = sb_user_limits.get("lessons", 1)
+        sb_upload_limit = sb_user_limits.get("has_upload", 1)
         
         sb_q_used = MwalimuDBService.get_daily_usage(sb_uid, "quizzes")
         sb_fc_used = MwalimuDBService.get_daily_usage(sb_uid, "flashcards")
         sb_ask_used = MwalimuDBService.get_daily_usage(sb_uid, "questions")
         sb_plan_used = MwalimuDBService.get_daily_usage(sb_uid, "has_study_plan")
         sb_lesson_used = MwalimuDBService.get_daily_usage(sb_uid, "lessons")
+        sb_upload_used = MwalimuDBService.get_daily_usage(sb_uid, "has_upload")
         
         def format_sb_balance(used, max_limit):
             if max_limit == float('inf'):
@@ -909,6 +994,11 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
         st.sidebar.markdown(f"📚 **Lessons:** `{format_sb_balance(sb_lesson_used, sb_lesson_limit)}`")
         if sb_lesson_limit != float('inf') and sb_lesson_used >= sb_lesson_limit:
             st.sidebar.caption("⚠️ Lesson limit reached for today.")
+        
+        st.sidebar.markdown(f" **Uploads:** `{format_sb_balance(sb_upload_used, sb_upload_limit)}`")
+        if sb_upload_limit != float('inf') and sb_upload_used >= sb_upload_limit:
+            st.sidebar.caption(" Uploads limit reached for today.")
+
 
     # Safe initialization trigger at runtime execution context
     if name:
@@ -1063,10 +1153,14 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
         st.write("### 💬 Chat with Mwalimu")
         # Display previous chat messages (State-Guarded Scroll Tracker)
         # -----------------------------
-        assistant_messages_count = sum(1 for m in st.session_state.messages if m["role"] not in ["student", "user"])
+        assistant_messages_count = sum(1 for m in st.session_state.ask_mwalimu_history if m["role"] not in ["student", "user"])
         current_ai_index = 0
 
-        for msg in st.session_state.messages:
+        for msg in st.session_state.ask_mwalimu_history:
+    # ADD THIS LINE TO SKIP VOICE MESSAGES:
+            if msg.get("is_voice") == 1:
+                continue
+                
             if msg["role"] in ["student", "user"]:
                 # 👤 STUDENT CONTAINER
                 st.markdown(f"""
@@ -1178,7 +1272,7 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
             if hasattr(chat_payload, "files") and chat_payload.files:
                 uploaded_file = chat_payload.files
 
-            # 2. Retrieve student metadata details for verification
+            # 2. Retrieve student metadata details for subscription verification
             student_profile = get_student_data(st.session_state.user_email)
             subscription = student_profile.get("subscription", {}) if student_profile else {}
             tier = subscription.get("tier", "Free")
@@ -1196,15 +1290,12 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
                 attachment_payload = None
                 if uploaded_file:
                     if str(tier).strip().lower() != "premium":
-                        st.error("🔒 **Mwalimu Document Scanner is a Premium Feature.** Please upgrade your subscription package to scan notes, images, or textbook PDFs!")
-                        
-                        # Show an instant upgrade button below the error message
+                        st.error("🔒 **Mwalimu Document Scanner is a Premium Feature.** Please upgrade your subscription package!")
                         if st.button("🚀 Upgrade to Premium Now", key="upload_guard_upgrade_btn"):
                             st.session_state.trigger_chat_upgrade_modal = True
                             st.rerun()
-                        st.stop()  # Aborts execution to save token usage
+                        st.stop()
                     else:
-                        # Process files only if student holds a Premium tier status
                         attachment_payload = MwalimuVisionService.process_chat_input_file(uploaded_file)
 
                 # 4. Build message payload dictionary and append to state history
@@ -1215,26 +1306,128 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
                     elif attachment_payload.get("type") == "text_extraction":
                         user_message_block["file_preview"] = attachment_payload["filename"]
 
-                st.session_state.messages.append(user_message_block)
-                save_chat_message(name, grade, int(age), "student", user_question)
+                # Append user text to memory history instantly
+                st.session_state.ask_mwalimu_history.append(user_message_block)
 
-                # 5. Flip the state-locking scroll flag to True right here!
-                st.session_state.new_message = True
-
-                # 6. Fire up your AI generation request safely
-                with st.spinner("Mwalimu is thinking..."):
-                    response = ask_mwalimu(
-                        question=user_question,
-                        student=student,
-                        messages=st.session_state.messages[:-1],
+                # FIX: Pass the file attachment dictionary payload so it's written into SQLite
+                save_ask_mwalimu_message(
+                        name,
+                        grade,
+                        age,
+                        "user",
+                        user_question,
                         attachment=attachment_payload
                     )
+                                    # 5. IMMEDIATELY DISPLAY USER BUBBLE ON SCREEN (No waiting!)
+                # This mirrors your Page 42 custom avatar design look instantly
+                st.markdown(f"""
+                <div style="display: flex; justify-content: flex-end; align-items: flex-start; gap: 10px; margin-bottom: 20px; width: 100%;">
+                    <div style="background-color: #2F3037; color: #ECECF1; padding: 12px 18px; border-radius: 20px; max-width: 70%; font-family: sans-serif; font-size: 15px; line-height: 1.6;">
+                        <div style="text-align: left;">{user_question}</div>
+                    </div>
+                    <div style="width: 32px; height: 32px; background-color: #40414F; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 15px; flex-shrink: 0;">
+                        👤
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+                
+                if attachment_payload and attachment_payload.get("type") == "image_base64":
+                    st.markdown(f"""
+                    <div style="display: flex; justify-content: flex-end; margin-bottom: 20px; width: 100%; padding-right: 42px; box-sizing: border-box;">
+                        <div style="max-width: 320px; border-radius: 12px; overflow: hidden; border: 1px solid #424656;">
+                            <img src="{attachment_payload["content"]}" style="width: 100%; display: block;" />
+                        </div>
+                    </div>
+                    """, unsafe_allow_html=True)
 
-                # 7. Save final assistant response values and refresh canvas workspace
+                # 6. TRIGGER INSTANT SCROLL SNAPPING DOWNWARD BEFORE STREAMING
+                # Calculate index position token target tags dynamically
+                current_ai_count = sum(1 for m in st.session_state.ask_mwalimu_history if m["role"] not in ["student", "user"]) + 1
+                next_scroll_target_id = f"msg_{current_ai_count}"
+                
+                st.markdown(f'<div id="chat-page-tail" style="height: 5px;"></div>', unsafe_allow_html=True)
+                st.html("""
+                    <script>
+                        window.parent.document.getElementById('chat-page-tail').scrollIntoView({behavior: 'smooth', block: 'end'});
+                    </script>
+                """)
+
+                # 7. CREATE EMPTY ASSISTANT CHAT CONTAINER BUBBLE ROW
+                st.markdown(f"""
+                <div id="{next_scroll_target_id}" style="display: flex; justify-content: flex-start; align-items: center; gap: 10px; margin-bottom: 12px; width: 100%; scroll-margin-top: 80px;">
+                    <div style="width: 32px; height: 32px; background-color: #FF4B4B; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 15px; flex-shrink: 0; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">
+                        👨‍🏫
+                    </div>
+                    <div style="font-family: sans-serif; font-size: 13px; font-weight: 600; color: #FF4B4B; text-transform: uppercase; letter-spacing: 0.5px;">
+                        Mwalimu AI
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+                
+                # Dedicated Streamlit placeholder layer window block
+                assistant_placeholder = st.empty()
+
+                # 8. FIRE DYNAMIC CHUNK GENERATION AND STREAM INTO PLACEHOLDER
+                response_stream = ask_mwalimu(
+                    question=user_question,
+                    student=student,
+                    messages=st.session_state.ask_mwalimu_history[:-1],
+                    attachment=attachment_payload
+                )
+                              
+                # ====================================================                               
+                # 8. SAFE CHUNK GENERATION & DEFENSIVE STREAMING LOOP
+                # ====================================================
+                assistant_text = ""
+                
+                try:
+                    for chunk in response_stream:
+                        if isinstance(chunk, str):
+                            # Catch raw string injection issues early
+                            if "error" in chunk.lower() or "injected" in chunk.lower():
+                                continue
+                            assistant_text += chunk
+                            assistant_placeholder.markdown(assistant_text)
+                            continue
+                            
+                        if hasattr(chunk, 'choices') and chunk.choices:
+                            try:
+                                choice_item = chunk.choices[0]
+                                if hasattr(choice_item, 'delta') and choice_item.delta:
+                                    delta_content = getattr(choice_item.delta, 'content', None)
+                                    
+                                    if delta_content is not None:
+                                        # 🎯 FIX: Intercept the OpenRouter SSE Error Injection early!
+                                        if '"error":' in str(delta_content) or 'openai-error' in str(delta_content).lower():
+                                            print(f"[Mwalimu Stream Intercept] Caught injected OpenRouter SSE gateway error chunk.")
+                                            continue
+                                            
+                                        assistant_text += str(delta_content)
+                                        assistant_placeholder.markdown(assistant_text)
+                            except (IndexError, AttributeError, KeyError):
+                                continue
+                except Exception as stream_err:
+                    print(f"[Mwalimu Stream Warning] Connection stream interrupted: {stream_err}")
+                    if not assistant_text:
+                        assistant_text = "Mwalimu encountered a brief connection stutter. Please try sending your query again!"
+                        assistant_placeholder.markdown(assistant_text)
+
+
+                # 9. SAVE COMPLETE HISTORY RECORD DATA ONLY AFTER STREAMING COMPLETES
                 MwalimuDBService.increment_usage(uid, "questions")
-                st.session_state.messages.append({"role": "assistant", "content": response})
-                save_chat_message(name, grade, int(age), "assistant", response or "")
-                st.rerun()
+                MwalimuDBService.increment_usage(uid, "has_upload")
+                st.session_state.ask_mwalimu_history.append({"role": "assistant", "content": assistant_text})
+                save_ask_mwalimu_message(
+                        name,
+                        grade,
+                        age,
+                        "assistant",
+                        assistant_text
+                        
+                    )
+                
+                # ❌ NO MORE ST.RERUN()! The placeholder has already handled displaying the text perfectly!
+
 
 
 
@@ -1819,7 +2012,9 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
 
 
 
-   # PAGE VIEW MODE 2: VOICE TUTOR DASHBOARD MODE
+    # =====================================================================
+# --- PAGE VIEW MODE 2: VOICE TUTOR DASHBOARD MODE ---
+# =====================================================================
     elif st.session_state.current_page == "Voice Tutor":
         st.markdown("---")
         if st.button("Back to Main Chat Dashboard", use_container_width=True, key="back_from_voice"):
@@ -1839,11 +2034,50 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
                 # Check if environment setup exists
                 api_key = os.environ.get("OPENROUTER_API_KEY") or st.secrets.get("OPENROUTER_API_KEY")
                 if api_key:
+                    # 🎯 FIX: Declare an explicit localized client inside this scope block!
                     from openai import OpenAI
-                    client_gate = OpenAI(base_url="https://openrouter.ai/api/v1", api_key=api_key)
-                    render_voice_tutor_page(client_gate)
+                    local_voice_client = OpenAI(
+                        base_url="https://openrouter.ai", 
+                        api_key=api_key
+                    )
+                    
+                    # 🛡️ LOCAL HISTORY FORCING AT THE SWITCH ROUTER ENTRY
+                    if "voice_chat_history" not in st.session_state or not st.session_state.voice_chat_history:
+                        from services.database import get_voice_chat_history
+                        try:
+                            all_raw_history = get_voice_chat_history(name, grade, int(age))
+                            
+                            # 1. Clear out any previous layout configurations safely
+                            st.session_state.voice_chat_history = []
+                            
+                            # 2. Extract database records flagged with an active voice signature attribute
+                            voice_records = [
+                                msg for msg in all_raw_history 
+                                if msg.get("is_voice") or msg.get("role") in ["voice_student", "voice_assistant"]
+                            ]
+                            
+                            # 3. Map the raw database keys to match what your voice view canvas expects ('user' / 'assistant')
+                            for msg in voice_records:
+                                # Determine the role to display in the UI layout container frame
+                                if msg["role"] in ["voice_student", "student", "user"]:
+                                    ui_role = "user"
+                                else:
+                                    ui_role = "assistant"
+                                    
+                                st.session_state.voice_chat_history.append({
+                                    "role": ui_role,
+                                    "content": msg["content"],
+                                    "is_voice": True,
+                                    "audio_bytes": msg.get("audio_bytes")
+                                })
+                        except Exception:
+                            st.session_state.voice_chat_history = []
+                            st.write("VOICE HISTORY ID:", id(st.session_state.voice_chat_history))
+                    # Pass this localized client directly to your voice tutor engine
+                    render_voice_tutor_page(local_voice_client)
                 else:
                     st.error("OpenRouter Gateway API configurations are currently offline.")
+                
             else:
                 # 3. Handle the blocked state
                 st.warning("🎙️ **Voice Tutor Mode is a Premium Feature.**")
@@ -1851,89 +2085,6 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
                 if st.button("🚀 Upgrade to Premium", key="voice_upgrade"):
                     show_upgrade_modal()
 
-    #======
-    elif st.session_state.current_page == "Edit Profile":
-        st.markdown("---")
-        if st.button("⬅ Back to Main Chat Dashboard", use_container_width=True):
-            st.session_state.current_page = "Main Chat"
-            st.rerun()
-            
-        st.subheader("⚙ Edit Student Profile")
-        st.write("Keep your academic milestones up to date. Changing your baseline grade helps Mwalimu AI adjust the difficulty of quizzes and voice tasks automatically.")
-        
-        # 1. Fetch active data parameters cleanly
-        current_uid = st.session_state.get("uid") or st.session_state.get("user_email")
-        user_doc_ref = db.collection("users").document(str(current_uid))
-        active_profile = user_doc_ref.get().to_dict() or {}
-        
-        if active_profile:
-            with st.container(border=True):
-                # 2. Keep Name and Email locked (Read-Only Layout)
-                st.text_input("Student Name", value=active_profile.get("name", st.session_state.get("student_name", "Student")), disabled=True)
-                st.text_input("Registered Email Address", value=active_profile.get("email", st.session_state.get("user_email", "")), disabled=True)
-                
-                # 3. Allow only Grade and Age to change
-                grades_list = [f"Grade {i}" for i in range(1, 13)]
-                saved_grade = active_profile.get("grade", "Grade 1")
-                
-                # Dynamic fallback index detection matching schema patterns
-                try:
-                    default_grade_index = grades_list.index(saved_grade)
-                except ValueError:
-                    default_grade_index = 0
-                    
-                new_grade = st.selectbox("Current Grade Level", grades_list, index=default_grade_index)
-                new_age = st.number_input("Age", min_value=5, max_value=25, value=int(active_profile.get("age", 7)))
-                
-                # 4. Show learning reset warning message block
-                st.warning("""
-                ⚠️ **Important Progress Notice:**
-                Changing your current grade level or age parameters will reset:
-                • Active Quiz performance trends
-                • Voice tracking mastery metrics
-                • Progress dashboard status bars
-                
-                *Note: Your account billing status, historical tier details, and registration profile email will remain unaffected.*
-                """)
-                
-                # 5. Requirement confirmation checkbox gateway
-                confirm_reset = st.checkbox("I understand and authorize Mwalimu AI to re-align my progress tracking records to this new grade.")
-                
-                # 6. Execution validation button pipeline
-                if st.button("Save Profile Settings", use_container_width=True, type="primary"):
-                    if not confirm_reset:
-                        st.error("Please acknowledge the progress re-alignment warning checkbox above before saving modifications.")
-                    else:
-                        with st.spinner("Re-aligning your academic workspace profile..."):
-                            # A. Update document values inside Firestore collection mapping
-                            user_doc_ref.update({
-                                "grade": new_grade,
-                                "age": int(new_age)
-                            })
-                            
-                            # B. Clear performance collection histories matched to this specific user ID
-                            # Add whatever tracking collection schemas your system creates over time
-                            collections_to_wipe = ["quiz_history", "learning_analysis", "quiz_results", "student_progress"]
-                            for target_col in collections_to_wipe:
-                                try:
-                                    stale_docs = db.collection(target_col).where("uid", "==", str(current_uid)).stream()
-                                    for doc_item in stale_docs:
-                                        db.collection(target_col).document(doc_item.id).delete()
-                                except Exception:
-                                    pass # Prevent interruptions if an optional analytics collection doesn't exist yet
-                            
-                            # C. Synchronize state keys locally to immediate runtime context
-                            st.session_state.grade = new_grade
-                            st.session_state.age = int(new_age)
-                            if st.session_state.user_profile:
-                                st.session_state.user_profile["grade"] = new_grade
-                                st.session_state.user_profile["age"] = int(new_age)
-                                
-                            st.toast("🎉 Profile settings synchronized successfully!")
-                            st.session_state.current_page = "Main Chat"
-                            st.rerun()
-        else:
-            st.error("Unable to load active profile registry parameters from database data stores.")
 
    
 
@@ -2199,12 +2350,13 @@ else:
                 period="Forever Free",         
                 description="Basic daily study toolkit for casual learners.", 
                 card_features=[
-                    "5 AI Questions / day", 
+                    "15 AI Questions / day", 
                     "5 Assessment Quizzes / day",
                     "5 Flashcards generated / day", 
-                    "Basic CBC Lessons", 
+                    "1 Basic CBC Lessons / day", 
                     "<span style='color: #ef4444;'>❌ No Custom Study Plans</span>", 
-                    "<span style='color: #ef4444;'>❌ No Voice Tutor access</span>"
+                    "<span style='color: #ef4444;'>❌ No Voice Tutor access</span>",
+                    "<span style='color: #ef4444;'>❌ No Uploads</span>"
                 ], 
                 color_bg="#0f172a",
                 is_premium=False,
@@ -2218,11 +2370,12 @@ else:
                 period="/ month",            
                 description="Enhanced toolkit built for dedicated study sessions.", 
                 card_features=[
-                    "30 AI Questions / day", 
+                    "50 AI Questions / day", 
                     "15 Assessment Quizzes / day", 
                     "30 Flashcards generated / day", 
-                    "CBC Lessons", 
-                    "Personalized daily Study Plans", 
+                    "5 CBC Lessons / day", 
+                    "5 Personalized daily Study Plans / day", 
+                    "10 Uploads / day",
                     "<span style='color: #ef4444;'>❌ No Voice Tutor access</span>"
                 ], 
                 color_bg="#111827",

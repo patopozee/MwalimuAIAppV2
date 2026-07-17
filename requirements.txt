@@ -11,3 +11,6 @@ sib-api-v3-sdk
 fastapi 
 uvicorn
 PyMuPDF 
+gTTS
+edge-tts
+google-genai
