@@ -122,8 +122,7 @@ def save_activity(student_name, student_grade, student_age, activity_type, topic
                   learning_outcome="General", attachment=None, is_voice=0, audio_bytes=None): # <-- Add variables here
     conn = sqlite3.connect(DATABASE_NAME)
     cursor = conn.cursor()
-    print("ATTACHMENT BEFORE SAVE:")
-    print(attachment)
+    
     
     attachment_json = json.dumps(attachment) if attachment is not None else None
 
