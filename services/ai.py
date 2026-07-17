@@ -40,7 +40,7 @@ def ask_mwalimu(question, student, messages, adaptive_context="", attachment=Non
     # Clean language rules focusing on conversational interaction instead of timetables
     language_rules = {
         "English": "Respond naturally and directly in grammatically correct English like an empathetic Kenyan classroom teacher.",
-        "Kiswahili": "Andika majibu yako yote kwa Kiswahili sanifu, fasaha, na safi kabisa kinachofaa mazingira ya shule za Kenya. Usitumie Kiingereza.",
+        "Kiswahili": "Andika majibu yako yote kwa Kiswahili sanihu, fasaha, na safi kabisa kinachofaa mazingira ya shule za Kenya. Usitumie Kiingereza.",
         "Sheng": "Tumia lugha ya kirafiki ya Sheng iliyochanganywa na maelezo ya kimasomo ili kumfanya mwanafunzi achangamke, lakini hakikisha ukweli wa kimasomo unabaki sahihi na rahisi kuelewa."
     }
     
@@ -60,6 +60,11 @@ def ask_mwalimu(question, student, messages, adaptive_context="", attachment=Non
     if attachment and attachment.get("type") == "text_extraction":
         pdf_text_context = f"\n\n=== ATTACHED PDF DOCUMENT CONTENT ({attachment['filename']}) ===\n{attachment['content']}"
 
+    # --- THE ONLY CHANGED PART: GREETING GUARDRAIL ---
+    greeting_guardrail = ""
+    if history.strip():
+        greeting_guardrail = "\n- CRITICAL: A conversation history already exists. Do NOT greet the student, do not say hello or 'Habari', and do not repeat introductions. Answer the current question directly."
+
     # RESTRUCTURED PROMPT: Natural chat guidelines, zero study plan leaks
     prompt = f"""
 {SYSTEM_GUARD}
@@ -77,7 +82,7 @@ def ask_mwalimu(question, student, messages, adaptive_context="", attachment=Non
 - Break down difficult educational topics into simple, snackable student steps.
 - If the user uploaded an image attachment snippet, deeply scan it for math problems, handwritten errors, diagrams, or reading exercises. Address its visual elements directly.
 - NEVER output headers like 'Daily Study Goals', 'Study Schedule', or 'Time Intervals'. 
-- Respond directly, warmly, and helpfully to the current student query below.
+- Respond directly, warmly, and helpfully to the current student query below.{greeting_guardrail}
 
 === CONVERSATION HISTORY ===
 {history}

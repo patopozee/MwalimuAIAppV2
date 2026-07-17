@@ -397,11 +397,18 @@ def save_voice_chat_message(
 def clear_student_chat_history(student_name: str, grade: str, age: int):
     conn = sqlite3.connect(DATABASE_NAME)
     cursor = conn.cursor()
-    cursor.execute("""
-        DELETE FROM progress 
-        WHERE student_name = ? AND student_grade = ? AND student_age = ?
-        AND (activity_type = 'student' OR activity_type = 'assistant')
-    """, (student_name, grade, int(age)))
+    cursor.execute("""        
+        DELETE FROM progress
+        WHERE student_name=?
+        AND student_grade=?
+        AND student_age=?
+        AND activity_type IN
+        (
+            'ask_user',
+            'ask_assistant'
+        )
+        """,
+        (student_name, grade, int(age)))
     conn.commit()
     conn.close()
     flush_all_database_caches()  # 🎯 Wipe old historical cache metrics mapping frames

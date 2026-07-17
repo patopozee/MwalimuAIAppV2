@@ -769,9 +769,10 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
         if st.sidebar.button("⚡ Go to Quizzes, Flashcards and Lessons Generator", use_container_width=True, key="sb_dynamic_go_hub"):
             st.session_state.current_page = "Generators Hub"
             st.rerun()
-    # ---------------------------------------------------------------------
-
-    # --- DEDICATED MAIN CHAT CONFIRMATION DIALOG ---
+    
+    # ====================================================================
+    # --- DEDICATED CONFIRMATION DIALOG MODAL ---
+    # ====================================================================
     @st.dialog("⚠️ Clear Main Chat History")
     def confirm_clear_main_chat_dialog():
         st.write("Are you sure you want to permanently clear your main text chat history? This action cannot be undone.")
@@ -779,8 +780,8 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
         
         col_yes, col_cancel = st.columns(2)
         with col_yes:
-            if st.button("Yes, Clear Main Chat", use_container_width=True, type="primary"):
-                # 1. Clean the backend text database records
+            if st.button("Yes, Clear Everything", use_container_width=True, type="primary"):
+                # 1. Clean the backend database rows permanently
                 clear_student_chat_history(
                     student_name=st.session_state.get("student_name", "Student"),
                     grade=st.session_state.get("grade", "Grade 6"),
@@ -790,6 +791,13 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
                 # 2. Reset visual RAM session storage arrays
                 st.session_state.ask_mwalimu_history = []
                 
+                # 3. Force purge cache snapshots out of Streamlit RAM memory layers
+                from services.database import get_ask_mwalimu_history, get_student_stats
+                if hasattr(get_ask_mwalimu_history, "clear"):
+                    get_ask_mwalimu_history.clear()
+                if hasattr(get_student_stats, "clear"):
+                    get_student_stats.clear()
+                
                 st.toast("Chat history cleared cleanly!", icon="🗑️")
                 st.rerun()
                 
@@ -797,9 +805,15 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
             if st.button("Cancel", use_container_width=True):
                 st.rerun()
 
-    # --- SIDEBAR BUTTON TRIGGER PANEL ---
+    # ====================================================================
+    # --- CLEANED SINGLE ACTION BUTTON TRIGGER PANEL (ALWAYS VISIBLE) ---
+    # ====================================================================
+    st.sidebar.markdown("---")  # Visual separator
     if st.sidebar.button("🗑️ Clear Chat", use_container_width=True, key="sb_nav_clear_chat"):
         confirm_clear_main_chat_dialog()
+
+
+
 
 
 
@@ -1413,18 +1427,26 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
                         assistant_placeholder.markdown(assistant_text)
 
 
+               
+                # ====================================================================
                 # 9. SAVE COMPLETE HISTORY RECORD DATA ONLY AFTER STREAMING COMPLETES
+                # ====================================================================
                 MwalimuDBService.increment_usage(uid, "questions")
-                MwalimuDBService.increment_usage(uid, "has_upload")
+
+                #  FIX: Check the structural attachment dictionary extracted on Page 7
+                if attachment_payload is not None:
+                    MwalimuDBService.increment_usage(uid, "has_upload")
+
                 st.session_state.ask_mwalimu_history.append({"role": "assistant", "content": assistant_text})
                 save_ask_mwalimu_message(
-                        name,
-                        grade,
-                        age,
-                        "assistant",
-                        assistant_text
-                        
-                    )
+                    name,
+                    grade,
+                    age,
+                    "assistant",
+                    assistant_text
+                )
+
+
                 
                 # ❌ NO MORE ST.RERUN()! The placeholder has already handled displaying the text perfectly!
 
