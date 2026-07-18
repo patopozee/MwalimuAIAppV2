@@ -14,3 +14,6 @@ PyMuPDF
 gTTS
 edge-tts
 google-genai
+pypdf
+reportlab
+streamlit-cookies-controller

@@ -57,6 +57,7 @@ from services.database import (
     clear_voice_chat_history_only  #  ADD THIS LINE HERE
 )
 from voice_page import render_voice_tutor_page
+from services.admin_page import render_admin_dashboard
 from config import CBC  # Dynamic CBC repository dictionary
 
 
@@ -808,9 +809,35 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
     # ====================================================================
     # --- CLEANED SINGLE ACTION BUTTON TRIGGER PANEL (ALWAYS VISIBLE) ---
     # ====================================================================
-    st.sidebar.markdown("---")  # Visual separator
-    if st.sidebar.button("🗑️ Clear Chat", use_container_width=True, key="sb_nav_clear_chat"):
+    st.sidebar.markdown("---") # Visual separator
+    if st.sidebar.button(" Clear Chat", use_container_width=True, key="sb_nav_clear_chat"):
         confirm_clear_main_chat_dialog()
+
+    # ====================================================================
+    # 🔒 SECURE FIREBASE ROLE-BASED ADMIN PORTAL (ADD THIS HERE)
+    # ====================================================================
+    # 🔄 REPLACE the string below with your copied Firebase UID string:
+    MASTER_ADMIN_UID = "aYiSGN6DVbOLuM3jYnQSEGpd8Mo2"
+    
+    current_user_uid = st.session_state.get("uid")
+    
+    # This portal option ONLY shows up if your account matches the master UID
+    if current_user_uid and current_user_uid == MASTER_ADMIN_UID:
+        st.sidebar.markdown("---")
+        st.sidebar.subheader("👑 Administrative Access")
+        
+        # 🔄 DYNAMIC CHECK: Change text labels and icon depending on the active page state
+        if st.session_state.current_page == "Admin Dashboard":
+            admin_btn_label = "⬅️ Go Back to Student Dashboard"
+            target_page = "Main Chat"
+        else:
+            admin_btn_label = "⚙️ Open Admin Dashboard"
+            target_page = "Admin Dashboard"
+            
+        if st.sidebar.button(admin_btn_label, use_container_width=True, key="sb_nav_dynamic_admin"):
+            st.session_state.current_page = target_page
+            st.rerun()
+
 
 
 
@@ -837,39 +864,39 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
                     show_upgrade_modal()
                 
                 # MOVED INSIDE SIDEBAR: Verification button for free users who just paid
-                if st.sidebar.button("💳 I've Paid, Check Status", use_container_width=True):
-                    # ----------------------------------------------------------------
-                    # TEMPORARY MOCK PAYMENT TRIGGER (REMOVE BEFORE PRODUCTION)
-                    # ----------------------------------------------------------------
-                    from datetime import datetime, timedelta
+                # if st.sidebar.button("💳 I've Paid, Check Status", use_container_width=True):
+                #     # ----------------------------------------------------------------
+                #     # TEMPORARY MOCK PAYMENT TRIGGER (REMOVE BEFORE PRODUCTION)
+                #     # ----------------------------------------------------------------
+                #     from datetime import datetime, timedelta
                     
-                    mock_expiry = (datetime.utcnow() + timedelta(days=30)).strftime("%Y-%m-%d")
-                    mock_subscription = {
-                        "tier": "Premium",  # Change this to "Mwalimu AI Plus" to test that tier too
-                        "expiry_date": mock_expiry,
-                        "payment_status": "Completed",
-                        "reference_id": "MOCK_PAYMENT_12345"
-                    }
+                #     mock_expiry = (datetime.utcnow() + timedelta(days=30)).strftime("%Y-%m-%d")
+                #     mock_subscription = {
+                #         "tier": "Premium",  # Change this to "Mwalimu AI Plus" to test that tier too
+                #         "expiry_date": mock_expiry,
+                #         "payment_status": "Completed",
+                #         "reference_id": "MOCK_PAYMENT_12345"
+                #     }
                     
-                    # Directly update your Firestore user document layout
-                    from services.database import db
-                    uid = st.session_state.get("uid") or st.session_state.user_email
-                    db.collection('users').document(str(uid)).update({
-                        "subscription": mock_subscription
-                    })
-                    st.sidebar.success("🔧 Mock Payment Simulated!")
-                    # ----------------------------------------------------------------
+                #     # Directly update your Firestore user document layout
+                #     from services.database import db
+                #     uid = st.session_state.get("uid") or st.session_state.user_email
+                #     db.collection('users').document(str(uid)).update({
+                #         "subscription": mock_subscription
+                #     })
+                #     st.sidebar.success("🔧 Mock Payment Simulated!")
+                #     # ----------------------------------------------------------------
 
-                    # Refresh data from database to check if everything updates live
-                    user_data = get_student_data(st.session_state.user_email)
-                    subscription = user_data.get('subscription', {}) if user_data else {}
-                    updated_tier = subscription.get('tier', 'Free')
+                #     # Refresh data from database to check if everything updates live
+                #     user_data = get_student_data(st.session_state.user_email)
+                #     subscription = user_data.get('subscription', {}) if user_data else {}
+                #     updated_tier = subscription.get('tier', 'Free')
                     
-                    if str(updated_tier).strip().lower() != "free":
-                       st.sidebar.success(f"Upgrade successful! You are now {updated_tier}")
-                       st.rerun()
-                    else:
-                       st.sidebar.warning("Payment not confirmed yet. Please wait a moment.")
+                #     if str(updated_tier).strip().lower() != "free":
+                #        st.sidebar.success(f"Upgrade successful! You are now {updated_tier}")
+                #        st.rerun()
+                #     else:
+                #        st.sidebar.warning("Payment not confirmed yet. Please wait a moment.")
 
 
         # --- DEDICATED LOGOUT CONFIRMATION DIALOG ---
@@ -2107,7 +2134,8 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
                 if st.button("🚀 Upgrade to Premium", key="voice_upgrade"):
                     show_upgrade_modal()
 
-
+    elif st.session_state.current_page == "Admin Dashboard":
+        render_admin_dashboard()
    
 
 

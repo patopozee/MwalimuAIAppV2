@@ -99,6 +99,20 @@ def create_tables():
     )
     """)
 
+    # 3. Create the global admin knowledge base materials table
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS admin_materials (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        subject TEXT,
+        topic TEXT,
+        sub_topic TEXT,
+        filename TEXT,
+        content TEXT,
+        uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+    """)
+    
+    # Save all table structures and close out the file handler transaction safely
     conn.commit()
     conn.close()
 
@@ -502,6 +516,88 @@ def clear_voice_chat_history_only(student_name: str, grade: str, age: int):
     # Reset only the voice read cache
     if hasattr(get_voice_chat_history, "clear"):
         get_voice_chat_history.clear()
+
+def save_admin_material(subject, topic, sub_topic, filename, content):
+    """Saves or updates global teaching material in the system."""
+    conn = sqlite3.connect(DATABASE_NAME)
+    cursor = conn.cursor()
+    
+    cursor.execute("""
+        DELETE FROM admin_materials 
+        WHERE subject=? AND topic=? AND sub_topic=? AND filename=?
+    """, (subject, topic, sub_topic, filename))
+    
+    cursor.execute("""
+        INSERT INTO admin_materials (subject, topic, sub_topic, filename, content)
+        VALUES (?, ?, ?, ?, ?)
+    """, (subject, topic, sub_topic, filename, content))
+    conn.commit()
+    conn.close()
+    
+    # 🔥 FORCE RESET WALIMU'S MEMORY TO CAPTURE THE NEW UPLOAD IMMEDIATELY
+    if hasattr(get_admin_material_context, "clear"):
+        get_admin_material_context.clear()
+
+#  Add the caching decorator here so it can be cleared dynamically
+@st.cache_data(ttl=600)
+def get_admin_material_context(subject, topic, sub_topic=None):
+    """Retrieves all global reference texts matching the current lesson context."""
+    conn = sqlite3.connect(DATABASE_NAME)
+    cursor = conn.cursor()
+    
+    if sub_topic:
+        cursor.execute("""
+            SELECT filename, content FROM admin_materials 
+            WHERE subject=? AND topic=? AND sub_topic=?
+        """, (subject, topic, sub_topic))
+    else:
+        cursor.execute("""
+            SELECT filename, content FROM admin_materials 
+            WHERE subject=? AND topic=?
+        """, (subject, topic))
+        
+    rows = cursor.fetchall()
+    conn.close()
+    
+    if not rows:
+        return ""
+        
+    context_str = "\n\n=== ADMIN UPLOADED REFERENCE MATERIALS ==="
+    for row in rows:
+        context_str += f"\n\n[File: {row[0]}]\n{row[1]}"
+    return context_str
+def get_all_admin_materials():
+    """Fetches a list of all globally uploaded admin reference books and materials."""
+    conn = sqlite3.connect(DATABASE_NAME)
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+    
+    # 🌟 FIXED: Explicitly pull the full 'content' string right here
+    cursor.execute("""
+        SELECT id, subject, topic, sub_topic, filename, content, uploaded_at 
+        FROM admin_materials 
+        ORDER BY uploaded_at DESC
+    """)
+    rows = cursor.fetchall()
+    conn.close()
+    return rows
+
+
+def delete_admin_material_by_id(material_id: int):
+    """Deletes a specific reference document row out of the knowledge base completely."""
+    conn = sqlite3.connect(DATABASE_NAME)
+    cursor = conn.cursor()
+    
+    cursor.execute("DELETE FROM admin_materials WHERE id = ?", (material_id,))
+    conn.commit()
+    conn.close()
+    
+    # 🔥 Wipes the memory layer cache instantly so the AI drops references immediately
+    if hasattr(get_admin_material_context, "clear"):
+        get_admin_material_context.clear()
+
+
+
 
 
 

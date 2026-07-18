@@ -8,6 +8,7 @@ import streamlit as st
 from dotenv import load_dotenv
 from openai import OpenAI
 from knowledge_layer import MwalimuKnowledgeLayer, clean_and_parse_json
+from services.database import get_admin_material_context
 # 1. Load keys from local .env file if it exists
 load_dotenv()
 knowledge_base = MwalimuKnowledgeLayer()
@@ -36,7 +37,9 @@ def ask_mwalimu(question, student, messages, adaptive_context="", attachment=Non
     sub_topic = student.get('sub_topic', 'Place Value')
     learning_style = student.get("learning_style", "General")
     kicd_data = knowledge_base.get_curriculum_context(subject, topic, sub_topic)
-    
+
+    admin_provided_text = get_admin_material_context(subject, topic, sub_topic)
+
     # Clean language rules focusing on conversational interaction instead of timetables
     language_rules = {
         "English": "Respond naturally and directly in grammatically correct English like an empathetic Kenyan classroom teacher.",
@@ -76,7 +79,8 @@ def ask_mwalimu(question, student, messages, adaptive_context="", attachment=Non
 - **Learning Style**: {learning_style} (Adapt your explanations to match this style, e.g., use descriptions or analogies if visual/auditory)
 - **Curriculum KICD Guidelines**: {json.dumps(kicd_data, ensure_ascii=False)}
 - **Adaptive Remediation Notes**: {adaptive_context} {pdf_text_context}
-
+    {admin_provided_text}
+    
 === LANGUAGE & TEACHING INSTRUCTIONS ===
 {language_rules.get(preferred_language, language_rules["English"])}
 - Break down difficult educational topics into simple, snackable student steps.
@@ -241,7 +245,6 @@ CRITICAL OPTION CONSTRAINT RULES:
 7. Write the text strictly in the student's preferred language: {student.get('language', 'English')}.
 8. **Consistent Units**: Ensure all options include the correct unit matching the question (e.g., "shillings", "passengers").
 """
-    #=======
     try:
         response = client.chat.completions.create(
             extra_headers={
@@ -274,7 +277,7 @@ CRITICAL OPTION CONSTRAINT RULES:
     except Exception as e:
         print(f"Error calling OpenRouter API: {e}")
         return []
-
+    
 def generate_study_plan(student: dict, stats: dict) -> str:
     """Crafts an optimized personalized study timetable map strategy framework with grid layouts."""
     # 1. Safely extract the preferred language from the student profile dictionary
