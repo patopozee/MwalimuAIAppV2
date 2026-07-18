@@ -45,6 +45,7 @@ if not firebase_admin._apps:
         raise FileNotFoundError("Could not locate any valid 'service_account_json' settings in secrets.toml.")
 
 db = firestore.client()
+DATABASE_NAME = "/data/mwalimu.db"
 
 
 # ---------------------------------------------------------------------

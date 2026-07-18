@@ -80,7 +80,7 @@ def ask_mwalimu(question, student, messages, adaptive_context="", attachment=Non
 - **Curriculum KICD Guidelines**: {json.dumps(kicd_data, ensure_ascii=False)}
 - **Adaptive Remediation Notes**: {adaptive_context} {pdf_text_context}
     {admin_provided_text}
-    
+
 === LANGUAGE & TEACHING INSTRUCTIONS ===
 {language_rules.get(preferred_language, language_rules["English"])}
 - Break down difficult educational topics into simple, snackable student steps.
@@ -139,67 +139,58 @@ def generate_quiz(topic, student, difficulty="Medium"):
     language = student.get("preferred_language", "English")
     grade = student.get("grade", "General")
     learning_outcome = student.get("learning_outcome", "General Mastery")
+    
     difficulty_rules = {
         "Easy": "Use very simple language. Focus on one core concept per question. No trick questions.",
         "Medium": "Slightly more challenging. Require two-step thinking. Use localized practical examples.",
         "Hard": "Incorporate complex application questions, critical thinking scenarios, and higher-order reasoning."
     }
-    subject = student.get('subject', 'Mathematics')
-    sub_topic = student.get('sub_topic', 'Place Value')
     
     # Extract ground truth from the Local Knowledge Layer
     kicd_data = knowledge_base.get_curriculum_context(subject, topic, sub_topic)
     past_papers = knowledge_base.get_past_papers_context(subject, topic)
     
+    # 🆕 FETCH GLOBAL ADMIN MATERIALS FOR THIS SPECIFIC QUIZ CONTEXT
+    admin_provided_text = get_admin_material_context(subject, topic, sub_topic)
+    
     # 2. Strict engineering template layout instructions
     prompt = f"""
-    {SYSTEM_GUARD}
-    = You are Mwalimu AI, an elite CBC Curriculum framework subject expert.
-    Generate a 5-question multiple-choice quiz payload.
+{SYSTEM_GUARD}
+= You are Mwalimu AI, an elite CBC Curriculum framework subject expert.
+Generate a 5-question multiple-choice quiz payload.
 
-    TARGET CONTEXT SCHEMA:
-    - Subject Domain: {subject}
-    - Main Topic: {topic}
-    - Sub-Topic Focus: {sub_topic}
-    - Intended Learning Outcome: {learning_outcome}
-    - Student Grade Target: {grade}
-    - Output Language Interface: {language}
+TARGET CONTEXT SCHEMA:
+- Subject Domain: {subject}
+- Main Topic: {topic}
+- Sub-Topic Focus: {sub_topic}
+- Intended Learning Outcome: {learning_outcome}
+- Student Grade Target: {grade}
+- Output Language Interface: {language}
+{admin_provided_text}
 
-    =======================================================
-    🚨 CRITICAL STOP-GATE CONSTRAINTS (NO MATH ALLOWED)
-    =======================================================
-    - DO NOT generate word problems that require mathematical calculations, numbers counting, area computations, weight multiplication, spacing ratios, or geometry dimensions. 
-    - Questions must evaluate factual and conceptual domain knowledge of the subject, NOT calculation tricks.
+=======================================================
+ CRITICAL STOP-GATE CONSTRAINTS (NO MATH ALLOWED)
+=======================================================
+- DO NOT generate word problems that require mathematical calculations, numbers counting, area computations, weight multiplication, spacing ratios, or geometry dimensions. 
+- Questions must evaluate factual and conceptual domain knowledge of the subject, NOT calculation tricks.
 
-    ❌ WRONG EXAMPLE (BANNED CONCEPT):
-    "A farmer has a field measuring 30 meters long... how many seeds can he plant 75cm apart?" -> THIS IS MATHEMATICS disguised as Agriculture. DO NOT DO THIS.
-
-    ✅ CORRECT EXAMPLE (REQUIRED CONCEPT):
-    "Which of the following is a primary reason for maintaining correct spacing when establishing a maize crop?" or "Which crop establishment tool is best suited for creating uniform planting holes?" -> THIS IS PURE AGRICULTURE. DO THIS.
-
-    =======================================================
-    🌍 LOCALIZATION & FORMATTING RULES
-    =======================================================
-    - Output ALL JSON keys, question values, structural text, and options answers entirely inside this language: {language}.
-    
-    Return ONLY a single valid raw JSON string matching this exact array map structure without markdown code blocks (```json ... ```):
-    {{
-        "quiz": [
-            {{
-                "question": "Insert conceptual multiple choice question text here",
-                "options": ["Option A", "Option B", "Option C", "Option D"],
-                "answer": "The exact correct option string matching one of the options elements cleanly"
-            }}
-        ]
-    }}
-    
-    # 3. Securely pass your prompt to your LLM generator client engine
-    # response = client.models.generate_content(model="gemini-2.5-pro", contents=prompt)
-    # return response.text
+=======================================================
+ LOCALIZATION & FORMATTING RULES
+=======================================================
+- Output ALL JSON keys, question values, structural text, and options answers entirely inside this language: {language}.
+Return ONLY a single valid raw JSON string matching this exact array map structure without markdown code blocks (```json ... ```):
+{{
+"quiz": [
+{{
+"question": "Insert conceptual multiple choice question text here",
+"options": ["Option A", "Option B", "Option C", "Option D"],
+"answer": "The exact correct option string matching one of the options elements cleanly"
+}}
+]
+}}
 
 You are Mwalimu AI, an expert Examiner specializing in the Kenyan KICD Competency-Based Curriculum (CBC) framework. 
 Your task is to generate a highly contextual, age-appropriate practice quiz based on the student's current learning topic.
-
 Generate a multiple-choice quiz about '{topic}' for a student in {student.get('grade')} ({student.get('age')} years old).
 
 === GROUND TRUTH KNOWLEDGE LAYER ===
@@ -207,34 +198,34 @@ Use the following verified rules and definitions to construct your questions. Do
 - Definition Focus: {kicd_data['definition']}
 - Target Learning Goals: {', '.join(kicd_data['learning_objectives'])}
 - Reference Past Examination Structures: {json.dumps(past_papers)}
+
+⚠️ ADMINISTRATIVE GUIDELINE:
+If 'ADMIN UPLOADED REFERENCE MATERIALS' are present above, prioritize them over all else. Formulate your quiz questions, correct options, and distractor statements directly from the definitions, facts, and curriculum examples provided in those materials.
+
 CRITICAL CONTEXT RULES:
-- Every math word problem MUST contain all necessary numerical information to be solvable (e.g., do not say 'if each plant produces 2', specify the total number of plants first!).
-- Use Kenyan names (e.g., Mwangi, Amina), locations, and real-world local scenarios (M-Pesa, market stalls, matatus) to make the word problems relatable.
+- Every math word problem MUST contain all necessary numerical information to be solvable.
+- Use Kenyan names, locations, and real-world local scenarios (M-Pesa, market stalls, matatus) to make the word problems relatable.
 - Match the cognitive expectations of a {student.get('grade')} student under CBC guidelines.
 - Write the text strictly in the student's preferred language: {student.get('language', 'English')}.
-
 Target Difficulty Level: {difficulty}
 Difficulty Context Rules: {difficulty_rules.get(difficulty, "")}
 Preferred Learning Style: {student.get('learning_style', 'General')}
 
-CBC Context Info:
-Subject: {student.get('subject')} | Topic: {student.get('topic')} | Target Learning Outcome: {student.get('learning_outcome')}
-
 Return your response strictly as a valid JSON array containing EXACTLY 5 objects structured exactly like this layout format:
 [
-  {{
-    "question": "First Question text here",
-    "options": ["Option A", "Option B", "Option C", "Option D"],
-    "answer": "The exact correct option string matching one of the options"
-  }},
-  {{
+{{
+"question": "First Question text here",
+"options": ["Option A", "Option B", "Option C", "Option D"],
+"answer": "The exact correct option string matching one of the options"
+}}
+]
+ {{
     "question": "Second Question text here",
     "options": ["Option A", "Option B", "Option C", "Option D"],
     "answer": "The exact correct option string matching one of the options"
   }},
   ... up to 5 elements total
 ]
-
 CRITICAL OPTION CONSTRAINT RULES:
 1. **No Math Formulations**: Every element in the "options" array MUST be a fully calculated, single final value (e.g., use "48,878 shillings", NEVER "45,678 + 3,200 shillings").
 2. **Realistic Distractors**: Make the incorrect options plausible calculation errors (like missing a carry-over digit or accidentally subtracting instead of adding) so students are challenged to think critically.
@@ -245,6 +236,8 @@ CRITICAL OPTION CONSTRAINT RULES:
 7. Write the text strictly in the student's preferred language: {student.get('language', 'English')}.
 8. **Consistent Units**: Ensure all options include the correct unit matching the question (e.g., "shillings", "passengers").
 """
+    # ... Rest of your existing client.chat.completions.create logic remains completely identical below ...
+
     try:
         response = client.chat.completions.create(
             extra_headers={
@@ -292,6 +285,9 @@ def generate_study_plan(student: dict, stats: dict) -> str:
     except Exception:
         milestones = ["Kuelewa msingi wa mada", "Kufanya mazoezi ya vitendo", "Kupima maarifa kwa maswali"]
         
+    # 🆕 FETCH GLOBAL ADMIN MATERIALS TO ANCHOR THIS TIMETABLE SCHEDULE
+    admin_provided_text = get_admin_material_context(subject, topic, sub_topic)
+        
     language_rules = {
         "English": "Write the entire response, section titles, timetables, and tips exclusively in grammatically correct English.",
         "Kiswahili": "Andika majina yote ya sehemu (Headings), ratiba, malengo, na maelezo yote kwa Kiswahili sanifu na safi. Usitumie Kiingereza.",
@@ -307,13 +303,13 @@ def generate_study_plan(student: dict, stats: dict) -> str:
     h_style = f"### **Mbinu za Kujifunza ({learning_style} Integration):**" if is_swahili else f"### **Learning Style Integration ({learning_style}):**"
     h_rev = "### **Vipengele vya Marudio na Mapendekezo ya Maswali:**" if is_swahili else "### **Revision Items & Quiz Recommendations:**"
     h_moto = "### **Ujumbe wa Kila Siku kutoka kwa Mwalimu:**" if is_swahili else "### **Mwalimu's Motivational Message:**"
-
+    
     # Define localized column headers for the markdown grid table matrix array
     if is_swahili:
         col_time, col_sub, col_act = "Muda (Time)", "Somo na Mada (Subject/Topic)", "Shughuli ya Kufanya (Activity)"
     else:
         col_time, col_sub, col_act = "Time Interval", "Subject & Topic", "Planned Learning Activity"
-
+        
     # 3. Construct the streamlined optimization prompt with absolute markdown table constraints
     prompt = f"""
 {SYSTEM_GUARD}
@@ -337,16 +333,17 @@ Learning Outcome Target: {student.get("learning_outcome", "General Mastery")}
 You MUST anchor your schedule activities directly on these local milestone goals:
 {json.dumps(milestones, ensure_ascii=False)}
 
+{admin_provided_text}
+
 === STUDENT PERFORMANCE STATISTICS ===
 Questions Asked: {stats.get("questions", 0)}
 Quizzes Taken: {stats.get("quizzes", 0)}
 Average Score: {stats.get("average_score", 0)}%
 
 =======================================================
-🚨 CRITICAL FORMATTING & HEADINGS MANDATE
+ CRITICAL FORMATTING & HEADINGS MANDATE
 =======================================================
 You MUST structure your entire response using the following specific headers exactly as provided below to guarantee clean rendering on the Streamlit dashboard:
-
 {h_goal}
 [Provide clear targets focusing on improving performance based on their statistics and active curriculum selections]
 
@@ -360,10 +357,11 @@ You MUST output the schedule exclusively as a clean Markdown Grid Table using pi
 | **09:15 - 09:30** | *Muda wa Mapumziko (Break)* | Take a short walk or stretch. |
 | **09:30 - 10:15** | {subject} Revision | Deep practice covering milestones. |
 
-Ensure there are no line-breaks or unescaped symbols inside row cells that break table rendering!
+⚠️ EXAMINER REFERENCE REQUIREMENT:
+If 'ADMIN UPLOADED REFERENCE MATERIALS' are provided above, your study schedule tasks must explicitly instruct the student to read and review those specific uploaded file modules and filenames (e.g., 'Read from uploaded notes file: [Filename]').
 
 {h_style}
-[Provide custom practical tasks matching their learning style. For Example: If 'Visual', instruct them to create colored mind maps or visual diagrams. If 'Auditory', suggest recording explanations or reading definitions aloud.]
+[Provide custom practical tasks matching their learning style.]
 
 {h_rev}
 [List critical revision concepts and include a custom recommendation link or reference point for their next quiz]
@@ -400,7 +398,6 @@ Ensure there are no line-breaks or unescaped symbols inside row cells that break
 
 
 def generate_flashcards(topic, student, difficulty="Medium"):
-    """Produces a structured dataset containing exactly 10 flashcard items using strict JSON schemas."""
     difficulty_rules = {
         "Beginner": "Focus on foundational recognition, recalling basic definitions, direct matching, and basic counting with explicit hints.",
         "Intermediate": "Focus on application scenarios, multi-step problem solving, simple comparative relationships, and foundational word problems.",
@@ -409,10 +406,13 @@ def generate_flashcards(topic, student, difficulty="Medium"):
     subject = student.get('subject', 'Mathematics')
     topic = student.get('topic', 'Whole Numbers')
     sub_topic = student.get('sub_topic', 'Place Value')
-
+    
     verified_deck = knowledge_base.get_flashcards_context(subject, topic, sub_topic)
     kicd_data = knowledge_base.get_curriculum_context(subject, topic, sub_topic)
     
+    # 🆕 FETCH GLOBAL ADMIN MATERIALS FOR THIS SPECIFIC FLASHCARD CONTAINER
+    admin_provided_text = get_admin_material_context(subject, topic, sub_topic)
+
     # CLEANED PROMPT: Focuses 100% on flashcards and explicitly requests a clean parent object
     prompt = f"""
 {SYSTEM_GUARD}
@@ -425,6 +425,7 @@ Your task is to generate a highly contextual set of study flashcards for a stude
 - Sub-topic: {sub_topic}
 - Core Baseline Definition: {kicd_data.get('definition', 'Standard parameters apply.')}
 - Pre-approved Deck Context: {json.dumps(verified_deck, ensure_ascii=False)}
+{admin_provided_text}
 
 === CORE RECOGNITION RULES ===
 - Target Difficulty Level: {difficulty}
@@ -432,6 +433,11 @@ Your task is to generate a highly contextual set of study flashcards for a stude
 - Preferred Learning Style: {student.get('learning_style', 'General')}
 - Preferred Delivery Language: {student.get('language', 'English')}
 
+⚠️ ADMINISTRATIVE OVERRIDE:
+If 'ADMIN UPLOADED REFERENCE MATERIALS' are provided above, extract key terms, facts, formulae, or core definitions from them to construct your question/answer flashcard pairings.
+
+=== CRITICAL BOUNDARY COUNT RULE ===
+You MUST generate EXACTLY 10 distinct flashcard pairs in total. No more, no less.
 === CRITICAL BOUNDARY COUNT RULE ===
 You MUST generate EXACTLY 10 distinct flashcard pairs in total. No more, no less.
 Count your array meticulously before returning the final text payload.
@@ -494,7 +500,7 @@ Return ONLY a raw, valid JSON object containing an array list of exactly 10 ques
 
 
 def generate_lesson(topic, student):
-    """Generates full structural markdown lessons backed by the local KICD Knowledge Base."""
+    """Generates full structural markdown lessons backed by the local KICD Knowledge Base and Admin Context."""
     lang = student.get("preferred_language", student.get("language", "English"))
     subject = student.get("subject", "General")
     sub_topic = student.get("sub_topic", "General")
@@ -502,16 +508,15 @@ def generate_lesson(topic, student):
     grade = student.get("grade", "General")
     outcome = student.get("learning_outcome", "General Mastery")
     name = student.get("name", "Student")
-    is_swahili = "swahili" in str(lang).lower()
     
+    is_swahili = "swahili" in str(lang).lower()
     title_lesson = "Somo" if is_swahili else "Lesson"
     h_objectives = "Malengo ya Somo" if is_swahili else "Learning Objectives"
     h_intro = "Utangulizi wa Mada" if is_swahili else "Introduction"
     h_explain = "Maelezo na Uchambuzi wa Kina" if is_swahili else "Main Lesson Content & Explanation"
     h_summary = "Muhtasari" if is_swahili else "Summary"
     h_homework = "Kazi ya Nyumbani" if is_swahili else "Homework Assignment"
-
-    # Dynamic translation mapping for user learning styles
+    
     style_translation = {
         "Visual": "Mwanafunzi wa Kielelezo (Visual Learner)",
         "Auditory": "Mwanafunzi wa Kusikia (Auditory Learner)",
@@ -519,110 +524,48 @@ def generate_lesson(topic, student):
         "Reading/Writing": "Mwanafunzi wa Kusoma na Kuandika"
     }
     local_style = style_translation.get(learning_style, learning_style)
+    
     verified_deck = knowledge_base.get_flashcards_context(subject, topic, sub_topic)
     kicd_data = knowledge_base.get_curriculum_context(subject, topic, sub_topic)
+    
+    # 🆕 FETCH GLOBAL ADMIN MATERIALS FOR THIS SPECIFIC MARKOOWN LESSON PLAN
+    admin_provided_text = get_admin_material_context(subject, topic, sub_topic)
 
-    # Extract ground truth context fields
-    kicd_data = knowledge_base.get_curriculum_context(subject, topic, sub_topic)
     prompt = f"""
-    {SYSTEM_GUARD}
-        You are Mwalimu AI, an elite teacher specialized in Kenya's CBC Curriculum design matrix.
-    Generate a complete, comprehensive, and highly engaging markdown educational lesson plan.
+{SYSTEM_GUARD}
+You are Mwalimu AI, an elite teacher specialized in Kenya's CBC Curriculum design matrix.
+Generate a complete, comprehensive, and highly engaging markdown educational lesson plan.
 
-    LESSON ENVIRONMENT METRICS:
-    - Academic Subject: {subject}
-    - Main Topic Focus: {topic}
-    - Sub-Topic Focus: {sub_topic}
-    - Target Learning Outcome: {outcome}
-    - Target Grade Level: {grade}
-    - Student Learner Profile Style: {learning_style}
-    - Assigned Student Name: {name}
-    
-    =======================================================
-    🚨 CRITICAL LANGUAGE MANDATE (ABSOLUTE INTERFACE LOCK)
-    =======================================================
-    - TARGET GENERATION LANGUAGE: {lang}
-    - You MUST write the ENTIRE lesson output stream—including all headings, introduction paragraphs, bullet examples, explanations, and action items—strictly and exclusively inside this language script: {lang}.
-    
-    ⚠️ WARNING: Your sidebar language selection is currently set to "{lang}". Do NOT write or mix Kiswahili content blocks if the requested language value is English. Everything from titles to summary points must match "{lang}" seamlessly.
-
-    REQUIRED MARKDOWN TEMPLATE HEADERS (Keep these exact structural levels and translate them to {lang}):
-    # {title_lesson}: {topic} - {sub_topic}
-    ## 1. {h_objectives}
-    [Provide explicit conceptual goals mapped precisely to target: {outcome}]
-    
-    ## 2. {h_intro}
-    [Hook the student's interest using everyday examples suited for a {learning_style} learner]
-    
-    ## 3. {h_explain}
-    [Provide depth of explanation. Breakdown the core content details of {subject} in an interactive narrative form]
-    
-    ## 4. {h_summary}
-    [Wrap up the lesson takeaways clearly]
-    
-    ## 5. {h_homework}
-    [Include structured tasks to practice active recall]
-You are Mwalimu AI, an inspiring and expert Senior School Teacher specializing in the Kenyan KICD Competency-Based Curriculum (CBC). 
-Your task is to generate a comprehensive, highly engaging, and structured lesson text for a student based on their profile and selected curriculum pathway.
-
-=== CBC KNOWLEDGE LAYER INJECTION ===
-You MUST build your lesson around this verified ground-truth data payload:
-- Target Concept Definition: {kicd_data['definition']}
-- Verified Step-by-Step Worked Examples: {json.dumps(kicd_data['worked_examples'])}
-
-=== STUDENT PROFILE ===
-- Name: {student.get('name', 'Student')}
-- Grade: {student.get('grade', 'General')}
-- Age: {student.get('age', '10')}
-- Learning Style: {student.get('learning_style', 'Interactive')}
-- Preferred Language: {student.get('language', 'English')}
-
-LESSON TARGET:
-- Topic: {topic}
-- Subject Domain: {student.get('subject')} | Strand Focus: {student.get('strand')} | Target Outcome: {student.get('learning_outcome')}
-
-=== ACTIVE CBC CURRICULUM CONTEXT ===
-Subject: {student.get("subject", "General")}
-Topic: {student.get("topic", "General")}
-Sub-topic: {student.get("sub_topic", "General")}
-Learning Outcome Target: {student.get("learning_outcome", "General")}
+LESSON ENVIRONMENT METRICS:
+- Academic Subject: {subject}
+- Main Topic Focus: {topic}
+- Sub-Topic Focus: {sub_topic}
+- Target Learning Outcome: {outcome}
+- Target Grade Level: {grade}
+- Student Learner Profile Style: {learning_style}
+- Assigned Student Name: {name}
+{admin_provided_text}
 
 === LESSON ARCHITECTURE RULES ===
 Please construct the lesson using clean Markdown headers. The lesson MUST include the following 9 numbered sections in order:
-
 ## 1. Lesson Title
-- Create an exciting and clear title incorporating the active topic.
-
 ## 2. Learning Objectives
-- State 3 or 4 clear bullet points outlining what the student will be able to do after completing this lesson, directly matching the Learning Outcome Target.
-
 ## 3. Introduction
-- Hook the student's interest using a friendly greeting using Kenyan phrases (e.g., "Mambo!", "Habari!", or welcoming them by name: {student.get("name")}) and relate the topic to everyday life.
-
 ## 4. Main Explanation
-- Breakdown the core concepts clearly. Use simple language and vocabulary appropriate for a {student.get('grade')} student.
-- Adapt the explanation explicitly to a {student.get('learning_style')} learning style.
-
+- Breakdown the core concepts clearly. Adapt the explanation explicitly to a {student.get('learning_style')} learning style.
+- If 'ADMIN UPLOADED REFERENCE MATERIALS' are supplied, use their structured contents as your primary source of explanations, definitions, and theories.
 ## 5. Real-life Kenyan Examples
-- Ground the concept with relatable Kenyan contextual examples (e.g., matatus, market scenarios like Mama Mboga, local food like ugali/sukuma wiki, M-Pesa, or athletics/running tracking).
-
 ## 6. Worked Examples
-- Provide step-by-step solutions to 1 or 2 practical problems or case scenarios illustrating the concept.
-
 ## 7. Practice Questions
-- Provide 3 progressive questions matching the difficulty of the lesson to encourage active recall and critical thinking. Do not provide the answers immediately.
-
 ## 8. Summary & Fun Fact
-- Bullet points summarizing the main takeaways of the lesson, followed by an interesting, mind-blowing fun fact relating to the topic.
-
 ## 9. Homework
-- Create an engaging practical activity or mini-assignment that the student can perform at home or around the house to observe the concept in action.
 
 === STRICT GUIDELINES ===
 - Always match the vocabulary to {student.get('grade')} expectations.
 - Write primarily in the preferred language: {student.get('language')}.
 - Do not append any meta-commentary, safety labels ("User Safety: safe"), or extra prompt diagnostics. Output only the complete lesson content starting directly from the Lesson Title.
 """
+
 
     try:
         response = client.chat.completions.create(

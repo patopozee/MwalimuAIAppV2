@@ -4,12 +4,14 @@ import json
 import re
 import ast
 import requests
+import sqlite3
 import streamlit as st
 from PIL import Image
 from dotenv import load_dotenv
 import streamlit.components.v1 as components
 import firebase_admin
 from firebase_admin import credentials, firestore
+from streamlit_cookies_controller import CookieController
 
 # --- STREAMLIT PAGE CONFIGURATION (MUST BE ABSOLUTE FIRST COMMAND IN STREAMLIT) ---
 st.set_page_config(
@@ -102,8 +104,52 @@ if "active_view" not in st.session_state:
     st.session_state.active_view = "main"
 
 # 🎯 SPEED FIX: Initialize a specific localized memory caching slot for Firestore profile row responses
-if "user_profile" not in st.session_state: st.session_state.user_profile = None
 if "new_message" not in st.session_state:st.session_state.new_message = False
+
+
+
+# ====================================================================# 
+# ====================================================================
+# 🍪 NATIVE APPLICATION QUERY PERSISTENCE ENGINE (DEPRECATION PROOF)
+# ====================================================================
+if "user_authenticated" not in st.session_state:
+    st.session_state.user_authenticated = False
+
+# Fetch active browser query strings directly
+url_parameters = st.query_params
+
+# 🧼 IF THE USER MANUALLY LOGGED OUT: Wipe tokens completely
+if "clear_storage" in url_parameters:
+    st.query_params.clear()
+    st.session_state.user_authenticated = False
+    st.rerun()
+
+# 🔄 COOKIE REFRESH CAPTURE: Automatically log the user back in if parameters match
+if not st.session_state.user_authenticated and "session_token_id" in url_parameters:
+    persisted_uid = url_parameters["session_token_id"]
+    
+    from services.database import get_student_data
+    db_profile = get_student_data(str(persisted_uid))
+    
+    if db_profile and isinstance(db_profile, dict):
+        st.session_state.user_authenticated = True
+        st.session_state.uid = str(persisted_uid)
+        st.session_state.user_email = str(db_profile.get("email", ""))
+        st.session_state.student_name = str(db_profile.get("name", "Student"))
+        st.session_state.grade = str(db_profile.get("grade", "Grade 11"))
+        st.session_state.age = int(db_profile.get("age", 17))
+        st.session_state.user_profile = db_profile
+        st.session_state.show_upgrade_modal = False
+        
+        if "current_page" not in st.session_state:
+            st.session_state.current_page = "Main Chat"
+        st.rerun()
+
+
+
+                
+
+
 
 
 
@@ -286,7 +332,13 @@ def render_auth_portal(context="auth"):
                                     st.session_state.grade = str(db_profile.get("grade", "Grade 1"))
                                     st.session_state.age = int(db_profile.get("age", 10))
                                     st.session_state.user_profile = db_profile
+                                    st.session_state.current_page = "Main Chat"
+                                    
+                                    # 🌟 Lock session UID straight into your active native query parameters
+                                    st.query_params["session_token_id"] = uid
                                     st.rerun()
+
+
                                 else:
                                     st.error("Profile not found for this user. Please register your profile.")
                             else:
@@ -310,7 +362,6 @@ def render_auth_portal(context="auth"):
                             result = MwalimuAuthService.send_password_reset_email(reset_email.strip())
                             
                             if result.get("success"):
-                                # FIXED: Success box prints safely here, and state changes only when they click back
                                 st.success("📩 **Reset link sent successfully!** Please check your email inbox or spam folder to complete your password change.")
                             else:
                                 st.error("If the email is registered, you will receive a reset link shortly. Please check your inbox or spam folder.")
@@ -320,6 +371,7 @@ def render_auth_portal(context="auth"):
                 if st.button("⬅_ Return to Login Screen", use_container_width=True, key="back_to_login_from_reset"):
                     st.session_state.show_reset_form = False
                     st.rerun()
+
 
     # ----------------------------------------------------
     # TAB 2: SIGNUP FUNNEL WITH LEGAL COMPLIANCE GATE
@@ -900,6 +952,7 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
 
 
         # --- DEDICATED LOGOUT CONFIRMATION DIALOG ---
+        # ====================================================================    
         @st.dialog("🚪 Confirm Logout")
         def confirm_logout_dialog():
             st.write("Are you sure you want to log out of your account? Your active session will be closed.")
@@ -908,38 +961,36 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
             col_yes, col_cancel = st.columns(2)
             with col_yes:
                 if st.button("Yes, Log Out", use_container_width=True, type="primary"):
-                    # 🚨 FIX: Forcefully clear state-guard tracker tokens from browser memory
+                    # Clear all active configuration parameters out of memory tracks
                     tracking_keys_to_purge = [
-                        "user_authenticated", 
-                        "user_profile", 
-                        "messages", 
-                        "show_upgrade_modal",
-                        "last_checked_name", 
-                        "last_checked_grade", 
-                        "last_checked_age", 
-                        "student_name", 
-                        "uid", 
-                        "user_email"
+                        "user_authenticated", "user_profile", "messages", 
+                        "show_upgrade_modal", "last_checked_name", "last_checked_grade", 
+                        "last_checked_age", "student_name", "uid", "user_email"
                     ]
-                    
                     for target_key in tracking_keys_to_purge:
                         if target_key in st.session_state:
                             del st.session_state[target_key]
                             
-                    # Re-initialize basic interface state flags safely back to the onboarding layer
                     st.session_state.current_page = "Main Chat"
                     
-                    # Force an environment reload to trigger clean database queries on subsequent sign-ins
+                    # Set the logout clear string flag 
+                    st.query_params["clear_storage"] = "true"
                     st.rerun()
                     
             with col_cancel:
                 if st.button("Cancel", use_container_width=True):
                     st.rerun()
 
-        # --- 3. Log Out Button (Kept at the bottom of the sidebar) ---
-        st.sidebar.markdown("---") # Visual separator
-        if st.sidebar.button("Logout", use_container_width=True):
+
+        # ====================================================================
+        # --- 3. LOG OUT BUTTON CONTAINER (FIXED ALIGNMENT) ---
+        # ====================================================================
+        st.sidebar.markdown("---")  # Visual separator
+        if st.sidebar.button("Logout", use_container_width=True, key="main_sidebar_logout_btn"):
             confirm_logout_dialog()
+
+
+
 
 
     # Call the function to render the complete sidebar layout
