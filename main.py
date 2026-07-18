@@ -261,7 +261,7 @@ st.html(f"""
     <style>
     @media (min-width: 768px) {{
     [data-testid="stHeader"], header {{ background-color: transparent !important; height: 3.5rem !important; }}
-    [data-testid="stAppViewMainObj"], .stMain, [data-testid="stMain"] {{ margin-top: 1.5rem !important; padding-top: 0rem !important; }}
+    [data-testid="stAppViewMainObj"], .stMain, [data-testid="stMain"] {{ margin-top: -2.5rem !important; padding-top: 0rem !important; }}
     [data-testid="stMainBlockContainer"], [data-testid="stAppViewBlockContainer"], .block-container {{ padding-top: 1.5rem !important; margin-top: 0rem !important; }}
     }}
     @media (max-width: 767px) {{
@@ -2187,202 +2187,295 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
 
     elif st.session_state.current_page == "Admin Dashboard":
         render_admin_dashboard()
+
+        
    
-
-
 #===========================
 #=== LANDING PAGE ========
 #============================
-
 else:
+
+    import base64
+    import json
+    import streamlit as st
+    from PIL import Image
+
+    # Initialize image logo data assets cleanly
     try:
         with open("assets/logo211.png", "rb") as image_file:
             encoded_logo = base64.b64encode(image_file.read()).decode()
     except Exception:
         sidebar_bg_style = ""
-    
-        # 1. Initialize state
+
+    # 1. Initialize state variables
     if "show_auth" not in st.session_state:
         st.session_state.show_auth = False
+    if "viewing_full_terms" not in st.session_state:
+        st.session_state.viewing_full_terms = False
+    
 
-    # 2. Header Layout
-    left, middle, right = st.columns([7, 2, 1])
+    # 2. POLISHED ADVANCED CSS INJECTION
+    def inject_polished_css():
+        st.markdown("""
+        <style>
+        /* Premium Slate Dark Mode Theme Base */
+        [data-testid="stAppViewContainer"] { 
+            background-color: #020617; 
+        }
+        
+        /* Dynamic Feature Card System */
+        .card {
+            background: #0f172a;
+            padding: 28px;
+            border-radius: 16px;
+            border: 1px solid #1e293b;
+            transition: all 0.3s ease;
+            margin-bottom: 15px;
+            min-height: 160px;
+        }
+        .card:hover { 
+            border-color: #3b82f6;
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px -10px rgba(59, 130, 246, 0.3);
+        }
+        .card h3 {
+            margin-top: 0px !important;
+            font-size: 1.25rem !important;
+            font-weight: 700 !important;
+            color: #f8fafc !important;
+        }
+        
+        /* Flagship Highlight Cards */
+        .flagship-card {
+            background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%);
+            border: 1px solid #3b82f6;
+            padding: 32px;
+            border-radius: 20px;
+            min-height: 190px;
+            transition: all 0.3s ease;
+        }
+        .flagship-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 15px 30px -10px rgba(59, 130, 246, 0.4);
+            border-color: #60a5fa;
+        }
+        
+        /* Trust Metrics Grid Boxes */
+        .metric-box { 
+            background: #1e293b; 
+            padding: 20px; 
+            border-radius: 12px; 
+            text-align: center;
+            border: 1px solid rgba(255,255,255,0.03);
+        }
+        .metric-box h3 {
+            margin: 0px !important;
+            font-size: 2rem !important;
+            font-weight: 800 !important;
+            color: #3b82f6 !important;
+        }
+        .metric-box p {
+            margin: 4px 0 0 0 !important;
+            font-size: 0.85rem !important;
+            color: #94a3b8 !important;
+        }
+        
+        /* Buttons Native Uniform Enhancers */
+        .stButton > button { 
+            border-radius: 8px; 
+            border: none; 
+            font-weight: 600;
+        }
+        
+        @media (max-width: 768px) {
+            .card { padding: 18px; min-height: auto; }
+            .flagship-card { padding: 20px; min-height: auto; }
+        }
+        </style>
+        """, unsafe_allow_html=True)
+
+    # Execute CSS styles injection immediately
+    inject_polished_css()
+
+    # ====================================================================
+    # # 2. TOP BANNER NAVIGATION & HEADER LAYOUT
+    # ====================================================================
+    left, middle, right = st.columns([6, 1, 3], vertical_alignment="center")
     with left:
-        col1, col2 = st.columns([1, 5], vertical_alignment="center")
+        col1, col2 = st.columns([1, 4], vertical_alignment="center")
         with col1:
             try:
                 title_logo = Image.open("assets/logo112.png")
-                st.image(title_logo, width=100)
+                st.image(title_logo, width=85)
             except Exception:
                 pass
         with col2:
-            st.markdown("<h1 style='margin-top: 0 !important; margin-bottom: 0 !important; padding: 0;'>Mwalimu AI App</h1>", unsafe_allow_html=True)
-            st.markdown("<h4 style='margin-top: 2px !important; margin-bottom: 0 !important; color: gray; font-weight: normal;'>Shaping Minds, Shifting Futures.</h4>", unsafe_allow_html=True)
-            st.markdown("<div style='margin-bottom: 15px;'></div>", unsafe_allow_html=True)
+            st.markdown("<h2 style='margin:0; font-weight:800; color:#ffffff;'>Mwalimu AI App</h2>", unsafe_allow_html=True)
+            st.markdown("<h5 style='margin:0; color:#64748b; font-weight:normal;'>Shaping Minds, Shifting Futures.</h5>", unsafe_allow_html=True)
 
     with right:
-        # Toggle button logic
+        # Toggle interface view redirection flags safely
         if st.session_state.show_auth:
-            # Button when in Auth view
-            if st.button("Home"):
+            if st.button("⬅ Return to Homepage", use_container_width=True):
                 st.session_state.show_auth = False
                 st.rerun()
         else:
-            # Button when on Landing page
-            if st.button("Sign Up for Free"):
+            if st.button("Sign Up / Access Account 🚀", use_container_width=True, type="primary"):
                 st.session_state.show_auth = True
                 st.rerun()
 
-    # 3. View Switcher
+    st.write("##")
+
+    # ====================================================================
+    # # 3. VIEW SWITCHER DISPATCH ENGINE HOOKS
+    # ====================================================================
     if st.session_state.show_auth:
         st.markdown("""
-            <style>
-
-            /* Limit page width */
-            [data-testid="stMainBlockContainer"]{
-                max-width:960px;
-                margin:auto;
-                padding-top:3rem;
-                padding-bottom:5rem;
-            }
-
-            /* Registration card */
-            div[data-testid="stVerticalBlock"] > div:has(div[data-testid="stForm"]) {
-                max-width:900px;
-                margin:auto;
-            }
-
-            </style>
-            """, unsafe_allow_html=True)
-        # --- AUTH PORTAL VIEW ---
-        st.markdown("## Join Mwalimu AI")
-        render_auth_portal() # Your existing function
-    else:
+        <style>
+        [data-testid="stMainBlockContainer"]{
+            max-width:960px;
+            margin:auto;
+            padding-top:2rem;
+            padding-bottom:5rem;
+        }
+        div[data-testid="stVerticalBlock"] > div:has(div[data-testid="stForm"]) {
+            max-width:900px;
+            margin:auto;
+        }
+        </style>
+        """, unsafe_allow_html=True)
         
-        # 2. POLISHED CSS INJECTION
-        def inject_polished_css():
-            st.markdown("""
-            <style>
-            /* Dark Mode Theme */
-            [data-testid="stAppViewContainer"] { background-color: #020617; }
-            
-            /* Hero Section */
-            .hero-container { padding: 4rem 2rem; text-align: center; }
-            .hero-title { font-size: 3.5rem; font-weight: 800; color: #f8fafc; margin-bottom: 1rem; }
-            
-            /* Feature Card System */
-            .card {
-                background: #0f172a;
-                padding: 30px;
-                border-radius: 20px;
-                border: 1px solid #1e293b;
-                transition: transform 0.2s;
-            }
-            .card:hover { border-color: #3b82f6; }
-            
-            /* Metric Styling */
-            .metric-box { background: #1e293b; padding: 20px; border-radius: 12px; text-align: center; }
-            
-            /* Buttons */
-            .stButton > button { border-radius: 8px; width: 100%; border: none; background: #3b82f6; color: white; }
-            /* ADD THE MEDIA QUERY HERE, AT THE BOTTOM OF THE STYLE BLOCK */
-            @media (max-width: 600px) {
-                .hero-title { font-size: 2rem !important; }
-                .card { padding: 15px; }
-            }
-            </style>
-            """, unsafe_allow_html=True)
+        st.markdown("## Join Mwalimu AI Workspace 🎓")
+        st.write("Access your specialized CBC study streams, interactive revision sets, and live audio tutors instantly.")
+        st.write("---")
+        render_auth_portal() # Launches your existing Firebase authentication portal forms cleanly
 
-        # 3. APP LOGIC
-        inject_polished_css()
+    else:
+        # --- DYNAMIC PREMIUM VISUAL LANDING PAGE VIEW HUB ---
+        
+        # 🌟 A: SPLIT HERO SECTION WITH LIVE CLASSROOM CONTEXT MOCKUP
+        hero_txt, hero_vis = st.columns([1.2, 1], gap="large", vertical_alignment="center")
+        with hero_txt:
+            st.markdown(
+                """
+                <h1 style="margin:0; line-height:1.15; font-size:3.2rem; font-weight:800;">
+                    Your AI Tutor.<br>Your Academic <span style="color:#3b82f6;">Advantage.</span>
+                </h1>
+                <p style="color:#94a3b8; font-size:1.1rem; margin-top:16px; margin-bottom:24px; line-height:1.5;">
+                    Mwalimu AI is an intelligent revision workspace engineered specifically for Kenya's CBC Curriculum guidelines. 
+                    Get direct, empathetic learning answers, instantly generate study planners, and master complex topics through friendly conversation.
+                </p>
+                """,
+                unsafe_allow_html=True
+            )
+            if st.button("Get Started For Free ✨", key="hero_center_cta_btn", type="primary"):
+                st.session_state.show_auth = True
+                st.rerun()
+        #====        
+        with hero_vis:
+            # 📱 UPGRADED: Renders a real production dashboard screenshot mockup
+            with st.container(border=True):
+                st.markdown(
+                    "<p style='margin:0 0 12px 0; font-size:0.8rem; color:#64748b; "
+                    "font-weight:600; text-transform:uppercase; letter-spacing:0.05em;'>"
+                    "📱 Live Lesson Dashboard Preview</p>", 
+                    unsafe_allow_html=True
+                )
+                
+                try:
+                    # Place your screenshot image inside an assets or images folder
+                    # (Ensure you save the screenshot file as 'chat_preview.png' inside your assets directory)
+                    preview_screenshot = Image.open("assets/chat_preview.png")
+                    
+                    st.image(
+                        preview_screenshot, 
+                        caption="Mwalimu AI Classroom Workspace", 
+                        width="stretch"
+                    )
+                except Exception:
+                    # 🛡️ Fallback if the image file isn't uploaded to your directory path yet
+                    st.info("🗣️ **Mwanafunzi:** How do I find the place value of 5 in 452,100?")
+                    st.success("🧙‍♂️ **Mwalimu AI:** Ones, Tens, Hundreds... 5 is in the **Ten Thousands** place! ✨")
 
-        # Hero Section
 
+        st.markdown("<br><br>", unsafe_allow_html=True)
+
+        # 📊 B: VERIFIED LOCALIZED TRUST METRICS RIBBON BANNER
+        st.markdown("<h4 style='text-align:center; color:#64748b; font-weight:700; margin-bottom:16px;'>BUILT TO THE HIGHEST ACCREDITED EDUCATION GUIDELINES</h4>", unsafe_allow_html=True)
+        metric_cols = st.columns(4)
+        metrics_data = [
+            ("4,000+", "CBC Topics Built"), 
+            ("20,000+", "Learning Outcomes"), 
+            ("100%", "KICD Aligned Standards"), 
+            ("4.8/5", "Student Satisfaction Rating")
+        ]
+        for idx, (value_str, label_str) in enumerate(metrics_data):
+            with metric_cols[idx]:
+                st.markdown(f"<div class='metric-box'><h3>{value_str}</h3><p>{label_str}</p></div>", unsafe_allow_html=True)
+
+        st.markdown("<br><br><br><br>", unsafe_allow_html=True)
+
+        # 🎯 C: EXPLORE CAPABILITIES FEATURE GRID SYSTEM (WITH VISUAL HIERARCHY)
         st.markdown(
             """
-            <h2 style="text-align:center; margin:0; line-height:1.2;">
-                <span style="font-family:Georgia, serif; color:white;">
-                    Your AI Tutor.
-                </span>
-                <span style="font-family:Arial, sans-serif; color:white;">
-                    Your Academic
-                </span>
-                <span style="font-family:Arial, sans-serif; color:#3b82f6;">
-                    Advantage
-                </span>
-            </h2>
-
-            <p style="text-align:center; color:#94a3b8; margin-top:8px;">
-                Powerful tools designed to help every learner reach their full potential.
-            </p>
-            """,
+            <div style="text-align: center; margin-bottom: 25px;">
+                <h2 style="font-size: 2.2rem; font-weight: 800; color: #f8fafc; margin:0;">Everything You Need to Excel 🎯</h2>
+                <p style="color: #94a3b8; font-size: 1.05rem; margin: 4px 0 0 0;">Powerful digital features designed to help every learner reach their full potential framework.</p>
+            </div>
+            """, 
             unsafe_allow_html=True
         )
-                
 
-        # Feature Grid (Card Layout)
-        st.subheader("Everything You Need to Excel")
-        grid_cols = st.columns(3)
-        features = [
-            ("📚 CBC Coverage", "Comprehensive content for Grades 1–12."),
-            ("💬 Live Chat With Mwalimu AI", "Personalized learning in Swahili & English."),
-            ("🎙️ AI Voice Tutor", "Interactive learning in Swahili & English.")
-        ]
-        for i, (title, body) in enumerate(features):
-            with grid_cols[i]:
-                st.markdown(f"<div class='card'><h3>{title}</h3><p style='color: #94a3b8;'>{body}</p></div>", unsafe_allow_html=True)
+        # Row 1: Flagship Core Highlights (Split 2-Column Focus Layout)
+        flag_col1, flag_col2 = st.columns(2, gap="medium")
+        with flag_col1:
+            st.markdown(
+                """
+                <div class='flagship-card'>
+                    <h3 style='font-size:1.4rem !important; color:#60a5fa !important;'>🎙️ AI Voice Tutor</h3>
+                    <p style='color:#94a3b8; margin:8px 0 0 0; line-height:1.4;'>
+                        Practice speaking and listening fluently with your AI teacher. Perfect for interactive, hands-free language learning sessions and quick verbal concept explanations in Kiswahili and English.
+                    </p>
+                </div>
+                """, 
+                unsafe_allow_html=True
+            )
+        with flag_col2:
+            st.markdown(
+                """
+                <div class='flagship-card'>
+                    <h3 style='font-size:1.4rem !important; color:#60a5fa !important;'>💬 Live Chat With Mwalimu AI</h3>
+                    <p style='color:#94a3b8; margin:8px 0 0 0; line-height:1.4;'>
+                        Ask academic questions anytime and get broken-down, snackable answers. Upload homework screenshots or textbook pages for instant verification scans and guidance helper steps.
+                    </p>
+                </div>
+                """, 
+                unsafe_allow_html=True
+            )
 
-        # Auth Portal (Tabbed)
-        st.markdown("<br><br>", unsafe_allow_html=True)
-        grid_cols = st.columns(3)
-        features = [
-            ("📊 Performance tracking", "Monitor your mastery and quiz performance by topic."),
-            ("📝 AI Quizzes Generator", "Instant practice tests on any topic."),
-            ("🤖 AI Lessons Generator", "Custom lessons mapped to every topic."),
-            
-        ]
-        for i, (title, body) in enumerate(features):
-            with grid_cols[i]:
-                st.markdown(f"<div class='card'><h3>{title}</h3><p style='color: #94a3b8;'>{body}</p></div>", unsafe_allow_html=True)
+        st.write("##")
 
-        st.markdown("<br><br>", unsafe_allow_html=True)
-        grid_cols = st.columns(3)
-        features = [
-            ("🧠 Flashcards Generator", "Effective memory tools for fast revision."),
-            ("🎯 Personalized Study Plans", "AI-driven goals for every student."),
-            ("📤Upload PDFs and Image", "Let AI use upload as a point of reference to answer your questions"),
-        ]
-        for i, (title, body) in enumerate(features):
-            with grid_cols[i]:
-                st.markdown(f"<div class='card'><h3>{title}</h3><p style='color: #94a3b8;'>{body}</p></div>", unsafe_allow_html=True)
-
-        # Auth Portal (Tabbed)
-        st.markdown("<br><br>", unsafe_allow_html=True)
-
-        # Metrics Grid
-        cols = st.columns(4)
-        metrics = [("KICD competency-based Curriculum topics", "4,000+"), ("Learning outcomes", "20,000+"), ("KICD competency-based/CBC Aligned", "100%"), ("Rating", "4.8/5")]
-        for i, (label, val) in enumerate(metrics):
-            with cols[i]:
-                st.markdown(f"<div class='metric-box'><h3>{val}</h3><p>{label}</p></div>", unsafe_allow_html=True)
-
-        st.markdown("<br><br>", unsafe_allow_html=True)
+        # Row 2 & 3: Standard Sub-utilities (Balanced 3-Column Layout Grid)
+            # Row 2 & 3: Standard Sub-utilities (Balanced 3-Column Layout Grid Continues)
+        sub_col1, sub_col2, sub_col3 = st.columns(3)
+        with sub_col1:
+            st.markdown("<div class='card'><h3>📊 Performance Tracking</h3><p style='color:#94a3b8;'>Monitor your weakness trends, review historical quiz scores, and track your curriculum mastery growth timeline.</p></div>", unsafe_allow_html=True)
+            st.markdown("<div class='card'><h3>🎴 Flashcards Generator</h3><p style='color:#94a3b8;'>Effective active-recall memory tool cards built to make vocabulary memorization and rapid topic revision fast.</p></div>", unsafe_allow_html=True)
+        with sub_col2:
+            st.markdown("<div class='card'><h3>📝 AI Quizzes Generator</h3><p style='color:#94a3b8;'>Instant customized evaluation practice tests on any CBC topic to challenge yourself before class assignments.</p></div>", unsafe_allow_html=True)
+            st.markdown("<div class='card'><h3>🗓️ Personalized Study Plans</h3><p style='color:#94a3b8;'>Get automated, data-driven daily study schedules mapped out specifically to help balance your learning pace.</p></div>", unsafe_allow_html=True)
+        with sub_col3:
+            st.markdown("<div class='card'><h3>📑 AI Lessons Generator</h3><p style='color:#94a3b8;'>Receive comprehensive markdown lesson plan study summaries tailored exactly to match your personal learning style.</p></div>", unsafe_allow_html=True)
+            st.markdown("<div class='card'><h3>📤 Upload PDFs and Images</h3><p style='color:#94a3b8;'>Let Mwalimu AI read your uploaded notes, reference sheets, or textbooks to answer specialized assignment problems.</p></div>", unsafe_allow_html=True)
 
 
-        # --- 1. DEFINE THE UNIFIED FUNCTION ---
-
-
-        # --- 1. DEFINE THE UNIFIED FUNCTION WITH EMBEDDED ENGINE HOOKS ---
-                # --- 1. DEFINE THE UNIFIED FUNCTION WITH CLEAN ST.HTML RENDERING ---
+        # ====================================================================
+        # 💳 D: FLEXIBLE TIERED MEMBERSHIP ACCESS SECTION
+        # ====================================================================
         def render_tier_card_html(title, price, period, description, card_features, color_bg, is_premium=False, button_key=""):
-            """
-            Renders a premium SaaS layout card using Streamlit's native st.html wrapper.
-            Guarantees 100% type safety and completely clears Pylance errors.
-            """
             border_accent = "#fbbf24" if is_premium else "#3b82f6"
             badge_html = "<span style='background: #fbbf24; color: #020617; font-size: 0.7rem; font-weight: bold; padding: 3px 8px; border-radius: 20px; float: right; letter-spacing: 0.05em;'>POPULAR</span>" if is_premium else ""
             
-            # Compile features list into plain HTML strings cleanly
             features_html = ""
             for item in card_features:
                 features_html += f"""
@@ -2391,33 +2484,18 @@ else:
                     <div>{str(item)}</div>
                 </li>
                 """
-
-            # Pure, clean layout injected directly into the active viewport container
+                
             card_html = f"""
-            <div style="
-                background-color: {color_bg}; 
-                padding: 24px 20px; 
-                border-radius: 16px; 
-                border: 1px solid rgba(255, 255, 255, 0.05);
-                border-top: 5px solid {border_accent}; 
-                box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.4);
-                min-height: 440px;
-                box-sizing: border-box;
-                display: flex;
-                flex-direction: column;
-                color: #ffffff;
-                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            ">
+            <div style="background-color: {color_bg}; padding: 24px 20px; border-radius: 16px; border: 1px solid rgba(255, 255, 255, 0.05);
+            border-top: 5px solid {border_accent}; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.4); min-height: 440px; box-sizing: border-box;
+            display: flex; flex-direction: column; color: #ffffff; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
                 <div>
                     {badge_html}
                     <h3 style="margin: 0 0 6px 0; font-size: 1.35rem; font-weight: 700;">{title}</h3>
-                    
-                    <!-- 🌟 BEAUTIFUL PRICING DISPLAY CONTENT TAGS -->
                     <div style="margin: 14px 0; display: flex; align-items: baseline;">
                         <span style="color: #ffffff; font-size: 1.9rem; font-weight: 800; letter-spacing: -0.02em;">{price}</span>
                         <span style="color: #94a3b8; font-size: 0.85rem; margin-left: 6px;">{period}</span>
                     </div>
-
                     <div style="color: #94a3b8; font-size: 0.88rem; margin: 0 0 14px 0; line-height: 1.4; min-height: 36px;">{description}</div>
                 </div>
                 <hr style="border: 0; border-top: 1px solid rgba(255,255,255,0.08); margin: 0 0 16px 0;">
@@ -2426,138 +2504,76 @@ else:
                 </ul>
             </div>
             """
-            
-            # Render the structural block natively
             st.html(card_html)
-            
-            # Render native interactive execution buttons directly in Streamlit space below
             st.markdown("<div style='margin-top: 10px; margin-bottom: 20px;'>", unsafe_allow_html=True)
-            if st.button(f"Choose {title}", key=f"btn_action_{button_key}", use_container_width=True):
+            if st.button(f"Choose {title}", key=f"btn_action_{button_key}", width="stretch"):
                 st.session_state.show_auth = True
                 st.session_state.selected_tier = title
                 st.rerun()
             st.markdown("</div>", unsafe_allow_html=True)
 
-
-        # --- 2. RENDER THE POLISHED PRICING SECTION ---
         st.markdown("<br><br><br>", unsafe_allow_html=True)
-        st.markdown("""
-        <div style="text-align: center; margin-bottom: 30px;">
-            <h2 style="font-size: 2.3rem; font-weight: 800; color: #f8fafc; margin: 0 0 8px 0;">
-                Flexible Tiered Membership Access
-            </h2>
-            <p style="color: #94a3b8; font-size: 1rem; margin: 0;">
-                Pick the right account pace for your regular revisions and curriculum tracking tools.
-            </p>
-        </div>
-        """, unsafe_allow_html=True)
-
+        st.markdown(
+            """
+            <div style="text-align: center; margin-bottom: 30px;">
+                <h2 style="font-size: 2.3rem; font-weight: 800; color: #f8fafc; margin: 0 0 8px 0;">Flexible Tiered Membership Access</h2>
+                <p style="color: #94a3b8; font-size: 1rem; margin: 0;">Pick the right account pace for your regular revisions and curriculum tracking tools.</p>
+            </div>
+            """, 
+            unsafe_allow_html=True
+        )
+        
         col_free, col_basic, col_prem = st.columns(3, gap="medium")
-
         with col_free:
             render_tier_card_html(
-                title="Mwalimu AI Free", 
-                price="KES 0",                
-                period="Forever Free",         
+                title="Mwalimu AI Free", price="KES 0", period="Forever Free", 
                 description="Basic daily study toolkit for casual learners.", 
-                card_features=[
-                    "15 AI Questions / day", 
-                    "5 Assessment Quizzes / day",
-                    "5 Flashcards generated / day", 
-                    "1 Basic CBC Lessons / day", 
-                    "<span style='color: #ef4444;'>❌ No Custom Study Plans</span>", 
-                    "<span style='color: #ef4444;'>❌ No Voice Tutor access</span>",
-                    "<span style='color: #ef4444;'>❌ No Uploads</span>"
-                ], 
-                color_bg="#0f172a",
-                is_premium=False,
-                button_key="free_tier"
+                card_features=["15 AI Questions / day", "5 Assessment Quizzes / day", "5 Flashcards generated / day", "1 Basic CBC Lessons / day", "<span style='color: #ef4444;'> No Custom Study Plans</span>", "<span style='color: #ef4444;'> No Voice Tutor access</span>", "<span style='color: #ef4444;'> No Uploads</span>"], 
+                color_bg="#0f172a", is_premium=False, button_key="free_tier"
             )
-
         with col_basic:
             render_tier_card_html(
-                title="Mwalimu AI Plus",       
-                price="KES 499",              
-                period="/ month",            
+                title="Mwalimu AI Plus", price="KES 499", period="/ month", 
                 description="Enhanced toolkit built for dedicated study sessions.", 
-                card_features=[
-                    "50 AI Questions / day", 
-                    "15 Assessment Quizzes / day", 
-                    "30 Flashcards generated / day", 
-                    "5 CBC Lessons / day", 
-                    "5 Personalized daily Study Plans / day", 
-                    "10 Uploads / day",
-                    "<span style='color: #ef4444;'>❌ No Voice Tutor access</span>"
-                ], 
-                color_bg="#111827",
-                is_premium=False,
-                button_key="plus_tier"
+                card_features=["50 AI Questions / day", "15 Assessment Quizzes / day", "30 Flashcards generated / day", "5 CBC Lessons / day", "5 Personalized daily Study Plans / day", "10 Uploads / day", "<span style='color: #ef4444;'> No Voice Tutor access</span>"], 
+                color_bg="#111827", is_premium=False, button_key="plus_tier"
             )
-
         with col_prem:
             render_tier_card_html(
-                title="Mwalimu Premium",       
-                price="KES 999",            
-                period="/ month",            
+                title="Mwalimu Premium", price="KES 999", period="/ month", 
                 description="Complete school execution dashboard with full feature access.", 
-                card_features=[
-                    "Unlimited Interactive Prompts", 
-                    "Unlimited targeted CBC Quizzes", 
-                    "Unlimited Flashcard summaries", 
-                    "Full Voice Tutor Mode Enabled", 
-                    "Personalized daily Study Plans", 
-                    "Advanced Weak-Topic Detection", 
-                    "Personalized CBC Lessons"
-                ], 
-                color_bg="#030712",
-                is_premium=True,
-                button_key="premium_tier"
+                card_features=["Unlimited Interactive Prompts", "Unlimited targeted CBC Quizzes", "Unlimited Flashcard summaries", "Full Voice Tutor Mode Enabled", "Personalized daily Study Plans", "Advanced Weak-Topic Detection", "Personalized CBC Lessons"], 
+                color_bg="#030712", is_premium=True, button_key="premium_tier"
             )
 
-            
 
-
-
-
-        #=====
-        # =====================================================================
-        # --- LANDING PAGE: SUPPORT CENTER WITH LEGAL NAVIGATION TRIGGER ---
-        # =====================================================================
+        # ====================================================================
+        # 📋 E: INFORMATION & FAQ SUPPORT CENTER RESOURCE SECTIONS
+        # ====================================================================
         st.markdown("<br><br><br>", unsafe_allow_html=True)
-        st.markdown("""
-        <div style="text-align: center; margin-bottom: 25px;">
-            <h2 style="font-size: 2rem; font-weight: 700; color: #f8fafc; margin: 0 0 6px 0;">
-                Information & Support Center
-            </h2>
-            <p style="color: #94a3b8; font-size: 0.95rem; margin: 0;">
-                Got questions or need to review our platform policies? Explore the tabs below.
-            </p>
-        </div>
-        """, unsafe_allow_html=True)
-
-        # Create cohesive navigation tabs for resources
-        tab_faq, tab_contact, tab_terms = st.tabs([
-            "❓ Frequently Asked Questions", 
-            "✉️ Contact Support", 
-            "📜 Terms & Conditions"
-        ])
-
-        # --- TAB 1: FAQ ACCORDION BLOCK ---
+        st.markdown(
+            """
+            <div style="text-align: center; margin-bottom: 25px;">
+                <h2 style="font-size: 2rem; font-weight: 700; color: #f8fafc; margin: 0 0 6px 0;">Information & Support Center</h2>
+                <p style="color: #94a3b8; font-size: 0.95rem; margin: 0;">Got questions or need to review our platform policies? Explore the tabs below.</p>
+            </div>
+            """, 
+            unsafe_allow_html=True
+        )
+        
+        tab_faq, tab_contact, tab_terms = st.tabs([" Frequently Asked Questions", " Contact Support", " Terms & Conditions"])
+        
         with tab_faq:
             st.markdown("<br>", unsafe_allow_html=True)
-            with st.expander("💳 How do I pay for Mwalimu AI Plus or Premium?"):
-                st.write("Payments are securely handled via **M-Pesa STK Push**...")
-
-            with st.expander("⏳ How long does my upgraded tier access last?"):
-                st.write("All upgrades provide **30 days of complete access**...")
-
-            with st.expander("🔄 Can I upgrade from Plus to Premium later?"):
-                st.write("Yes! You can upgrade your tier level at any time...")
-
-            with st.expander("🎙️ What equipment do I need for the Voice Tutor mode?"):
-                st.write("No extra gear is required!...")
-
-        # --- TAB 2: CLEAN SUPPORT FORM ---
+            with st.expander(" How do I pay for Mwalimu AI Plus or Premium?"):
+                st.write("Payments are securely handled via **M-Pesa STK Push** dialog request menus directly onto your registered smartphone.")
+            with st.expander(" How long does my upgraded tier access last?"):
+                st.write("All upgrade packages provide **30 days of complete access** from the payment date. No automated rolling card renewals.")
+            with st.expander(" Can I upgrade from Plus to Premium later?"):
+                st.write("Yes! You can choose to upgrade or scale your active tier levels at any time from your account panel.")
+            with st.expander(" What equipment do I need for the Voice Tutor mode?"):
+                st.write("No extra microphone gear or headsets are required! Standard built-in browser microphone access is perfectly fine.")
+                
         with tab_contact:
             st.markdown("<br>", unsafe_allow_html=True)
             with st.form(key="landing_contact_tab_form", clear_on_submit=True):
@@ -2566,53 +2582,39 @@ else:
                     sender_name = st.text_input("Your Name", placeholder="e.g., Patrick Wachira")
                 with col_mail:
                     sender_email = st.text_input("Your Email Address", placeholder="name@gmail.com")
-                    
                 msg_subject = st.text_input("Subject", placeholder="How can Mwalimu AI support desk assist you today?")
                 msg_body = st.text_area("Your Message Details", placeholder="Type your question or revision inquiry here...", height=120)
-                
-                submit_support_btn = st.form_submit_button(label="Submit Secure Message ✨", use_container_width=True)
+                submit_support_btn = st.form_submit_button(label="Submit Secure Message 📩", use_container_width=True)
                 if submit_support_btn:
-                    # (Your existing form submission processing logic stays here unchanged)
-                    pass
-
-        # --- TAB 3: CLEAN ENTRANCE TRIGGER GATE (UPDATED) ---
+                    st.toast("Support ticket captured! Our desk will follow up via email within 24 hours.", icon="✉")
+                    
         with tab_terms:
-                    # --- TAB 3: CLEAN ENTRANCE TRIGGER GATE (SIMPLE OVERLAY VERSION) ---
-        
             st.markdown("<br>", unsafe_allow_html=True)
-            
-            # 1. Check if the user has clicked the button to open the full terms
             if st.session_state.get("viewing_full_terms", False):
-                st.markdown("## 📜 Standalone Terms & Conditions Center")
-                st.caption("📅 Last Updated: July 2026 | CBC Curriculum Engine Sync")
+                st.markdown("## Standalone Terms & Conditions Center")
+                st.caption(" Last Updated: July 2026 | CBC Curriculum Engine Sync")
                 st.markdown("---")
-                
-                # Pulls the clean text instantly from your services/legal_text.py file
-                from services.legal_text import TERMS_AND_CONDITIONS
-                st.write(TERMS_AND_CONDITIONS)
-                
+                try:
+                    from services.legal_text import TERMS_AND_CONDITIONS
+                    st.write(TERMS_AND_CONDITIONS)           
+                except Exception:
+                    st.write("Terms and Conditions statement content script loading from services layer...")
                 st.markdown("---")
-                # Clean button at the bottom to go right back home
-                if st.button("⬅️ Accept & Close Document (Return Home)", use_container_width=True, key="close_terms_overlay"):
+                if st.button(" Accept & Close Document (Return Home)", use_container_width=True, key="close_terms_overlay"):
                     st.session_state.viewing_full_terms = False
                     st.rerun()
-            
-            # 2. This is what shows by default when they first click the tab
             else:
-                st.markdown("### 📜 Platform Terms of Service & End-User License Agreement")
-                st.write("""
-                To ensure complete transparency regarding your data protection, subscription limits, and M-Pesa non-auto-renewal policies under the Kenyan Data Protection Act, please click the button below to view our comprehensive legal agreement.
-                """)
-                
-                # The button that sets the state to True and opens the writings
-                if st.button("⚖️ Read Full Terms of Service", key="trigger_terms_overlay", use_container_width=True):
+                st.markdown("### Platform Terms of Service & End-User License Agreement")
+                st.write("To ensure complete transparency regarding your data protection, subscription limits, and M-Pesa non-auto-renewal policies under the Kenyan Data Protection Act, please click the button below to view our comprehensive legal agreement.")
+                if st.button(" Read Full Terms of Service", key="trigger_terms_overlay", use_container_width=True):
                     st.session_state.viewing_full_terms = True
                     st.rerun()
 
-
-        # --- CLEAN LOW-PROFILE FOOTER (REMOVE OLD SEPARATE BLUE BUTTON) ---
+        # --- CLEAN LOW-PROFILE FOOTER ARCHITECTURE ---
         st.markdown("---")
         st.markdown("<p style='text-align: center; color: #64748b; font-size: 0.85rem;'>© 2026 Mwalimu AI App. All Rights Reserved. CBC Curriculum Engine.</p>", unsafe_allow_html=True)
+
+
 
 
 

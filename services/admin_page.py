@@ -191,7 +191,7 @@ def render_admin_dashboard():
                             file_name=f"backup_{clean_filename}.pdf", # Saves as a genuine PDF
                             mime="application/pdf", # Hardlocked to structured binary content types
                             key=f"real_dl_{document_item['id']}",
-                            use_container_width=True
+                            width="stretch"
                         )
 
 
@@ -199,5 +199,5 @@ def render_admin_dashboard():
                 with btn_col2:
                     # Triggers the newly integrated confirmation popup overlay seamlessly
                     button_unique_id = f"delete_doc_asset_id_{document_item['id']}"
-                    if st.button("🗑️ Delete", key=button_unique_id, use_container_width=True, type="secondary"):
+                    if st.button("🗑️ Delete", key=button_unique_id, width="stretch", type="secondary"):
                         confirm_delete_material_dialog(document_item['id'], document_item['filename'])
