@@ -2378,7 +2378,7 @@ else:
                 st.markdown(
                     "<p style='margin:0 0 12px 0; font-size:0.8rem; color:#64748b; "
                     "font-weight:600; text-transform:uppercase; letter-spacing:0.05em;'>"
-                    "📱 Live Lesson Dashboard Preview</p>", 
+                    "📱 Live Chat Dashboard Preview</p>", 
                     unsafe_allow_html=True
                 )
                 
@@ -2389,7 +2389,7 @@ else:
                     
                     st.image(
                         preview_screenshot, 
-                        caption="Mwalimu AI Classroom Workspace", 
+                        caption="Ask Mwalimu AI Workspace", 
                         width="stretch"
                     )
                 except Exception:
