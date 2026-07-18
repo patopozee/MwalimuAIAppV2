@@ -45,7 +45,12 @@ if not firebase_admin._apps:
         raise FileNotFoundError("Could not locate any valid 'service_account_json' settings in secrets.toml.")
 
 db = firestore.client()
-DATABASE_NAME = "/data/mwalimu.db"
+if os.path.exists("/data"):
+    #  PRODUCTION SERVER LINK (Locks directly to your secure GCP Bucket)
+    DATABASE_NAME = "/data/mwalimu.db"
+else:
+    # 💻 LOCAL DEVELOPMENT FALLBACK (Saves safely inside your local root project folder)
+    DATABASE_NAME = "mwalimu.db"
 
 
 # ---------------------------------------------------------------------

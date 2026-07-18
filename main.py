@@ -2322,10 +2322,9 @@ else:
 
         # Feature Grid (Card Layout)
         st.subheader("Everything You Need to Excel")
-        grid_cols = st.columns(4)
+        grid_cols = st.columns(3)
         features = [
             ("📚 CBC Coverage", "Comprehensive content for Grades 1–12."),
-            ("🎯 Personalized Study Plans", "AI-driven goals for every student."),
             ("💬 Live Chat With Mwalimu AI", "Personalized learning in Swahili & English."),
             ("🎙️ AI Voice Tutor", "Interactive learning in Swahili & English.")
         ]
@@ -2335,12 +2334,23 @@ else:
 
         # Auth Portal (Tabbed)
         st.markdown("<br><br>", unsafe_allow_html=True)
-        grid_cols = st.columns(4)
+        grid_cols = st.columns(3)
         features = [
             ("📊 Performance tracking", "Monitor your mastery and quiz performance by topic."),
-            ("📝 Quiz Generator", "Instant practice tests on any topic."),
+            ("📝 AI Quizzes Generator", "Instant practice tests on any topic."),
             ("🤖 AI Lessons Generator", "Custom lessons mapped to every topic."),
-            ("🧠 Flashcards Generator", "Effective memory tools for fast revision.")
+            
+        ]
+        for i, (title, body) in enumerate(features):
+            with grid_cols[i]:
+                st.markdown(f"<div class='card'><h3>{title}</h3><p style='color: #94a3b8;'>{body}</p></div>", unsafe_allow_html=True)
+
+        st.markdown("<br><br>", unsafe_allow_html=True)
+        grid_cols = st.columns(3)
+        features = [
+            ("🧠 Flashcards Generator", "Effective memory tools for fast revision."),
+            ("🎯 Personalized Study Plans", "AI-driven goals for every student."),
+            ("📤Upload PDFs and Image", "Let AI use upload as a point of reference to answer your questions"),
         ]
         for i, (title, body) in enumerate(features):
             with grid_cols[i]:
