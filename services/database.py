@@ -117,6 +117,23 @@ def create_tables():
         uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
     """)
+    # 🏫 LMS Tracker: Monitors lesson completion states and student mastery metrics
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS student_progress (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        student_uid TEXT NOT NULL,
+        grade TEXT NOT NULL,
+        subject TEXT NOT NULL,
+        lesson_id TEXT NOT NULL,
+        mastery_score INTEGER DEFAULT 0,
+        status TEXT DEFAULT 'Not Started', -- 'Not Started', 'Learning', 'Completed'
+        completed_at TIMESTAMP,
+        time_spent_mins INTEGER DEFAULT 0,
+        quiz_high_score INTEGER DEFAULT 0,
+        UNIQUE(student_uid, subject, lesson_id)
+    )
+    """)
+
     
     # Save all table structures and close out the file handler transaction safely
     conn.commit()
@@ -602,6 +619,29 @@ def delete_admin_material_by_id(material_id: int):
     if hasattr(get_admin_material_context, "clear"):
         get_admin_material_context.clear()
 
+def get_all_student_lms_progress():
+    """Fetches a relational overview of all students and their active lesson progress stats."""
+    conn = sqlite3.connect(DATABASE_NAME)
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+    
+    # Left join ensures we see the student's base profile even if they haven't started a lesson node yet
+    cursor.execute("""
+        SELECT 
+            s.name as student_name,
+            s.grade as student_grade,
+            p.subject,
+            p.lesson_id,
+            p.status,
+            p.quiz_high_score,
+            p.completed_at
+        FROM students s
+        LEFT JOIN student_progress p ON s.id = p.student_uid
+        ORDER BY p.completed_at DESC, s.name ASC
+    """)
+    rows = cursor.fetchall()
+    conn.close()
+    return rows
 
 
 
