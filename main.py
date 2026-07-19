@@ -42,6 +42,7 @@ from services.vision_service import MwalimuVisionService
 from services.db_service import MwalimuDBService
 from services.ui_components import show_upgrade_modal
 from services.legal_text import TERMS_AND_CONDITIONS
+from services.quiz_evaluator import evaluate_quiz_submission
 
 # --- DATABASE ENGINE CACHE WRAPPERS (IMPORTS REMAIN THE SAME) ---
 from services.database import (
@@ -138,6 +139,7 @@ if not st.session_state.user_authenticated and "session_token_id" in url_paramet
         st.session_state.student_name = str(db_profile.get("name", "Student"))
         st.session_state.grade = str(db_profile.get("grade", "Grade 11"))
         st.session_state.age = int(db_profile.get("age", 17))
+        st.session_state.active_subject = db_profile.get("subject") or db_profile.get("favorite_subject") or "Mathematics"
         st.session_state.user_profile = db_profile
         st.session_state.show_upgrade_modal = False
         
@@ -699,7 +701,7 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
     # =====================================================================
     # --- FRAGMENT 1: SANDBOXED CBC CURRICULUM SELECTORS ---
     
-    @st.fragment
+    #@st.fragment
     def render_cbc_selectors(grade, CBC):
         st.sidebar.markdown("---")
         st.sidebar.subheader(" Curriculum Context")
@@ -736,19 +738,27 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
         st.session_state["active_learning_outcome"] = learning_outcome
 
     # Fire selector and build variables globally
+        # =====================================================================
+    # --- CORRECTED STATE ROUTING ENGINE ---
+    # =====================================================================
+
+    # 1. Keep the heavy database retrieval logic inside the optimization lock
     if name:
         if (st.session_state.get("last_checked_name") != name or 
             st.session_state.get("last_checked_grade") != grade or 
             st.session_state.get("last_checked_age") != int(age)):
+            
             st.session_state.ask_mwalimu_history = get_ask_mwalimu_history(name, grade, int(age))
             st.session_state.last_checked_name = name
             st.session_state.last_checked_grade = grade
             st.session_state.last_checked_age = int(age)
             st.session_state.student_name = name
 
+    # 2. RUN THIS UNCONDITIONAL: Render selectors immediately on page load
+    if name:
         render_cbc_selectors(grade, CBC)
 
-    # 2. Extract values safely for the rest of the script to read
+    # 3. Safe contextual extraction fallbacks
     subject = st.session_state.get("active_subject", "Mathematics")
     topic = st.session_state.get("active_topic", "Whole Numbers")
     sub_topic = st.session_state.get("active_sub_topic", "Place Value")
@@ -1140,7 +1150,114 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
             st.session_state.current_page = "Generators Hub"
             st.rerun()
         st.write("")
+        #================================
+        # ====================================================================
+        # 🏫 LMS CORE INTEGRATION: TODAY'S LEARNING & CONTINUE LEARNING GATE
+        # ====================================================================
+               # ====================================================================
+                # ====================================================================
+        # 🏫 LMS CORE INTEGRATION: DYNAMIC NON-LOCKING SUBSCRIPTION GATE
+        # ====================================================================
+        from services.lms_service import get_current_active_lesson, load_course_structure, get_student_lesson_progress
+        
+        # 1. Unpack subscription hierarchy details natively from your database dictionary
+        student_profile_dict = st.session_state.get("user_profile", {})
+        subscription_tree = student_profile_dict.get('subscription', {}) if isinstance(student_profile_dict.get('subscription'), dict) else {}
+        user_tier = str(subscription_tree.get('tier', 'Free')).strip()
+
+        # Enforce clean dynamic state handling for verified Premium/Plus users 
+        if "premium" in user_tier.lower() or "plus" in user_tier.lower():
+            st.session_state.lms_limit_reached = False
+
+        student_uid = str(st.session_state.get("uid") or "")
+        student_grade = str(st.session_state.get("grade", "Grade 6"))
+        active_subject = str(st.session_state.get("active_subject", "Mathematics"))
+        
+        current_lesson = get_current_active_lesson(student_uid, student_grade, active_subject)
+        course_structure = load_course_structure(student_grade, active_subject)
+        all_lessons_list = course_structure.get("lessons", [])
+        
+        st.markdown("### 🏫 Your Learning Path")
+
+        # --------------------------------------------------------------------
+        # 🚨 Gatekeeper Banner UI Elements (Only visible if limit is tripped)
+        # --------------------------------------------------------------------
+        if st.session_state.get("lms_limit_reached"):
+            st.error("⚠️ Structured linear learning paths are only available for Plus and Premium members.")
             
+            if st.button("🚀 Upgrade to Premium", key="lms_gate_upgrade_unique_btn"):
+                # Clean up the limit message flag and set a short-lived transient trigger token
+                st.session_state.pop("lms_limit_reached", None)
+                st.session_state.trigger_lms_upgrade_modal = True
+                st.rerun()
+
+        # Non-locking conditional rendering bridge to process upgrade modal triggers smoothly
+        if st.session_state.get("trigger_lms_upgrade_modal"):
+            st.session_state.pop("trigger_lms_upgrade_modal", None)
+            show_upgrade_modal() # Launches your system's global tier pricing sheet modal
+
+        # --------------------------------------------------------------------
+        # 📊 Core Learning Progress Card Panel Component
+        # --------------------------------------------------------------------
+        with st.container(border=True):
+            col_lbl, col_progress, col_btn = st.columns([1.2, 1, 1], vertical_alignment="center")
+            
+            with col_lbl:
+                if current_lesson:
+                    st.markdown(f"🎯 **Today's Goal:** `{active_subject}`")
+                    st.markdown(f"↳ Current Lesson: **{current_lesson['title']}** (Lesson {current_lesson['order_index']} of {len(all_lessons_list)})")
+                else:
+                    st.markdown("🎉 **Course Completed!** Excellent job mastering this subject profile.")
+                    
+            with col_progress:
+                completed_count = 0
+                for les in all_lessons_list:
+                    prog_state = get_student_lesson_progress(student_uid, student_grade, active_subject, str(les["lesson_id"]))
+                    if prog_state.get("status") == "Completed":
+                        completed_count += 1
+                        
+                total_lessons = len(all_lessons_list) if all_lessons_list else 1
+                progress_percentage = int((completed_count / total_lessons) * 100)
+                
+                st.write(f"Course Completion Progress: **{progress_percentage}%**")
+                st.progress(progress_percentage / 100.0)
+                
+            with col_btn:
+                if current_lesson:
+                    # Functional execution trigger button
+                    if st.button("🚀 Continue Learning", key="lms_dash_continue_learning_action_btn", width="stretch", type="primary"):
+                        
+                        # 🛡️ THE GATEKEEPER CHECK: Fall back to limit state if they are on a Free profile
+                        if not ("premium" in user_tier.lower() or "plus" in user_tier.lower()):
+                            st.session_state.lms_limit_reached = True
+                            st.rerun()
+                        else:
+                            # Plus & Premium accounts proceed straight to the classroom workspace
+                            st.session_state.pop("lms_limit_reached", None)
+                            st.session_state.lms_active_lesson_node = current_lesson
+                            st.session_state.active_subject = active_subject
+                            st.session_state.current_page = "LMS Lesson Workspace"
+                            st.rerun()
+                else:
+                    from services.lms_service import generate_completion_certificate
+                    student_name_str = str(st.session_state.get("student_name", "Student"))
+                    cert_bytes = generate_completion_certificate(
+                        student_name=student_name_str,
+                        grade=str(student_grade),
+                        subject=str(active_subject)
+                    )
+                    st.download_button(
+                        label="📜 Download Completion Certificate",
+                        data=cert_bytes,
+                        file_name=f"Certificate_{student_name_str.replace(' ', '_')}_{active_subject}.pdf",
+                        mime="application/pdf",
+                        width="stretch"
+                    )
+                    
+        st.write("---") # Neat separation banner before starting standard conversation trails
+
+
+
         # =====================================================================
         # --- AI STUDY PLAN SECTION
         # =====================================================================
@@ -1582,15 +1699,33 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
         # ==========================================
         with tab_quiz:
             st.subheader("Quiz Generator")
-            
-            # 1. Guard topic string assignment safely (Pylance Typecast Fix)
+
+            # Get the active lesson FIRST
+            active_lesson = st.session_state.get("lms_active_lesson_node")
+
+            # 1. Determine what the active topic should be based on your context logic
+            if active_lesson:
+                computed_topic = active_lesson.get("title", "")
+            else:
+                # If the user typed something else manually, preserve it; otherwise fall back to sub_topic
+                computed_topic = st.session_state.get("workspace_quiz_topic", sub_topic)
+
+            # 2. Force update session state when the active context changes
+            if "workspace_quiz_topic" not in st.session_state or active_lesson:
+                st.session_state["workspace_quiz_topic"] = computed_topic
+            elif st.session_state.get("last_sub_topic") != sub_topic and not active_lesson:
+                # This ensures that if the sidebar subbox changes, the quiz topic updates automatically
+                st.session_state["workspace_quiz_topic"] = sub_topic
+                st.session_state["last_sub_topic"] = sub_topic
+
+            # 3. Render the text input safely WITHOUT the 'value=' conflict parameter
             raw_quiz_input = st.text_input(
-                "Quiz Topic", 
-                placeholder="Defaults to current dynamic Sub topic selection", 
-                value=sub_topic if 'sub_topic' in locals() else "", 
+                "Quiz Topic",
                 key="workspace_quiz_topic"
             )
+
             quiz_topic: str = str(raw_quiz_input).strip() if raw_quiz_input else ""
+
             
             # 2. Fetch student tier profile data upfront using email lookup
             user_profile_raw = get_student_data(st.session_state.user_email)
@@ -1662,7 +1797,11 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
                         target_diff = get_next_difficulty(name, grade, age_int, quiz_topic)
                         
                         # 🎯 PASS CORRECTING CONTEXT: Use 'student' dict to send preferred_language and subject parameters
-                        active_context = student if 'student' in locals() else student_profile
+                        active_context = dict(student if 'student' in locals() else student_profile)
+
+                        # Synchronize the context with the active lesson
+                        active_context["sub_topic"] = quiz_topic
+                        active_context["topic"] = quiz_topic
                         quiz_result = generate_quiz(quiz_topic, active_context, target_diff)
                         
                         if quiz_result:
@@ -1682,10 +1821,10 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
                                 student_age=age_int,
                                 activity_type="quiz_generation",
                                 topic=quiz_topic,
-                                score=0,
-                                subject=student.get("subject", "General") if 'student' in locals() else "General",
-                                topics=student.get("topic", "General") if 'student' in locals() else "General",
-                                sub_topic=student.get("sub_topic", "General") if 'student' in locals() else "General",
+                                score=0,                                
+                                subject = subject,           # Mathematics
+                                topics = quiz_topic,         # Rounding Numbers
+                                sub_topic = quiz_topic,      # Rounding Numbers
                                 learning_outcome=student.get("learning_outcome", "General") if 'student' in locals() else "General"
                             )
                             st.rerun()
@@ -1772,22 +1911,36 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
                                 st.warning(label_warning_unanswered)
                             else:
                                 score = 0
+
                                 for i, q in enumerate(quiz_data):
                                     if current_answers[i] == q.get("answer"):
                                         score += 1
-                                    
+
+                                total_questions = len(quiz_data)
+
                                 st.session_state.quiz_raw_score = score
-                                st.session_state.quiz_score = round((score / len(quiz_data)) * 100)
+                                st.session_state.quiz_score = round((score / total_questions) * 100)
                                 st.session_state.quiz_submitted = True
-                                
+
+                                # ==============================
+                                # LMS Progress Update
+                                # ==============================
+                                evaluate_quiz_submission(
+                                    correct_answers=score,
+                                    total_questions=total_questions
+                                )
+
                                 save_activity(
-                                    student_name=name, student_grade=grade, student_age=age_int,
-                                    activity_type="quiz_score", topic=quiz_topic,
+                                    student_name=name,
+                                    student_grade=grade,
+                                    student_age=age_int,
+                                    activity_type="quiz_score",
+                                    topic=quiz_topic,
                                     score=st.session_state.quiz_score,
-                                    subject=student.get("subject", "General") if 'student' in locals() else "General", 
-                                    topics=student.get("topic", "General") if 'student' in locals() else "General", 
-                                    sub_topic=student.get("sub_topic", "General") if 'student' in locals() else "General",
-                                    learning_outcome=student.get("learning_outcome", "General") if 'student' in locals() else "General"
+                                    subject=student.get("subject","General"),
+                                    topics=student.get("topic","General"),
+                                    sub_topic=student.get("sub_topic","General"),
+                                    learning_outcome=student.get("learning_outcome","General")
                                 )
                                 st.rerun()
 
@@ -1985,10 +2138,8 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
                     st.rerun()
 
 
+        
         # ==========================================
-        # --- 3. LESSON GENERATOR TAB (TIER GUARDED) ---
-        # ==========================================
-                # ==========================================
         # --- 3. LESSON GENERATOR TAB (TIER GUARDED) ---
         # ==========================================
         with tab_less:
@@ -2185,6 +2336,17 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
                 if st.button("🚀 Upgrade to Premium", key="voice_upgrade"):
                     show_upgrade_modal()
 
+    #==============    
+    # =====================================================================
+    # --- LMS WORKSPACE ROUTER WITH TWO-STEP UPGRADE ALERT ---
+    # =====================================================================
+    elif st.session_state.current_page == "LMS Lesson Workspace":
+        from ui_components.lesson_page import render_active_lesson_workspace
+        render_active_lesson_workspace()
+
+
+
+    #======================
     elif st.session_state.current_page == "Admin Dashboard":
         render_admin_dashboard()
 

@@ -1,47 +1,46 @@
 GRADE_6 ={
-        "Mathematics": {
+        
+    "Mathematics": {
 
-    # ======================================================
-    # NUMBERS
-    # ======================================================
-
-    "Numbers": {
-
-        "Whole Numbers": {
+        "Numbers": {
 
             "Place Value": [
                 "Read and write whole numbers up to 100,000,000.",
                 "Identify place values of digits in large numbers.",
                 "Compare and order whole numbers.",
                 "Represent numbers using expanded notation."
+            ],
+
+            "Rounding Numbers": [
+                ...
             ]
+
         },
 
         "Operations": {
 
-            "Addition and Subtraction": [
+            "Addition and Subtraction":[
                 "Add whole numbers accurately.",
                 "Subtract whole numbers correctly.",
                 "Estimate answers before calculation.",
                 "Solve real-life problems involving addition and subtraction."
             ],
 
-            "Multiplication": [
+            "Multiplication":[
                 "Multiply large whole numbers.",
                 "Apply multiplication in everyday situations.",
                 "Solve practical multiplication problems.",
                 "Use multiplication strategies efficiently."
             ],
 
-            "Division": [
+            "Division":[
                 "Divide whole numbers using long division.",
                 "Interpret remainders appropriately.",
                 "Solve division word problems.",
                 "Apply division skills in daily life."
             ]
-        }
-
-    },
+        },
+        
 
     # ======================================================
     # FRACTIONS
