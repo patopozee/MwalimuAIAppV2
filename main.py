@@ -1177,7 +1177,7 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
         course_structure = load_course_structure(student_grade, active_subject)
         all_lessons_list = course_structure.get("lessons", [])
         
-        st.markdown("### 🏫 Your Learning Path")
+        st.markdown("### 🏫 Your Learning Path (Get Certificate Upon Completion)")
 
         # --------------------------------------------------------------------
         # 🚨 Gatekeeper Banner UI Elements (Only visible if limit is tripped)
