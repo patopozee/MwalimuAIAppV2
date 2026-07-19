@@ -1,4 +1,5 @@
 import json
+import os
 import sqlite3
 from datetime import datetime
 from services.database import DATABASE_NAME
@@ -29,6 +30,13 @@ CURRICULUM = {
     "Grade 11": GRADE_11,
     "Grade 12": GRADE_12,
 }
+
+if os.path.exists("/data"):
+    #  PRODUCTION SERVER LINK (Locks directly to your secure GCP Bucket)
+    DATABASE_NAME = "/data/mwalimu.db"
+else:
+    # 💻 LOCAL DEVELOPMENT FALLBACK (Saves safely inside your local root project folder)
+    DATABASE_NAME = "mwalimu.db"
 
 def build_course_from_curriculum(subject_tree):
     """
