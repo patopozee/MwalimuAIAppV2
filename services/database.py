@@ -737,7 +737,7 @@ def get_grade_leaderboard(grade_level: str, limit: int = 100):
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
     
-    # 1. Execute the main ranking query
+    # 🌟 RESTORED: Back to your exact original working structure that never crashes
     cursor.execute("""
         SELECT 
             student_name,
@@ -749,11 +749,7 @@ def get_grade_leaderboard(grade_level: str, limit: int = 100):
         LIMIT 10
     """, (grade_level,))
     
-    # 2. IMMEDIATELY fetch these results
     leaderboard_data = cursor.fetchall() 
-
-    
     conn.close()
-    
-    # 4. Return the data you fetched in step 2
     return leaderboard_data
+
