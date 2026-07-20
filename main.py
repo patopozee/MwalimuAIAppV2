@@ -2838,21 +2838,21 @@ else:
             render_tier_card_html(
                 title="Mwalimu AI Free", price="KES 0", period="Forever Free", 
                 description="Basic daily study toolkit for casual learners.", 
-                card_features=["15 AI Questions / day", "5 Assessment Quizzes / day", "5 Flashcards generated / day", "1 Basic CBC Lessons / day", "<span style='color: #ef4444;'> No Custom Study Plans</span>", "<span style='color: #ef4444;'> No Voice Tutor access</span>", "<span style='color: #ef4444;'> No Uploads</span>"], 
+                card_features=["15 AI Questions / day", "5 Assessment Quizzes / day", "5 Flashcards generated / day", "1 Basic CBC Lessons / day", "<span style='color: #ef4444;'> No Custom Study Plans</span>","<span style='color: #ef4444;'> No Learning Management</span>", "<span style='color: #ef4444;'> No Voice Tutor access</span>", "<span style='color: #ef4444;'> No Uploads</span>"], 
                 color_bg="#0f172a", is_premium=False, button_key="free_tier"
             )
         with col_basic:
             render_tier_card_html(
                 title="Mwalimu AI Plus", price="KES 499", period="/ month", 
                 description="Enhanced toolkit built for dedicated study sessions.", 
-                card_features=["50 AI Questions / day", "15 Assessment Quizzes / day", "30 Flashcards generated / day", "5 CBC Lessons / day", "5 Personalized daily Study Plans / day", "10 Uploads / day", "<span style='color: #ef4444;'> No Voice Tutor access</span>"], 
+                card_features=["50 AI Questions / day", "15 Assessment Quizzes / day", "30 Flashcards generated / day", "5 CBC Lessons / day", "5 Personalized daily Study Plans / day", "10 Uploads / day", "Learning Management System", "<span style='color: #ef4444;'> No Voice Tutor access</span>"], 
                 color_bg="#111827", is_premium=False, button_key="plus_tier"
             )
         with col_prem:
             render_tier_card_html(
                 title="Mwalimu Premium", price="KES 999", period="/ month", 
                 description="Complete school execution dashboard with full feature access.", 
-                card_features=["Unlimited Interactive Prompts", "Unlimited targeted CBC Quizzes", "Unlimited Flashcard summaries", "Full Voice Tutor Mode Enabled", "Personalized daily Study Plans", "Advanced Weak-Topic Detection", "Personalized CBC Lessons"], 
+                card_features=["Unlimited Interactive Prompts", "Unlimited targeted CBC Quizzes", "Unlimited Flashcard summaries", "Full Voice Tutor Mode Enabled", "Personalized daily Study Plans", "Learning Management System","Advanced Weak-Topic Detection", "Personalized CBC Lessons"], 
                 color_bg="#030712", is_premium=True, button_key="premium_tier"
             )
 
