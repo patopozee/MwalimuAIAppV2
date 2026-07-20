@@ -2704,7 +2704,17 @@ else:
             """, 
             unsafe_allow_html=True
         )
-
+        st.markdown("""
+        <style>
+            /* Ensure all flagship cards have the same height for alignment */
+            .flagship-card {
+                height: 280px !important; /* Adjust this number to fit your longest card */
+                display: flex;
+                flex-direction: column;
+                justify-content: flex-start;
+            }
+        </style>
+        """, unsafe_allow_html=True)
         # Row 1: Flagship Core Highlights (Split 2-Column Focus Layout)
         flag_col1, flag_col2, flag_col3 = st.columns(3, gap="medium")
         with flag_col1:
@@ -2721,6 +2731,7 @@ else:
                 """, 
                 unsafe_allow_html=True
             )
+
 
         with flag_col2:
             st.markdown(
