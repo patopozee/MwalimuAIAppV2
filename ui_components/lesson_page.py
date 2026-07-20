@@ -95,24 +95,70 @@ def render_active_lesson_workspace():
     # =====================================================================
     st.subheader("📋 1. Core Lesson Text")
     
+            # Pull or cache the generated lesson material using your existing services/ai.py pipeline
     lesson_cache_key = f"lesson_text_data_{lesson_id}_{uid}"
     if lesson_cache_key not in st.session_state:
         with st.spinner("Mwalimu AI is preparing your custom CBC lesson plan summary..."):
             try:
+                # Temporary profile adaptions to supply your specific generate_lesson signature
                 lesson_profile = {**student_profile, "subject": subject, "sub_topic": lesson_title}
                 raw_lesson_stream = generate_lesson(lesson_title, lesson_profile)
-                lesson_text = "".join([chunk if isinstance(chunk, str) else "" for chunk in (raw_lesson_stream or [])])
+                
+                # 🚀 COMPILER FIX: Robustly unpack OpenRouter stream data token chunks safely                                  
+                compiled_chunks_list = []
+                
+                if raw_lesson_stream is not None:
+                    for chunk in raw_lesson_stream:
+                        # 1. Dynamic Attribute Lookup (Prevents Pylance reportAttributeAccessIssue errors)
+                        choices = getattr(chunk, 'choices', None)
+                        if choices and len(choices) > 0:
+                            delta = getattr(choices[0], 'delta', None)
+                            if delta:
+                                content = getattr(delta, 'content', None)
+                                if content:
+                                    compiled_chunks_list.append(str(content))
+                        
+                        # 2. Fallback check if your service file passes dictionary data shapes
+                        elif isinstance(chunk, dict) and "choices" in chunk:
+                            choices_list = chunk.get("choices", [])
+                            if choices_list and len(choices_list) > 0:
+                                delta_dict = choices_list[0].get("delta", {})
+                                if "content" in delta_dict:
+                                    compiled_chunks_list.append(str(delta_dict["content"]))
+                                    
+                        # 3. Last fallback safeguard configuration parameters
+                        elif isinstance(chunk, str):
+                            compiled_chunks_list.append(chunk)
+                
+                # Merge all individual text tokens cleanly into a single long document string
+                lesson_text = "".join(compiled_chunks_list).strip()
+
+                
+                # 🛡️ SANITIZATION: If the text is empty or falls back to an API check tag, provide a fallback alert
+                if not lesson_text or lesson_text.lower().strip() == "user safety: safe":
+                    lesson_text = (
+                        f"### 🧙‍♂️ Lesson Workspace: {lesson_title}\n\n"
+                        f"Welcome to your lessons study guide for **{lesson_title}**! Mwalimu is pulling "
+                        f"the standard curriculum framework notes directly from your KICD index. "
+                        f"Review the sub-topics on your right, ask your AI teacher for guidance points, "
+                        f"and hit the quiz challenge button below to advance your learning track velocity! 🚀"
+                    )
+                
                 st.session_state[lesson_cache_key] = lesson_text
             except Exception as e:
                 st.session_state[lesson_cache_key] = f"Could not load lesson contents. Details: {e}"
 
     st.markdown(st.session_state[lesson_cache_key])
+
     st.write("---")
 
     # =====================================================================
     # 💬 STEP 3: FULL-WIDTH CHAT WITH MWALIMU SECTION
     # =====================================================================
-    st.write("### 💬 Chat with Mwalimu")
+        # =====================================================================
+    # STEP 3: FULL-WIDTH CHAT WITH MWALIMU SECTION
+    # =====================================================================
+    st.write("### Chat with Mwalimu")
     st.write("Struggling with any paragraphs above? Ask your teacher for simple steps directly below.")
     
     if lesson_chat_history_key not in st.session_state:
@@ -122,131 +168,126 @@ def render_active_lesson_workspace():
         
     assistant_messages_count = sum(1 for m in st.session_state[lesson_chat_history_key] if m["role"] not in ["student", "user"])
     current_ai_index = 0
-
+    
     # Display using your exact custom layout bubbles across the full width of the main canvas
     for msg in st.session_state[lesson_chat_history_key]:
         if msg.get("is_voice") == 1:
             continue
-            
         if msg["role"] in ["student", "user"]:
-            # 👤 STUDENT BUBBLE CONTAINER
+            # STUDENT BUBBLE CONTAINER
             st.markdown(f"""
-            <div style="display: flex; justify-content: flex-end; align-items: flex-start; gap: 10px; margin-bottom: 20px; width: 100%;">
-                <div style="background-color: #2F3037; color: #ECECF1; padding: 12px 18px; border-radius: 20px; max-width: 70%; font-family: sans-serif; font-size: 15px; line-height: 1.6; box-shadow: 0 1px 2px rgba(0,0,0,0.1);">
-                    <div style="text-align: left;">{msg["content"]}</div>
-                </div>
-                <div style="width: 32px; height: 32px; background-color: #40414F; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 15px; flex-shrink: 0; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
-                    👤
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
+<div style="display: flex; justify-content: flex-end; align-items: flex-start; gap: 10px; margin-bottom: 20px; width: 100%;">
+<div style="background-color: #2F3037; color: #ECECF1; padding: 12px 18px; border-radius: 20px; max-width: 70%; font-family: sans-serif; font-size: 15px; line-height: 1.6; box-shadow: 0 1px 2px rgba(0,0,0,0.1);">
+<div style="text-align: left;">{msg["content"]}</div>
+</div>
+<div style="width: 32px; height: 32px; background-color: #40414F; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 15px; flex-shrink: 0; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">👤</div>
+</div>
+""", unsafe_allow_html=True)
         else:
             current_ai_index += 1
             id_tag = f"lesson_msg_{current_ai_index}"
-
-            # 👨‍🏫 MWALIMU AI CONTAINER
+            # MWALIMU AI CONTAINER
             st.markdown(f"""
-            <div id="{id_tag}" style="display: flex; justify-content: flex-start; align-items: center; gap: 10px; margin-bottom: 12px; width: 100%; scroll-margin-top: 80px;">
-                <div style="width: 32px; height: 32px; background-color: #FF4B4B; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 15px; flex-shrink: 0; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">
-                    👨‍🏫
-                </div>
-                <div style="font-family: sans-serif; font-size: 13px; font-weight: 600; color: #FF4B4B; text-transform: uppercase; letter-spacing: 0.5px;">
-                    Mwalimu AI
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
-            
+<div id="{id_tag}" style="display: flex; justify-content: flex-start; align-items: center; gap: 10px; margin-bottom: 12px; width: 100%; scroll-margin-top: 80px;">
+<div style="width: 32px; height: 32px; background-color: #FF4B4B; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 15px; flex-shrink: 0; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">🧙‍♂️</div>
+<div style="font-family: sans-serif; font-size: 13px; font-weight: 600; color: #FF4B4B; text-transform: uppercase; letter-spacing: 0.5px;">Mwalimu AI</div>
+</div>
+""", unsafe_allow_html=True)
             st.markdown(msg["content"])
             st.markdown("<div style='margin-bottom: 32px;'></div>", unsafe_allow_html=True)
 
-    # 🛠️ SCROLL ENGINE AUTOMATION MANAGER
+    # SCROLL ENGINE AUTOMATION MANAGER
     target_scroll_id = f"lesson_msg_{assistant_messages_count}"
     if st.session_state.get("new_message") and assistant_messages_count > 0:
         st.session_state.new_message = False
         st.html(f"""
-            <script>
-                setTimeout(() => {{
-                    const element = window.parent.document.getElementById("{target_scroll_id}");
-                    if (element) {{
-                        element.scrollIntoView({{ behavior: "smooth", block: "start" }});
-                    }}
-                }}, 150);
-            </script>
-        """)
-
-    # Padding to prevent the sticky input field from blocking the last message bubble
+<script>
+setTimeout(() => {{
+const element = window.parent.document.getElementById("{target_scroll_id}");
+if (element) {{
+element.scrollIntoView({{ behavior: "smooth", block: "start" }});
+}}
+}}, 150);
+</script>
+""")
+        
     st.markdown("<div style='margin-bottom: 100px;'></div>", unsafe_allow_html=True)
 
     # =====================================================================
-    # ⌨️ STEP 4: GLOBAL CHAT INPUT WINDOW LOCKED AT THE BOTTOM OF THE PAGE
+    # STEP 4: GLOBAL CHAT INPUT WINDOW LOCKED AT THE BOTTOM OF THE PAGE
     # =====================================================================
-    if user_query := st.chat_input("Ask a question about this lesson...", key="global_lesson_chat_input"):
+        # =====================================================================
+    # STEP 4: GLOBAL CHAT INPUT WINDOW LOCKED AT THE BOTTOM OF THE PAGE
+    # =====================================================================
+    if user_query := st.chat_input("Ask a question about this lesson...", key=f"input_{lesson_id}"):
+        # 1. Append user query to history tracking array memory records immediately
         st.session_state[lesson_chat_history_key].append({"role": "user", "content": user_query})
-        st.session_state.new_message = True
         
+        # 🌟 FIXED: Instantly render the student bubble on screen before any API logic runs
+        st.markdown(f"""
+<div style="display: flex; justify-content: flex-end; align-items: flex-start; gap: 10px; margin-bottom: 20px; width: 100%;">
+<div style="background-color: #2F3037; color: #ECECF1; padding: 12px 18px; border-radius: 20px; max-width: 70%; font-family: sans-serif; font-size: 15px; line-height: 1.6; box-shadow: 0 1px 2px rgba(0,0,0,0.1);">
+<div style="text-align: left;">{user_query}</div>
+</div>
+<div style="width: 32px; height: 32px; background-color: #40414F; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 15px; flex-shrink: 0; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">👤</div>
+</div>
+""", unsafe_allow_html=True)
+
         chat_profile = {**student_profile, "subject": subject, "topic": lesson_title, "sub_topic": lesson_title}
-        lesson_context_text = st.session_state.get(lesson_cache_key, "")
-        adaptive_notes = f"This conversation is locked directly to helping the student understand the following lesson content block: {lesson_context_text[:1200]}"
+        adaptive_notes = f"This conversation is locked directly to helping the student understand the following lesson content block: {st.session_state[lesson_cache_key][:400]}"
         
+        current_ai_count = sum(1 for m in st.session_state[lesson_chat_history_key] if m["role"] not in ["student", "user"]) + 1
+        next_scroll_target_id = f"msg_lms_{current_ai_count}"
+        
+        # 2. Render the upcoming Mwalimu avatar placeholder row
+        st.markdown(f"""
+<div id="{next_scroll_target_id}" style="display: flex; justify-content: flex-start; align-items: center; gap: 10px; margin-bottom: 12px; width: 100%; scroll-margin-top: 80px;">
+<div style="width: 32px; height: 32px; background-color: #FF4B4B; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 15px; flex-shrink: 0; box-shadow: 0 2px 4px rgba(0,0,0,0.2);"></div>
+<div style="font-family: sans-serif; font-size: 13px; font-weight: 600; color: #FF4B4B; text-transform: uppercase; letter-spacing: 0.5px;">Mwalimu AI</div>
+</div>
+""", unsafe_allow_html=True)
+        
+        assistant_placeholder = st.empty()
+        
+        response_stream = ask_mwalimu(
+            question=user_query,
+            student=chat_profile,
+            messages=st.session_state[lesson_chat_history_key][:-1],
+            adaptive_context=adaptive_notes
+        )
+        
+        # ==================================================== 
+        # CHUNK STREAMING EVALUATION LOOP
+        # ====================================================
+        assistant_text = ""
         try:
-            response_stream = ask_mwalimu(
-                question=user_query,
-                student=chat_profile,
-                messages=st.session_state[lesson_chat_history_key],
-                adaptive_context=adaptive_notes
-            )
-            assistant_text = "".join([chunk if isinstance(chunk, str) else "" for chunk in response_stream])
-            st.session_state[lesson_chat_history_key].append({"role": "assistant", "content": assistant_text})
-        except Exception as chat_err:
-            st.session_state[lesson_chat_history_key].append({"role": "assistant", "content": f"Brief connection ripple: {chat_err}"})
+            for chunk in response_stream:
+                if isinstance(chunk, str):
+                    if "error" in chunk.lower() or "injected" in chunk.lower():
+                        continue
+                    assistant_text += chunk
+                    assistant_placeholder.markdown(assistant_text)
+                    continue
+                    
+                if hasattr(chunk, 'choices') and chunk.choices:
+                    try:
+                        choice_item = chunk.choices[0]
+                        if hasattr(choice_item, 'delta') and choice_item.delta:
+                            delta_content = getattr(choice_item.delta, 'content', None)
+                            if delta_content is not None:
+                                if '"error":' in str(delta_content) or 'openai-error' in str(delta_content).lower():
+                                    continue
+                                assistant_text += str(delta_content)
+                                assistant_placeholder.markdown(assistant_text)
+                    except (IndexError, AttributeError, KeyError):
+                        continue
+        except Exception as stream_err:
+            print(f"[LMS Chat Stream Warning] Connection stream interrupted: {stream_err}")
             
+        if not assistant_text:
+            assistant_text = "Mwalimu encountered a brief connection stutter. Please try sending your query again!"
+            assistant_placeholder.markdown(assistant_text)
+            
+        # 3. Save to history and refresh the page to lock both blocks inside your structural tracking loop
+        st.session_state[lesson_chat_history_key].append({"role": "assistant", "content": assistant_text})
         st.rerun()
-        # ====================================================================
-    # 🏫 TEACHER GRADEBOOK & LEARNING ANALYTICS WORKSPACE
-    # ====================================================================
-    st.write("---")
-    st.subheader("🏫 Live Classroom Gradebook & Progress Metrics")
-    st.write("Monitor curriculum completion velocities and assignment scores across your active student list.")
-
-    from services.database import get_all_student_lms_progress
-    gradebook_records = get_all_student_lms_progress()
-
-    if not gradebook_records:
-        st.info("No student progress metrics recorded in the database ledger yet.")
-        return
-
-    # Convert SQLite rows cleanly to a visual tracking table layout
-    gradebook_list = []
-    for record in gradebook_records:
-        # Convert raw lesson database slugs back to user-friendly titles
-        raw_lesson_id = record["lesson_id"]
-        clean_lesson_title = str(raw_lesson_id).replace("_", " ").title() if raw_lesson_id else "N/A (Not Started)"
-        
-        gradebook_list.append({
-            "Student Name": record["student_name"],
-            "Grade Level": record["student_grade"],
-            "Active Subject": record["subject"] or "N/A",
-            "Current Topic Unit": clean_lesson_title,
-            "LMS Progress Status": record["status"] or "Not Started",
-            "Quiz High Score": f"{record['quiz_high_score']}%" if record["quiz_high_score"] is not None else "0%",
-            "Completion Date": record["completed_at"] or "In Progress ⏳"
-        })
-
-    # Render a high-utility native data frame with wide optimization filters
-    st.dataframe(
-        gradebook_list,
-        use_container_width=True,
-        column_config={
-            "LMS Progress Status": st.column_config.SelectboxColumn(
-                "Status",
-                options=["Not Started", "Learning", "Completed"],
-                required=True,
-            ),
-            "Quiz High Score": st.column_config.ProgressColumn(
-                "Top Assignment Score",
-                format="%s",
-                min_value=0,
-                max_value=100,
-            )
-        }
-    )

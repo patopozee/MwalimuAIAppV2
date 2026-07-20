@@ -65,15 +65,85 @@ def flush_all_database_caches():
     get_ask_mwalimu_history.clear()
     get_student_data.clear()
 
+def migrate_students_table():
+    conn = sqlite3.connect(DATABASE_NAME)
+    cursor = conn.cursor()
+
+    # Check current columns
+    cursor.execute("PRAGMA table_info(students)")
+    columns = [row[1] for row in cursor.fetchall()]
+
+    # If id is already TEXT, nothing to do
+    id_column = next((row for row in cursor.execute("PRAGMA table_info(students)") if row[1] == "id"), None)
+
+    if id_column and id_column[2].upper() == "TEXT":
+        conn.close()
+        return
+
+
+    # Rename old table
+    cursor.execute("ALTER TABLE students RENAME TO students_old")
+
+    # Create new table
+    cursor.execute("""
+    CREATE TABLE students (
+        id TEXT PRIMARY KEY,
+        name TEXT,
+        grade TEXT,
+        age INTEGER,
+        favorite_subject TEXT,
+        weak_subject TEXT,
+        learning_style TEXT,
+        language TEXT
+    )
+    """)
+
+    # Copy data
+    cursor.execute("""
+    INSERT INTO students (
+        id,
+        name,
+        grade,
+        age,
+        favorite_subject,
+        weak_subject,
+        learning_style,
+        language
+    )
+    SELECT
+        CAST(id AS TEXT),
+        name,
+        grade,
+        age,
+        favorite_subject,
+        weak_subject,
+        learning_style,
+        language
+    FROM students_old
+    """)
+
+    cursor.execute("DROP TABLE students_old")
+    conn = sqlite3.connect(DATABASE_NAME)
+    cursor = conn.cursor()
+
+    
+
+    conn.close()
+    conn.commit()
+    conn.close()
+
+    
+
 
 def create_tables():
+    migrate_students_table()
     conn = sqlite3.connect(DATABASE_NAME)
     cursor = conn.cursor()
     
     # 1. Create the students table layout
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS students (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id TEXT PRIMARY KEY,
         name TEXT,
         grade TEXT,
         age INTEGER,
@@ -144,14 +214,33 @@ def create_tables():
 def save_student(student):
     conn = sqlite3.connect(DATABASE_NAME)
     cursor = conn.cursor()
+
     cursor.execute("""
-    INSERT INTO students (name, grade, age, favorite_subject, weak_subject, learning_style, language)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
-    """, (student["name"], student["grade"], student["age"], student["favorite_subject"],
-          student["weak_subject"], student["learning_style"], student["language"]))
+    INSERT OR REPLACE INTO students (
+        id,
+        name,
+        grade,
+        age,
+        favorite_subject,
+        weak_subject,
+        learning_style,
+        language
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    """, (
+        student["id"],                # <-- Firebase UID
+        student["name"],
+        student["grade"],
+        student["age"],
+        student["favorite_subject"],
+        student["weak_subject"],
+        student["learning_style"],
+        student["language"]
+    ))
+
     conn.commit()
     conn.close()
-    flush_all_database_caches()  # 🎯 Instant RAM sync trigger
+    flush_all_database_caches()
 
 
 def save_activity(student_name, student_grade, student_age, activity_type, topic, score=0,
@@ -643,8 +732,28 @@ def get_all_student_lms_progress():
     conn.close()
     return rows
 
+def get_grade_leaderboard(grade_level: str, limit: int = 100):
+    conn = sqlite3.connect(DATABASE_NAME)
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+    
+    # 1. Execute the main ranking query
+    cursor.execute("""
+        SELECT 
+            student_name,
+            COUNT(*) as activity_count
+        FROM progress
+        WHERE TRIM(student_grade) = TRIM(?)
+        GROUP BY student_name
+        ORDER BY activity_count DESC
+        LIMIT 10
+    """, (grade_level,))
+    
+    # 2. IMMEDIATELY fetch these results
+    leaderboard_data = cursor.fetchall() 
 
-
-
-
-
+    
+    conn.close()
+    
+    # 4. Return the data you fetched in step 2
+    return leaderboard_data

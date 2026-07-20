@@ -243,7 +243,8 @@ if "code" in st.query_params and not st.session_state.user_authenticated:
                 # Clear the query code from the URL bar to prevent infinite reload loops
                 st.query_params.clear()
                 st.toast(f"🎉 Welcome back, {st.session_state.student_name}!")
-                
+
+                st.query_params["session_token_id"] = google_uid
                 # 🌟 STEP 2: REMOVED REDUNDANT INITIALIZE LOCK TO PREVENT LOGOUT SQUASH
                 
                 
@@ -794,7 +795,8 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
     if st.sidebar.button("✏️ Edit Student Profile", use_container_width=True):
         st.session_state.current_page = "Edit Profile"
         st.rerun()
-    
+
+    st.sidebar.markdown("---")
     # =====================================================================
     # --- NAVIGATION HUB WITH DYNAMIC GENERATOR TOGGLE ---    
     # =====================================================================
@@ -807,7 +809,7 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
 
     if current_active_page == "Voice Tutor":
         # 🔄 If the user is inside the Voice Tutor, show the path to go back
-        if st.sidebar.button("💬 Back to Ask Mwalimu", use_container_width=True, key="sb_nav_back_to_chat"):
+        if st.sidebar.button("💬 Back to Main Chat", use_container_width=True, key="sb_nav_back_to_chat"):
             st.session_state.current_page = "Main Chat"
             st.rerun()
     else:
@@ -824,7 +826,7 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
     
     if current_active_page == "Generators Hub":
         # If the user is inside the Hub, show the return path button
-        if st.sidebar.button("💬 Back to Ask Mwalimu", use_container_width=True, key="sb_dynamic_back_chat"):
+        if st.sidebar.button("💬 Back to Main Chat", use_container_width=True, key="sb_dynamic_back_chat"):
             st.session_state.current_page = "Main Chat"
             st.rerun()
     else:
@@ -833,6 +835,31 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
             st.session_state.current_page = "Generators Hub"
             st.rerun()
     
+    #=========
+    # ====================================================================
+    # 🏆 DYNAMIC NATIONAL LEADERBOARD TOGGLE SYSTEM
+    # ====================================================================
+    
+    if st.session_state.get("current_page") == "Leaderboard Hub":
+        leaderboard_btn_label = "⬅️ Go Back to Main Chat"
+        target_leaderboard_page = "Main Chat"
+    else:
+        leaderboard_btn_label = "🏆 National Leaderboard"
+        target_leaderboard_page = "Leaderboard Hub"
+
+    if st.sidebar.button(leaderboard_btn_label, width="stretch", key="sb_nav_dynamic_leaderboard_hub_btn"):
+        # 🌟 EXTRA FIX: Pre-seed active grade context tracking strings before redirecting
+        if "grade" in st.session_state:
+            st.session_state.active_leaderboard_grade = str(st.session_state.grade)
+        else:
+            st.session_state.active_leaderboard_grade = "Grade 6"
+            
+        st.session_state.current_page = target_leaderboard_page
+        st.rerun()
+
+
+    
+
     # ====================================================================
     # --- DEDICATED CONFIRMATION DIALOG MODAL ---
     # ====================================================================
@@ -2336,15 +2363,18 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
                 if st.button("🚀 Upgrade to Premium", key="voice_upgrade"):
                     show_upgrade_modal()
 
-    #==============    
-    # =====================================================================
-    # --- LMS WORKSPACE ROUTER WITH TWO-STEP UPGRADE ALERT ---
-    # =====================================================================
+    #========================================================    
+    # PAGE VIEW MODE 3: LMS LESSON WORKSPACE INTERFACE CANVAS
+    #========================================================
     elif st.session_state.current_page == "LMS Lesson Workspace":
         from ui_components.lesson_page import render_active_lesson_workspace
         render_active_lesson_workspace()
-
-
+        
+    # 🏆 PAGE VIEW MODE 4: PUBLIC STUdENT LEAdERBOARD HUB VIEW
+    elif st.session_state.current_page == "Leaderboard Hub":
+        from ui_components.leaderboard_page import render_student_leaderboard_page
+        render_student_leaderboard_page()      
+    
 
     #======================
     elif st.session_state.current_page == "Admin Dashboard":
@@ -2610,8 +2640,9 @@ else:
                     Your AI Tutor.<br>Your Academic <span style="color:#3b82f6;">Advantage.</span>
                 </h1>
                 <p style="color:#94a3b8; font-size:1.1rem; margin-top:16px; margin-bottom:24px; line-height:1.5;">
-                    Mwalimu AI is an intelligent revision workspace engineered specifically for Kenya's CBC Curriculum guidelines. 
-                    Get direct, empathetic learning answers, instantly generate study planners, and master complex topics through friendly conversation.
+                    Mwalimu AI is your all-in-one intelligent workspace, precision-engineered for Kenya’s CBC curriculum. We combine empathetic, 
+                    conversational AI tutoring with a robust Learning Management System to help you master complex topics, 
+                    automate your study planning, and track your academic milestones—all in one seamless hub.
                 </p>
                 """,
                 unsafe_allow_html=True
@@ -2675,31 +2706,51 @@ else:
         )
 
         # Row 1: Flagship Core Highlights (Split 2-Column Focus Layout)
-        flag_col1, flag_col2 = st.columns(2, gap="medium")
+        flag_col1, flag_col2, flag_col3 = st.columns(3, gap="medium")
         with flag_col1:
             st.markdown(
                 """
                 <div class='flagship-card'>
                     <h3 style='font-size:1.4rem !important; color:#60a5fa !important;'>🎙️ AI Voice Tutor</h3>
                     <p style='color:#94a3b8; margin:8px 0 0 0; line-height:1.4;'>
-                        Practice speaking and listening fluently with your AI teacher. Perfect for interactive, hands-free language learning sessions and quick verbal concept explanations in Kiswahili and English.
+                        Transform your fluency with hands-free, interactive voice tutoring. 
+                        Engage in natural conversation, practice active listening, and get quick, 
+                        verbal concept explanations in both English and Kiswahili—perfect for mastering languages while you are on the move.
                     </p>
                 </div>
                 """, 
                 unsafe_allow_html=True
             )
+
         with flag_col2:
+            st.markdown(
+                """
+                <div class='flagship-card'>
+                    <h3 style='font-size:1.4rem !important; color:#60a5fa !important;'>💻 Learning Management System</h3>
+                    <p style='color:#94a3b8; margin:8px 0 0 0; line-height:1.4;'>
+                       Power your growth with our integrated Learning Management System. 
+                       Test mastery through interactive quizzes, track performance, 
+                       and benchmark progress against peers on our National Leaderboard.
+                    </p>
+                </div>
+                """, 
+                unsafe_allow_html=True
+            )
+        with flag_col3:
             st.markdown(
                 """
                 <div class='flagship-card'>
                     <h3 style='font-size:1.4rem !important; color:#60a5fa !important;'>💬 Live Chat With Mwalimu AI</h3>
                     <p style='color:#94a3b8; margin:8px 0 0 0; line-height:1.4;'>
-                        Ask academic questions anytime and get broken-down, snackable answers. Upload homework screenshots or textbook pages for instant verification scans and guidance helper steps.
+                        Get unstuck in seconds. Ask any academic question and receive clear, snackable, step-by-step breakdowns. 
+                        Simply upload screenshots of your homework or
+                          textbook pages, and let Mwalimu AI provide verified guidance to help you master every challenge.
                     </p>
                 </div>
                 """, 
                 unsafe_allow_html=True
             )
+        
 
         st.write("##")
 
