@@ -109,11 +109,11 @@ def render_student_leaderboard_page():
     st.write("---")
     st.write("##")
 
-    # ====================================================================
-    # 🏆 SECTION B: NATIONAL LEADERBOARD GRID (FILTERABLE FILTER INTERFACE)
+        # ====================================================================
+    # 🏆 SECTION B: NATIONAL LEADERBOARD GRID (FIXED COLUMN FLOW)
     # ====================================================================
     st.markdown("### 🥇 National Leaderboard Rankings Selector")
-    st.write("Select any academic grade level below to explore top master mind rankings [INDEX].")
+    st.write("Select any academic grade level below to explore top master mind rankings.")
     
     # 🌟 LOCALIZED FILTER: This filter box now controls ONLY the bottom table ranking rows!
     default_grade_context = st.session_state.get("active_leaderboard_grade", student_grade)
@@ -128,7 +128,8 @@ def render_student_leaderboard_page():
         "🎯 Filter Leaderboard Standings by Level",
         options=grade_options_list,
         index=default_index,
-        label_visibility="collapsed"
+        label_visibility="collapsed",
+        key="leaderboard_grade_selector_dropdown"
     )
 
     st.write("##")
@@ -136,21 +137,54 @@ def render_student_leaderboard_page():
     
     # Use your working database helper function safely
     leaderboard_records = get_grade_leaderboard(selected_grade, limit=100)
-    raw_data = get_grade_leaderboard("Grade 6")
 
     if not leaderboard_records:
         st.info(f"No rank scores recorded for {selected_grade} students yet. Be the first to claim the top spot! 🌟")
     else:
-        # Render top 3 visual boxes
-        podium_cols = st.columns(min(3, len(leaderboard_records)))
-        for idx, record in enumerate(leaderboard_records[:3]):
-            with podium_cols[idx]:
-                medals = ["🥇 1st Place", "🥈 2nd Place", "🥉 3rd Place"]
-                with st.container(border=True):
-                    st.markdown(f"<h4 style='color:#3b82f6; text-align:center; margin:0;'>{medals[idx]}</h4>", unsafe_allow_html=True)
-                    st.markdown(f"<h3 style='text-align:center; margin:8px 0 4px 0;'>{record['student_name']}</h3>", unsafe_allow_html=True)
-                    # CHANGE IT TO THIS:
-                    st.markdown(f"<p style='text-align:center; color:#64748b; font-size:13px; margin:0;'>🔥 Activities Completed: <b>{record['activity_count']}</b></p>", unsafe_allow_html=True)
+        # 🌟 FIXED GRID: Enforce a clean 3-column layout row at all times
+        podium_cols = st.columns(3, gap="medium")
+        
+        # 🥇 RENDER 1ST PLACE SLOT (Index 0)
+        with podium_cols[0]:
+            if len(leaderboard_records) > 0:
+                record = leaderboard_records[0] # Selects the first student row dictionary safely
+                st.markdown(f"""
+<div style="background: linear-gradient(135deg, #1e1b4b 0%, #0f172a 100%); padding: 20px; border-radius: 16px; border: 2px solid #3b82f6; box-shadow: 0 0 20px rgba(59, 130, 246, 0.4); text-align: center; min-height: 160px;">
+<h4 style='color:#60a5fa; margin:0; font-weight:700;'>🥇 1st Place</h4>
+<h3 style='margin:12px 0 6px 0; color:#f8fafc; font-weight:800;'>{record['student_name']}</h3>
+<p style='color:#94a3b8; font-size:13px; margin:0;'>🔥 Activities Completed: <b>{record['activity_count']}</b></p>
+</div>
+""", unsafe_allow_html=True)
+            else:
+                st.markdown("<div style='background-color:#0f172a; border:1px dashed #1e293b; padding:20px; border-radius:16px; text-align:center; color:#64748b; min-height:160px;'><br>🥇 1st Place<br>Vacant</div>", unsafe_allow_html=True)
+
+        # 🥈 RENDER 2ND PLACE SLOT (Index 1)
+        with podium_cols[1]:
+            if len(leaderboard_records) > 1:
+                record = leaderboard_records[1] # Selects the second student row dictionary safely
+                st.markdown(f"""
+<div style="background-color: #0f172a; padding: 20px; border-radius: 16px; border: 1px solid #1e293b; text-align: center; min-height: 160px;">
+<h4 style='color:#3b82f6; margin:0; font-weight:700;'>🥈 2nd Place</h4>
+<h3 style='margin:12px 0 6px 0; color:#f8fafc; font-weight:800;'>{record['student_name']}</h3>
+<p style='color:#94a3b8; font-size:13px; margin:0;'>🔥 Activities Completed: <b>{record['activity_count']}</b></p>
+</div>
+""", unsafe_allow_html=True)
+            else:
+                st.markdown("<div style='background-color:#0f172a; border:1px dashed #1e293b; padding:20px; border-radius:16px; text-align:center; color:#64748b; min-height:160px;'><br>🥈 2nd Place<br>Waiting for Challenger ⚔️</div>", unsafe_allow_html=True)
+
+        # 🥉 RENDER 3RD PLACE SLOT (Index 2)
+        with podium_cols[2]:
+            if len(leaderboard_records) > 2:
+                record = leaderboard_records[2] # Selects the third student row dictionary safely
+                st.markdown(f"""
+<div style="background-color: #0f172a; padding: 20px; border-radius: 16px; border: 1px solid #1e293b; text-align: center; min-height: 160px;">
+<h4 style='color:#3b82f6; margin:0; font-weight:700;'>🥉 3rd Place</h4>
+<h3 style='margin:12px 0 6px 0; color:#f8fafc; font-weight:800;'>{record['student_name']}</h3>
+<p style='color:#94a3b8; font-size:13px; margin:0;'>🔥 Activities Completed: <b>{record['activity_count']}</b></p>
+</div>
+""", unsafe_allow_html=True)
+            else:
+                st.markdown("<div style='background-color:#0f172a; border:1px dashed #1e293b; padding:20px; border-radius:16px; text-align:center; color:#64748b; min-height:160px;'><br>🥉 3rd Place<br>Waiting for Challenger ⚔️</div>", unsafe_allow_html=True)
 
         st.write("##")
         

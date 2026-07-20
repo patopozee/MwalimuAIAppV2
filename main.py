@@ -952,7 +952,7 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
                 if st.sidebar.button("🚀 Upgrade to Premium", use_container_width=True):
                     show_upgrade_modal()
                 
-                # MOVED INSIDE SIDEBAR: Verification button for free users who just paid
+                #     #MOVED INSIDE SIDEBAR: Verification button for free users who just paid
                 # if st.sidebar.button("💳 I've Paid, Check Status", use_container_width=True):
                 #     # ----------------------------------------------------------------
                 #     # TEMPORARY MOCK PAYMENT TRIGGER (REMOVE BEFORE PRODUCTION)
@@ -984,8 +984,8 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
                 #     if str(updated_tier).strip().lower() != "free":
                 #        st.sidebar.success(f"Upgrade successful! You are now {updated_tier}")
                 #        st.rerun()
-                #     else:
-                #        st.sidebar.warning("Payment not confirmed yet. Please wait a moment.")
+                #     # else:
+                #     #    st.sidebar.warning("Payment not confirmed yet. Please wait a moment.")
 
 
         # --- DEDICATED LOGOUT CONFIRMATION DIALOG ---
