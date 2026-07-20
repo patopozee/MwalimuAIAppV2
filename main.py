@@ -155,7 +155,43 @@ if not st.session_state.user_authenticated and "session_token_id" in url_paramet
 
 
 
-# 🚀 TOP-LEVEL GOOGLE OAUTH INTERCEPTOR
+# ====================================================================
+# 🍪 STEP 1: TOP-LEVEL NATIVE PERSISTENCE RESTORER (RUNS FIRST ON F5)
+# ====================================================================
+if "user_authenticated" not in st.session_state:
+    st.session_state.user_authenticated = False
+
+# 🧼 IF THE USER MANUALLY LOGGED OUT: Wipe tokens out of the URL completely
+if "clear_storage" in st.query_params:
+    st.query_params.clear()
+    st.session_state.user_authenticated = False
+    st.rerun()
+
+# 🔄 GOOGLE & EMAIL REFRESH CAPTURE: Re-authenticate natively across page refreshes
+if not st.session_state.user_authenticated and "session_token_id" in st.query_params:
+    persisted_uid = st.query_params["session_token_id"]
+    
+    # Direct look up from your initialized Cloud Firestore client instance
+    check_profile_doc = db.collection("users").document(persisted_uid).get()
+    
+    if check_profile_doc.exists:
+        final_data = check_profile_doc.to_dict() or {}
+        
+        # Hydrate all your core student tracking variables back into session memory
+        st.session_state.user_authenticated = True
+        st.session_state.uid = persisted_uid
+        st.session_state.user_email = final_data.get("email", "")
+        st.session_state.student_name = final_data.get("name", "Student")
+        st.session_state.grade = final_data.get("grade", "Grade 6")
+        st.session_state.age = int(final_data.get("age", 12))
+        st.session_state.user_profile = final_data
+        st.session_state.current_page = "Main Chat"
+        st.rerun()
+
+
+# ====================================================================
+# 🚀 STEP 2: TOP-LEVEL GOOGLE OAUTH INTERCEPTOR (MODIFIED FOR PERSISTENCE)
+# ====================================================================
 if "code" in st.query_params and not st.session_state.user_authenticated:
     auth_code = st.query_params["code"]
   
@@ -163,7 +199,6 @@ if "code" in st.query_params and not st.session_state.user_authenticated:
         cid = st.secrets["google_oauth"]["client_id"]
         csecret = st.secrets["google_oauth"]["client_secret"]
         
-        token_url = "https://oauth2.googleapis.com/token"
         response = requests.post(
             "https://oauth2.googleapis.com/token",
             data={
@@ -175,19 +210,15 @@ if "code" in st.query_params and not st.session_state.user_authenticated:
             },
         )
         
-        # 🌟 Check if Google accepted the transaction before decoding JSON
         if response.status_code == 200:
             token_response = response.json()
             
             if "access_token" in token_response:
                 user_info = requests.get(
                     "https://www.googleapis.com/oauth2/v2/userinfo",
-                    headers={
-                        "Authorization": f"Bearer {token_response['access_token']}"
-                    },
+                    headers={"Authorization": f"Bearer {token_response['access_token']}"},
                 ).json()
                 
-                # Extract clean string parameters safely
                 google_uid = user_info.get("id") or user_info.get("sub")
                 email_val = user_info.get("email", "").strip().lower()
                 name_val = user_info.get("name", "Student").strip().title()
@@ -196,19 +227,15 @@ if "code" in st.query_params and not st.session_state.user_authenticated:
                     st.error("Authentication failed: Missing unique user ID from Google.")
                     st.stop()
                 
-                # Check if the document already exists in the database BEFORE writing anything
-                                # Check if the document already exists in the database BEFORE writing anything
                 check_doc = db.collection("users").document(google_uid).get()
                 
-                # 🌟 STEP 1: MOVE THIS OUTSIDE AND ABOVE THE IF BLOCK
-                # Define baseline dictionary payload matching your Firestore schema exactly
                 user_profile_payload = {
                     "uid": google_uid,
                     "name": name_val,
                     "email": email_val,
-                    "grade": "Grade 6", # Default fallback parameter
-                    "age": 12,          # Default fallback parameter
-                    "created_at": "2026-07-11T13:08:00Z", # Current ISO timestamp
+                    "grade": "Grade 6",
+                    "age": 12,
+                    "created_at": "2026-07-11T13:08:00Z",
                     "subscription": {
                         "tier": "Free",
                         "payment_status": "Pending",
@@ -217,41 +244,30 @@ if "code" in st.query_params and not st.session_state.user_authenticated:
                     }
                 }
                 
-                # 🌟 STEP 2: KEEP YOUR CHECK LOCK (It now safely reads the payload above it)
-                # Only create baseline profiles for completely NEW signups
                 if not check_doc.exists:
-                    # WRITE DIRECTLY TO CLOUD FIRESTORE FOR FIRST-TIME SIGNUPS ONLY
                     db.collection("users").document(google_uid).set(user_profile_payload, merge=True)
                 
-                # Fetch fresh payload back from DB to respect existing parameters
-                                # Fetch fresh payload back from DB to respect existing parameters
                 fresh_doc = db.collection("users").document(google_uid).get()
                 doc_data = fresh_doc.to_dict()
                 final_data = doc_data if (fresh_doc.exists and doc_data is not None) else user_profile_payload
                 
-                # 🌟 STEP 1: FORCE THE CORE ROUTING PARAMETERS TO MATCH EMAIL LOGIN EXACTLY
+                # Session State Hydration
                 st.session_state.user_authenticated = True
                 st.session_state.uid = google_uid
                 st.session_state.user_email = final_data.get("email", email_val)
                 st.session_state.student_name = final_data.get("name", name_val)
-                
-                # Populate component parameters directly from your Firestore data fields
                 st.session_state.grade = final_data.get("grade", "Grade 6")
                 st.session_state.age = int(final_data.get("age", 12))
                 st.session_state.user_profile = final_data
+                st.session_state.current_page = "Main Chat"
                 
-                # Clear the query code from the URL bar to prevent infinite reload loops
-                st.query_params.clear()
-                st.toast(f"🎉 Welcome back, {st.session_state.student_name}!")
+                st.toast(f"🎉 Welcome, {st.session_state.student_name}!")
 
+                # 🌟 FIXED PERSISTENCE ANCHOR: Lock token inside URL parameters BEFORE reloading the page
+                st.query_params.clear()
                 st.query_params["session_token_id"] = google_uid
-                # 🌟 STEP 2: REMOVED REDUNDANT INITIALIZE LOCK TO PREVENT LOGOUT SQUASH
-                
-                
-                # Fire the rerun trigger to switch views into the Main Workspace Dashboard
                 st.rerun()
 
-            
     except Exception as e:
         st.error(f"Authentication background sync failed: {str(e)}")
 
