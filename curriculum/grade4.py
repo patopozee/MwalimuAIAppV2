@@ -11,7 +11,7 @@ GRADE_4 = {
             "Whole Numbers": {
 
                 "Place Value": [
-                    "Read and write numbers up to 1,000,000.",
+                    "Read and write numbers up to 1,000.",
                     "Identify place value of digits in whole numbers.",
                     "Compare and order whole numbers.",
                     "Represent numbers using expanded notation."
@@ -21,8 +21,8 @@ GRADE_4 = {
             "Addition and Subtraction": {
 
                 "Operations": [
-                    "Add whole numbers up to 1,000,000.",
-                    "Subtract whole numbers up to 1,000,000.",
+                    "Add whole numbers up to 1,000.",
+                    "Subtract whole numbers up to 1,000.",
                     "Solve real-life problems involving addition and subtraction.",
                     "Estimate answers before calculation."
                 ]

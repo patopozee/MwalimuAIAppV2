@@ -10,7 +10,7 @@ GRADE_5 = {
         "Whole Numbers": {
 
             "Place Value": [
-                "Read and write numbers up to 10,000,000.",
+                "Read and write numbers up to 10,000.",
                 "Identify the place value of digits in whole numbers.",
                 "Compare and order whole numbers.",
                 "Represent numbers using expanded notation."
@@ -20,8 +20,8 @@ GRADE_5 = {
         "Operations": {
 
             "Addition and Subtraction": [
-                "Add whole numbers up to 10,000,000.",
-                "Subtract whole numbers up to 10,000,000.",
+                "Add whole numbers up to 10,000.",
+                "Subtract whole numbers up to 10,000.",
                 "Solve real-life problems involving addition and subtraction.",
                 "Estimate answers before calculation."
             ],

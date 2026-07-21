@@ -224,7 +224,7 @@ Return your response strictly as a valid JSON array containing EXACTLY 5 objects
     "options": ["Option A", "Option B", "Option C", "Option D"],
     "answer": "The exact correct option string matching one of the options"
   }},
-  ... up to 5 elements total
+  ... up to 10 elements total
 ]
 CRITICAL OPTION CONSTRAINT RULES:
 1. **No Math Formulations**: Every element in the "options" array MUST be a fully calculated, single final value (e.g., use "48,878 shillings", NEVER "45,678 + 3,200 shillings").

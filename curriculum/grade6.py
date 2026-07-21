@@ -5,7 +5,7 @@ GRADE_6 ={
         "Numbers": {
 
             "Place Value": [
-                "Read and write whole numbers up to 100,000,000.",
+                "Read and write whole numbers up to 100,000.",
                 "Identify place values of digits in large numbers.",
                 "Compare and order whole numbers.",
                 "Represent numbers using expanded notation."
