@@ -35,31 +35,31 @@ def render_student_leaderboard_page():
     student_grade = str(st.session_state.get("grade", "Grade 6"))
 
     #=======
-        # ====================================================================
+    # ====================================================================
     # 🕵️‍♂️ AUTOMATED DATA-SYNC DIAGNOSTIC INSPECTOR
     # ====================================================================
-    with st.expander("🕵️‍♂️ Database Key Alignment Debugger (Click to Expand)"):
-        st.write(f"**Active Session UID String:** `{student_uid}`")
+    # with st.expander("🕵️‍♂️ Database Key Alignment Debugger (Click to Expand)"):
+    #     st.write(f"**Active Session UID String:** `{student_uid}`")
         
-        # Pull raw rows straight out of your database to see exactly what keys look like
-        conn = sqlite3.connect(DATABASE_NAME)
-        conn.row_factory = sqlite3.Row
-        cursor = conn.cursor()
+    #     # Pull raw rows straight out of your database to see exactly what keys look like
+    #     conn = sqlite3.connect(DATABASE_NAME)
+    #     conn.row_factory = sqlite3.Row
+    #     cursor = conn.cursor()
         
-        # Peek at the last registered student row
-        cursor.execute("SELECT id, name FROM students ORDER BY id DESC LIMIT 1")
-        student_peek = cursor.fetchone()
-        if student_peek:
-            st.write(f"**Last Registered Student in DB:** ID/UID Field = `{student_peek['id']}` | Name = `{student_peek['name']}`")
+    #     # Peek at the last registered student row
+    #     cursor.execute("SELECT id, name FROM students ORDER BY id DESC LIMIT 1")
+    #     student_peek = cursor.fetchone()
+    #     if student_peek:
+    #         st.write(f"**Last Registered Student in DB:** ID/UID Field = `{student_peek['id']}` | Name = `{student_peek['name']}`")
             
-        # Peek at your progress tracker table to see how it saves student_uid
-        cursor.execute("SELECT DISTINCT student_uid FROM student_progress LIMIT 3")
-        progress_peeks = cursor.fetchall()
-        st.write("**Keys currently saved inside 'student_progress.student_uid' column:**")
-        for p_row in progress_peeks:
-            st.write(f"- `{p_row['student_uid']}`")
+    #     # Peek at your progress tracker table to see how it saves student_uid
+    #     cursor.execute("SELECT DISTINCT student_uid FROM student_progress LIMIT 3")
+    #     progress_peeks = cursor.fetchall()
+    #     st.write("**Keys currently saved inside 'student_progress.student_uid' column:**")
+    #     for p_row in progress_peeks:
+    #         st.write(f"- `{p_row['student_uid']}`")
             
-        conn.close()
+    #     conn.close()
 
 
 
