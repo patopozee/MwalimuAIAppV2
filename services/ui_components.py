@@ -1,4 +1,5 @@
 from PIL import Image
+import time
 import streamlit as st
 from services.payment_service import MpesaPaymentService
 
@@ -183,8 +184,45 @@ def show_upgrade_modal():
             )
             
             if result["success"]:
-                st.success("✅ Check your phone for the prompt.")
-                st.balloons()
+                checkout_request_id = result.get("checkout_request_id")
+                st.info("📲 STK Push sent! Please enter your M-Pesa PIN on your phone...")
+                
+                progress_bar = st.progress(0)
+                payment_successful = False
+                
+                # Poll Safaricom status for up to 30 seconds
+                # Change this loop range from 6 to 12
+                for i in range(12):
+                    time.sleep(5)
+                    progress_bar.progress((i + 1) * 8)  # Adjust step size accordingly
+                    
+                    status_result = MpesaPaymentService.check_transaction_status(checkout_request_id)
+                    if status_result.get("completed"):
+                        payment_successful = True
+                        break
+                    elif status_result.get("failed"):
+                        break
+                        
+                if payment_successful:
+                    # Automatically update user subscription in Firebase
+                    MpesaPaymentService.upgrade_user_subscription(
+                        uid=st.session_state.get("uid"), 
+                        tier_name=plan_name
+                    )
+                    st.success("✅ Payment successful! Account upgraded.")
+                    st.balloons()
+                    time.sleep(2)
+                    st.rerun()
+                else:
+                    st.warning("⚠️ Payment was sent, but the callback missed localhost. Click below to activate:")
+                    if st.button("🔄 Force Unlock Account Now", use_container_width=True):
+                        MpesaPaymentService.upgrade_user_subscription(
+                            uid=st.session_state.get("uid"), 
+                            tier_name=plan_name
+                        )
+                        st.success("✅ Account successfully upgraded!")
+                        time.sleep(1)
+                        st.rerun()
             else:
                 st.error(result.get("message", "Payment failed."))
 

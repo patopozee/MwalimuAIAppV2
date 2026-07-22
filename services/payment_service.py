@@ -144,6 +144,51 @@ class MpesaPaymentService:
                 "success": False,
                 "error": str(e),
             }
+        
+    @staticmethod
+    def check_transaction_status(checkout_request_id):
+        token = MpesaPaymentService.generate_token()
+        if not token:
+            return {"completed": False, "error": "Token failed"}
+
+        shortcode = str(st.secrets["mpesa"]["shortcode"])
+        passkey = str(st.secrets["mpesa"]["passkey"])
+        timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+        
+        password_string = shortcode + passkey + timestamp
+        password = base64.b64encode(password_string.encode()).decode()
+
+        payload = {
+            "BusinessShortCode": shortcode,
+            "Password": password,
+            "Timestamp": timestamp,
+            "CheckoutRequestID": checkout_request_id
+        }
+
+        headers = {
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json"
+        }
+
+        try:
+            response = requests.post(
+                "https://sandbox.safaricom.co.ke/mpesa/stkpushquery/v1/query",
+                json=payload,
+                headers=headers,
+                timeout=30
+            )
+            data = response.json()
+            
+            # ResultCode 0 means successful transaction complete
+            if data.get("ResultCode") == "0":
+                return {"completed": True}
+            elif data.get("ResultCode"):
+                return {"completed": False, "failed": True}
+                
+            return {"completed": False}
+        except Exception as e:
+            return {"completed": False, "error": str(e)}
+        
     @staticmethod
     def upgrade_user_subscription(uid, tier_name):
         """
@@ -163,3 +208,5 @@ class MpesaPaymentService:
         except Exception as e:
             print(f"Error upgrading subscription: {e}")
             return {"success": False, "error": str(e)}
+
+    

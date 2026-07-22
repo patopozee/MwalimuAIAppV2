@@ -22,6 +22,11 @@ async def mpesa_callback(request: Request):
     
     body = data.get("Body", {}).get("stkCallback", {})
     result_code = body.get("ResultCode")
+    checkout_request_id = (
+        body.get("CheckoutRequestID") or 
+        body.get("CheckoutRequestId") or 
+        data.get("Body", {}).get("CheckoutRequestID")
+    )
     
     # 1. Check if the payment transaction succeeded
     if result_code == 0:

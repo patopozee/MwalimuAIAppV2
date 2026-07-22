@@ -1023,13 +1023,8 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
         if st.sidebar.button(admin_btn_label, use_container_width=True, key="sb_nav_dynamic_admin"):
             st.session_state.current_page = target_page
             st.rerun()
-
-
-
-
-
-
-
+            
+    #======== 
     #=== Upgrade Tier === 
     def render_workspace_sidebar():
         if "user_email" in st.session_state:
@@ -1083,6 +1078,8 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
                 #        st.rerun()
                 #     # else:
                 #     #    st.sidebar.warning("Payment not confirmed yet. Please wait a moment.")
+        #====
+        
 
 
         # --- DEDICATED LOGOUT CONFIRMATION DIALOG ---
