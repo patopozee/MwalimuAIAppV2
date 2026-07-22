@@ -50,7 +50,8 @@ class MpesaPaymentService:
             return None
 
     @staticmethod
-    def initiate_stk_push(phone_number, amount, uid=None):
+    def initiate_stk_push(phone_number, amount, uid=None, plan="premium"):
+        
 
         token = MpesaPaymentService.generate_token()
 
@@ -83,7 +84,7 @@ class MpesaPaymentService:
             "PhoneNumber": phone_number,
             "CallBackURL": callback,        # Use the variable from secrets
             "AccountReference": "Mwalimu AI App",
-            "TransactionDesc": "Premium Subscription"
+            "TransactionDesc": f"Mwalimu AI {plan.title()} Subscription"
         }
 
         headers = {
@@ -105,6 +106,17 @@ class MpesaPaymentService:
             if response.status_code == 200:
 
                 if data.get("ResponseCode") == "0":
+                    # Save pending payment details
+                    if uid:
+                        db.collection("pending_payments").document(
+                            data.get("CheckoutRequestID")
+                        ).set({
+                            "uid": uid,
+                            "plan": plan,
+                            "amount": amount,
+                            "phone": phone_number,
+                            "created_at": datetime.utcnow()
+                        })
 
                     return {
                         "success": True,
