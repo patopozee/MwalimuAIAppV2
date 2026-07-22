@@ -117,7 +117,7 @@ Mwalimu AI response:
         
     except Exception as api_err:
         error_diagnostic_string = str(api_err)
-        print(f"[Terminal Log] Main Chat API Fault: {error_diagnostic_string}")
+        
         
         # 🛡️ SYSTEM GUARD: Catch 402/Credit errors explicitly before returning to prevent SSE/JSON pipeline crashes
         if "402" in error_diagnostic_string or "credits" in error_diagnostic_string.lower():
@@ -157,7 +157,7 @@ def generate_quiz(topic, student, difficulty="Medium"):
     prompt = f"""
 {SYSTEM_GUARD}
 = You are Mwalimu AI, an elite CBC Curriculum framework subject expert.
-Generate a 5-question multiple-choice quiz payload.
+Generate a 10-question multiple-choice quiz payload.
 
 TARGET CONTEXT SCHEMA:
 - Subject Domain: {subject}
@@ -211,7 +211,7 @@ Target Difficulty Level: {difficulty}
 Difficulty Context Rules: {difficulty_rules.get(difficulty, "")}
 Preferred Learning Style: {student.get('learning_style', 'General')}
 
-Return your response strictly as a valid JSON array containing EXACTLY 5 objects structured exactly like this layout format:
+Return your response strictly as a valid JSON array containing EXACTLY 10 objects structured exactly like this layout format:
 [
 {{
 "question": "First Question text here",
@@ -246,14 +246,14 @@ CRITICAL OPTION CONSTRAINT RULES:
             },
             model="openrouter/free",  # 👈 CHANGED FROM "openrouter/free"
             messages=[{"role": "user", "content": prompt}],
-            max_tokens=2000,  # 👈 ADDED FOR SWIFT INITIALIZATION (Plenty for JSON quiz)
+            max_tokens=3000,  # 👈 ADDED FOR SWIFT INITIALIZATION (Plenty for JSON quiz)
             response_format={"type": "json_object"}  # 👈 FORCES RAPID NATIVE JSON PARSING
         )
         
         # FIX: OpenRouter/OpenAI compatibility wrapper parsing requires indexing choices[0]
         quiz_text = response.choices[0].message.content
         if quiz_text is None:
-            print("No content returned from model")
+            
             return []
             
         quiz_text = quiz_text.replace("```json", "").replace("```", "").strip()
@@ -264,11 +264,10 @@ CRITICAL OPTION CONSTRAINT RULES:
                     random.shuffle(question["options"])
             return quiz_data
         except json.JSONDecodeError:
-            print("Invalid JSON returned by Model:")
-            print(quiz_text)
+            
             return []
     except Exception as e:
-        print(f"Error calling OpenRouter API: {e}")
+        
         return []
     
 def generate_study_plan(student: dict, stats: dict) -> str:
@@ -491,7 +490,7 @@ Return ONLY a raw, valid JSON object containing an array list of exactly 10 ques
         return flashcard_list[:10]
         
     except Exception as e:
-        print(f"Flashcard Generator Engine Parsing Error: {e}")
+    
         # Return fallback deck block if generation fails completely
         return [
             {"question": f"What is the core baseline definition behind {topic}?", "answer": f"{kicd_data.get('definition')}"},
@@ -580,7 +579,7 @@ Please construct the lesson using clean Markdown headers. The lesson MUST includ
         # CRITICAL FIX: Safe indexing using standard array retrieval syntax
         return response.choices[0].message.content
     except Exception as e:
-        print(f"OpenRouter Lesson Generation Error: {e}")
+        
         return f"Mwalimu encountered an issue preparing your lesson roadmap: {e}. Please click generate again!"
 
 def ask_mwalimu_voice(question, student, messages, adaptive_context):
@@ -656,7 +655,7 @@ Mwalimu AI verbal response:
         
     except Exception as api_err:
         error_diagnostic_string = str(api_err)
-        print(f"[Terminal Log] Voice Tutor API Fault: {error_diagnostic_string}")
+        
         
         # 🛡️ SYSTEM GUARD: Catch 402/Credit errors explicitly before returning to prevent SSE/JSON pipeline crashes
         if "402" in error_diagnostic_string or "credits" in error_diagnostic_string.lower():

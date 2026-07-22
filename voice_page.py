@@ -32,37 +32,50 @@ def render_voice_tutor_page(client):
     learning_style = st.session_state.get("learning_style", "Interactive")
     language = st.session_state.get("language", "English")
     
-    current_subject = st.session_state.get("active_subject", "Science and Technology")
-    current_topic = st.session_state.get("active_topic", "Living Things and Their Environment")
-    current_sub_topic = st.session_state.get("active_sub_topic", "Classification of Living Things")
+    subject = st.session_state.get("active_subject", "Mathematics")
+    topic = st.session_state.get("active_topic", "Whole Numbers")
+    sub_topic = st.session_state.get("active_sub_topic", "Place Value")
+    learning_outcome = st.session_state.get("active_learning_outcome", "General Learning Outcome")
 
     # 🛡️ FIX 1: ISOLATE THE STUDENT DICTIONARY OBJECT NAME
     voice_student_profile = {
         "name": name, 
         "grade": grade, 
         "age": int(age),
-        "subject": current_subject,    
-        "topic": current_topic,        
-        "sub_topic": current_sub_topic,
+        "subject": subject,    
+        "topic": topic,        
+        "sub_topic": sub_topic,
         "learning_style": learning_style, 
         "language": language
     }
 
     # 2. Database Fetch & Initial Normalization
-    if not st.session_state.voice_chat_history and name:
-        try:
-            all_raw_history = get_voice_chat_history(name, grade, int(age))
-            st.session_state.voice_chat_history = []
-            for msg in all_raw_history:
-                # Clean up inconsistent role definitions coming out of storage records
-                role_type = msg.get("role")
-                if role_type in ["voice_user", "voice_student", "user"]:
-                    msg["role"] = "user"
-                elif role_type in ["voice_assistant", "assistant"]:
-                    msg["role"] = "assistant"
-                st.session_state.voice_chat_history.append(msg)
-        except Exception:
-            st.session_state.voice_chat_history = []
+    student_uid = str(st.session_state.get("uid", ""))
+
+    if student_uid:
+        if st.session_state.get("last_voice_uid") != student_uid:
+
+            try:
+                all_raw_history = get_voice_chat_history(student_uid)
+
+                st.session_state.voice_chat_history = []
+
+                for msg in all_raw_history:
+
+                    role_type = msg.get("role")
+
+                    if role_type in ["voice_user", "voice_student", "user"]:
+                        msg["role"] = "user"
+
+                    elif role_type in ["voice_assistant", "assistant"]:
+                        msg["role"] = "assistant"
+
+                    st.session_state.voice_chat_history.append(msg)
+
+                st.session_state.last_voice_uid = student_uid
+
+            except Exception:
+                st.session_state.voice_chat_history = []
 
     # 3. Message Render Loop (Includes File / Image Attachments Previewer)
     for msg in st.session_state.voice_chat_history:
@@ -117,16 +130,17 @@ def render_voice_tutor_page(client):
             
             # Save User Input Message EXACTLY Once
             save_voice_chat_message(
+                student_uid=student_uid,
                 student_name=name,
                 grade=grade,
                 age=int(age),
-                role="user",
+                role="voice_user",
                 message=transcribed_text,
                 audio_bytes=None
             )
 
             try:
-                adaptive_context = f"Voice Session. Subject: {current_subject}, Topic: {current_topic}"
+                adaptive_context = f"Voice Session. Subject: {subject}, Topic: {topic}"
                 
                 # 🛡️ FIX 3: PASS THE ENTIRELY ISOLATED POINTER FIELDS DOWN
                 response_stream = ask_mwalimu_voice(
@@ -174,6 +188,7 @@ def render_voice_tutor_page(client):
                                 
                                 # Save AI response message EXACTLY once with generated speech binary
                                 save_voice_chat_message(
+                                    student_uid=student_uid,
                                     student_name=name,
                                     grade=grade,
                                     age=int(age),
@@ -214,7 +229,7 @@ def render_voice_tutor_page(client):
         with col_yes:
             if st.button("Yes, Clear Everything", use_container_width=True, type="primary"):
                 # 1. Clean the backend database rows
-                clear_voice_chat_history_only(name, grade, int(age))
+                clear_voice_chat_history_only(student_uid, grade, int(age))
                 
                 # 2. Reset visual RAM session storage arrays
                 st.session_state.voice_chat_history = []

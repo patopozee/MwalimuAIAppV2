@@ -662,126 +662,206 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
     #user_data = get_student_data(st.session_state.user_email)
 
     # === SIDEBAR ACCOUNT CONFIGURATION ===
-    raw_name = st.sidebar.text_input("Student Name", value=st.session_state.get("student_name") or "")
+    #user_data = get_student_data(st.session_state.user_email)
+
+   #user_data = get_student_data(st.session_state.user_email)
+
+    # === SIDEBAR ACCOUNT CONFIGURATION (LOCKED DESIGN BOXES) ===
+    # 1. Fetch values safely from your state memory core
+    name_val = str(st.session_state.get("student_name") or "Student").strip().title()
+    current_grade = st.session_state.get("grade", "Grade 1")
+    age_val = int(st.session_state.get("age", 10))
+
+    # 2. Render parameters inside fields locked with disabled=True 🌟
+    raw_name = st.sidebar.text_input("Student Name", value=name_val, disabled=True)
     name = raw_name.strip().title() if raw_name else ""
+    
     grades = [
             "Grade 1", "Grade 2", "Grade 3", "Grade 4",
             "Grade 5", "Grade 6", "Grade 7", "Grade 8",
             "Grade 9", "Grade 10", "Grade 11", "Grade 12"
         ]
-
-    current_grade = st.session_state.get("grade", "Grade 1")
-
-
-    # Safety check in case the stored grade isn't in the list
     if current_grade not in grades:
         current_grade = "Grade 1"
 
     grade = st.sidebar.selectbox(
         "Grade",
         grades,
-        index=grades.index(current_grade)
+        index=grades.index(current_grade),
+        disabled=True
     )
-    age = st.sidebar.number_input(
+    
+    age_input = st.sidebar.number_input(
         "Age",
         min_value=5,
         max_value=25,
-        value=int(st.session_state.get("age", 10))
+        value=age_val,
+        disabled=True
     )
+    age = int(age_input)
+
+    # 3. Leave your other customizable onboarding descriptors active below
     favorite_subject = st.sidebar.text_input("Favorite Subject", value=st.session_state.get("favorite_subject") or "")
     weak_subject = st.sidebar.text_input("Weak Subject", value=st.session_state.get("weak_subject") or "")
     learning_style = st.sidebar.selectbox("Learning Style", ["Visual", "Practical", "Reading/Writing", "Interactive", "Story-based"])
     language = st.sidebar.selectbox("Preferred Language", ["English", "Kiswahili", "Sheng"])
 
     # Composite state verification logic to load specific student thread context safely
-    if name:
-        if (st.session_state.get("last_checked_name") != name or 
+     # Fetch your unique authenticated Firebase ID string from memory core
+    student_uid_val = str(st.session_state.get("uid", ""))
+
+    # Composite state verification logic to load specific student thread context safely
+    if student_uid_val and name:
+        if (st.session_state.get("last_checked_uid") != student_uid_val or 
             st.session_state.get("last_checked_grade") != grade or 
             st.session_state.get("last_checked_age") != int(age)):
             
-            # 1. Pull the full mixed history list from SQLite
-            all_historical_chats = get_ask_mwalimu_history(name, grade, int(age))
+            # 🌟 FIXED: Pass student_uid_val instead of name to match updated cache signature
+            all_historical_chats = get_ask_mwalimu_history(student_uid_val)
             
-            # 2. 🛡️ FILTER LOCK: Only assign text/attachment chats to the main view, skip voice entries
+            # 2. FILTER LOCK: Only assign text/attachment chats to the main view, skip voice entries
             st.session_state.ask_mwalimu_history = [
                 msg for msg in all_historical_chats 
                 if not msg.get("is_voice")
             ]
             
-            st.session_state.last_checked_name = name
+            st.session_state.last_checked_uid = student_uid_val
             st.session_state.last_checked_grade = grade
             st.session_state.last_checked_age = int(age)
         st.session_state.student_name = name
 
 
-    # CBC CURRICULUM INTEGRATION SELECTORS
-    # =====================================================================
-    # --- FRAGMENT 1: SANDBOXED CBC CURRICULUM SELECTORS ---
-    
     #@st.fragment
+    # =====================================================================
+    # ⚡ REAL-TIME CBC SYNC ENGINE (RUNS BEFORE CODE RENDERS ON CHANGE)
+    # =====================================================================
     def render_cbc_selectors(grade, CBC):
+
         st.sidebar.markdown("---")
-        st.sidebar.subheader(" Curriculum Context")
-        
+        st.sidebar.subheader("📚 Curriculum Context")
+
         grade_dict = CBC.get(grade, {})
+
         if not isinstance(grade_dict, dict):
             grade_dict = {}
+
+        # ---------------------------------------------------
+        # SUBJECT
+        # ---------------------------------------------------
+
         subjects = list(grade_dict.keys()) or ["General Studies"]
-        
-        subject = st.sidebar.selectbox("Subject", subjects, key="sidebar_subject_select")
+
+        subject = st.sidebar.selectbox(
+            "Subject",
+            subjects,
+            key="sidebar_subject_select"
+        )
+
         subject_dict = grade_dict.get(subject, {})
-        
+
         if not isinstance(subject_dict, dict):
             subject_dict = {}
-        topics = list(subject_dict.keys()) or ["General Topic"]
-        topic = st.sidebar.selectbox("Topic", topics, key="sidebar_topic_select")
-        
-        inner_data = subject_dict.get(topic, {})
-        if isinstance(inner_data, dict):
-            sub_topics = list(inner_data.keys()) or ["General Sub-Topic"]
-            sub_topic = st.sidebar.selectbox("Sub-topic", sub_topics, key="sidebar_subtopic_dict_select")
-            outcomes = inner_data.get(sub_topic, []) or ["General Learning Outcome"]
-        else:
-            sub_topic = st.sidebar.selectbox("Sub-topic", ["General Sub-Topic"], key="sidebar_subtopic_list_select")
-            outcomes = inner_data if isinstance(inner_data, (list, tuple)) else ["General Learning Outcome"]
-            
-        raw_outcome = st.sidebar.selectbox("Learning Outcome", outcomes, key="sidebar_outcome_select")
-        learning_outcome = str(raw_outcome) if raw_outcome else "General Learning Outcome"
-        
-        # Store globally in session state so the main script can see them!
-        st.session_state["active_subject"] = subject
-        st.session_state["active_topic"] = topic
-        st.session_state["active_sub_topic"] = sub_topic
-        st.session_state["active_learning_outcome"] = learning_outcome
 
-    # Fire selector and build variables globally
-        # =====================================================================
+        # ---------------------------------------------------
+        # TOPIC
+        # ---------------------------------------------------
+
+        topics = list(subject_dict.keys()) or ["General Topic"]
+
+        topic = st.sidebar.selectbox(
+            "Topic",
+            topics,
+            key="sidebar_topic_select"
+        )
+
+        topic_dict = subject_dict.get(topic, {})
+
+        # ---------------------------------------------------
+        # SUB TOPIC
+        # ---------------------------------------------------
+
+        if isinstance(topic_dict, dict):
+
+            sub_topics = list(topic_dict.keys()) or ["General Sub-Topic"]
+
+            sub_topic = st.sidebar.selectbox(
+                "Sub-topic",
+                sub_topics,
+                key="sidebar_subtopic_select"
+            )
+
+            outcomes = topic_dict.get(sub_topic, [])
+
+        else:
+
+            sub_topic = "General Sub-Topic"
+
+            outcomes = topic_dict
+
+        if not outcomes:
+
+            outcomes = ["General Learning Outcome"]
+
+        # ---------------------------------------------------
+        # LEARNING OUTCOME
+        # ---------------------------------------------------
+
+        learning_outcome = st.sidebar.selectbox(
+            "Learning Outcome",
+            outcomes,
+            key="sidebar_outcome_select"
+        )
+
+        # ============================================================
+        # SINGLE SOURCE OF TRUTH
+        # ============================================================
+
+        current_curriculum = {
+            "subject": subject,
+            "topic": topic,
+            "sub_topic": sub_topic,
+            "learning_outcome": learning_outcome
+        }
+
+        old_curriculum = st.session_state.get("active_curriculum")
+
+        # Only update Session State if something actually changed.
+        if old_curriculum != current_curriculum:
+
+            st.session_state.active_curriculum = current_curriculum
+
+            st.session_state.active_subject = subject
+            st.session_state.active_topic = topic
+            st.session_state.active_sub_topic = sub_topic
+            st.session_state.active_learning_outcome = learning_outcome
+
+    # =====================================================================
     # --- CORRECTED STATE ROUTING ENGINE ---
     # =====================================================================
 
     # 1. Keep the heavy database retrieval logic inside the optimization lock
-    if name:
-        if (st.session_state.get("last_checked_name") != name or 
-            st.session_state.get("last_checked_grade") != grade or 
-            st.session_state.get("last_checked_age") != int(age)):
-            
-            st.session_state.ask_mwalimu_history = get_ask_mwalimu_history(name, grade, int(age))
-            st.session_state.last_checked_name = name
-            st.session_state.last_checked_grade = grade
-            st.session_state.last_checked_age = int(age)
-            st.session_state.student_name = name
+    student_uid = str(st.session_state.get("uid", ""))
+
+    if student_uid:
+        if st.session_state.get("last_checked_uid") != student_uid:
+
+            st.session_state.ask_mwalimu_history = get_ask_mwalimu_history(student_uid)
+
+            st.session_state.last_checked_uid = student_uid
+
+        st.session_state.student_name = name
 
     # 2. RUN THIS UNCONDITIONAL: Render selectors immediately on page load
     if name:
         render_cbc_selectors(grade, CBC)
 
-    # 3. Safe contextual extraction fallbacks
+    # 3. Safe contextual extraction fallbacks (Guaranteed up-to-date by the callback)
     subject = st.session_state.get("active_subject", "Mathematics")
     topic = st.session_state.get("active_topic", "Whole Numbers")
     sub_topic = st.session_state.get("active_sub_topic", "Place Value")
     learning_outcome = st.session_state.get("active_learning_outcome", "General Learning Outcome")
 
-    # 3. Create the global student dictionary map
+    # 4. Create the global student dictionary map
     student = {
         "name": name if name else "Student",
         "grade": grade,
@@ -796,6 +876,7 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
         "sub_topic": sub_topic,
         "learning_outcome": learning_outcome
     }
+
 
 
 
@@ -889,7 +970,7 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
             if st.button("Yes, Clear Everything", use_container_width=True, type="primary"):
                 # 1. Clean the backend database rows permanently
                 clear_student_chat_history(
-                    student_name=st.session_state.get("student_name", "Student"),
+                    student_uid=str(st.session_state.get("uid", "")),
                     grade=st.session_state.get("grade", "Grade 6"),
                     age=int(st.session_state.get("age", 12))
                 )
@@ -1060,7 +1141,9 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
         st.sidebar.markdown("---")
         st.sidebar.subheader(" Progress Dashboard")
         
-        stats = get_student_stats(name, grade, int(age))
+        # 🌟 FIXED: Swapped 'name' for the unique 'uid' string variable tracking key
+        current_uid = str(st.session_state.get("uid", ""))
+        stats = get_student_stats(current_uid, grade, int(age))
         st.sidebar.metric(label="Quizzes Taken", value=stats["quizzes"])
         st.sidebar.metric("Average Score", f"{stats.get('average_score', 0)}%")
         
@@ -1563,13 +1646,16 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
 
                 # FIX: Pass the file attachment dictionary payload so it's written into SQLite
                 save_ask_mwalimu_message(
-                        name,
-                        grade,
-                        age,
-                        "user",
-                        user_question,
-                        attachment=attachment_payload
-                    )
+                    student_uid=str(st.session_state.get("uid", "")),
+                    student_name=str(st.session_state.get("student_name", "Student")),
+                    grade=grade,
+                    age=int(age),
+                    role="user",
+                    message=user_question, # Change to match your exact chat text input variable
+                    attachment=attachment_payload # Change to match your exact file upload variable
+                )
+
+
                                     # 5. IMMEDIATELY DISPLAY USER BUBBLE ON SCREEN (No waiting!)
                 # This mirrors your Page 42 custom avatar design look instantly
                 st.markdown(f"""
@@ -1676,13 +1762,19 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
                     MwalimuDBService.increment_usage(uid, "has_upload")
 
                 st.session_state.ask_mwalimu_history.append({"role": "assistant", "content": assistant_text})
+                            # 🌟 FIXED: Explicitly naming every argument fixes the Pylance parameter lookup error!
                 save_ask_mwalimu_message(
-                    name,
-                    grade,
-                    age,
-                    "assistant",
-                    assistant_text
+                    student_uid=str(st.session_state.get("uid", "")),
+                    student_name=str(st.session_state.get("student_name", "Student")),
+                    grade=grade,
+                    age=int(age),
+                    role="assistant",
+                    message=assistant_text # Change to match your active text generation output variable
                 )
+
+
+
+
 
 
                 
@@ -1858,18 +1950,20 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
                             if not verify_tier_allowance(uid, user_tier, "quizzes"):
                                 st.session_state.quiz_limit_reached = True
                             
-                            save_activity(
-                                student_name=name,
-                                student_grade=grade,
-                                student_age=age_int,
-                                activity_type="quiz_generation",
-                                topic=quiz_topic,
-                                score=0,                                
-                                subject = subject,           # Mathematics
-                                topics = quiz_topic,         # Rounding Numbers
-                                sub_topic = quiz_topic,      # Rounding Numbers
-                                learning_outcome=student.get("learning_outcome", "General") if 'student' in locals() else "General"
-                            )
+                                save_activity(
+                                    student_uid=str(st.session_state.get("uid", "")), # 🌟 FIXED: Pass the active student UID string
+                                    student_name=name,
+                                    student_grade=grade,
+                                    student_age=age_int,
+                                    activity_type="quiz_generation",
+                                    topic=quiz_topic,
+                                    score=0,
+                                    subject=subject,
+                                    topics=quiz_topic,
+                                    sub_topic=quiz_topic,
+                                    learning_outcome=student.get("learning_outcome", "General") if 'student' in locals() else "General"
+                                )
+
                             st.rerun()
 
             # ----------------------------------------------------
@@ -1974,6 +2068,7 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
                                 )
 
                                 save_activity(
+                                    student_uid=str(st.session_state.get("uid", "")),
                                     student_name=name,
                                     student_grade=grade,
                                     student_age=age_int,
@@ -2266,6 +2361,7 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
 
                             # 🎯 3. FIX: Save activity mapping configuration tracking logs as "lessons"
                             save_activity(
+                                student_uid=uid,
                                 student_name=name, student_grade=grade, student_age=age_int,
                                 activity_type="lessons", topic=lesson_topic, score=0,
                                 subject=act_subject, topics=act_topic, sub_topic=act_sub, learning_outcome=act_out
@@ -2339,7 +2435,7 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
                     if "voice_chat_history" not in st.session_state or not st.session_state.voice_chat_history:
                         from services.database import get_voice_chat_history
                         try:
-                            all_raw_history = get_voice_chat_history(name, grade, int(age))
+                            all_raw_history = get_voice_chat_history(student_uid)
                             
                             # 1. Clear out any previous layout configurations safely
                             st.session_state.voice_chat_history = []
