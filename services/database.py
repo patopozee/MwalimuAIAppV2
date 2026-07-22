@@ -68,20 +68,57 @@ def flush_all_database_caches():
 def migrate_students_table():
     conn = sqlite3.connect(DATABASE_NAME)
     cursor = conn.cursor()
-    # Check current columns
+
+    # ----------------------------------------------------
+    # Does the students table even exist?
+    # ----------------------------------------------------
+    cursor.execute("""
+        SELECT name
+        FROM sqlite_master
+        WHERE type='table'
+        AND name='students'
+    """)
+    if cursor.fetchone() is None:
+        conn.close()
+        return
+
+    # ----------------------------------------------------
+    # Read current schema
+    # ----------------------------------------------------
     cursor.execute("PRAGMA table_info(students)")
-    columns = [row[1] for row in cursor.fetchall()]
-    
-    id_column = next((row for row in cursor.execute("PRAGMA table_info(students)") if row[1] == "id"), None)
+    columns = cursor.fetchall()
+
+    id_column = next((c for c in columns if c[1] == "id"), None)
+
+    # Already migrated
     if id_column and id_column[2].upper() == "TEXT":
         conn.close()
         return
-        
-    # Rename old table
-    cursor.execute("ALTER TABLE students RENAME TO students_old")
-    # Create new table
+
+    # ----------------------------------------------------
+    # If students_old already exists, another migration
+    # already started before.
+    # ----------------------------------------------------
     cursor.execute("""
-    CREATE TABLE students (
+        SELECT name
+        FROM sqlite_master
+        WHERE type='table'
+        AND name='students_old'
+    """)
+
+    backup_exists = cursor.fetchone() is not None
+
+    if not backup_exists:
+        cursor.execute("""
+            ALTER TABLE students
+            RENAME TO students_old
+        """)
+
+    # ----------------------------------------------------
+    # Create the new table
+    # ----------------------------------------------------
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS students (
         id TEXT PRIMARY KEY,
         name TEXT,
         grade TEXT,
@@ -92,12 +129,42 @@ def migrate_students_table():
         language TEXT
     )
     """)
-    # Copy data
-    cursor.execute("""
-    INSERT INTO students (id, name, grade, age, favorite_subject, weak_subject, learning_style, language)
-    SELECT CAST(id AS TEXT), name, grade, age, favorite_subject, weak_subject, learning_style, language FROM students_old
-    """)
-    cursor.execute("DROP TABLE students_old")
+
+    # ----------------------------------------------------
+    # Copy data only if table is empty
+    # ----------------------------------------------------
+    cursor.execute("SELECT COUNT(*) FROM students")
+    count = cursor.fetchone()[0]
+
+    if count == 0:
+        cursor.execute("""
+        INSERT INTO students (
+            id,
+            name,
+            grade,
+            age,
+            favorite_subject,
+            weak_subject,
+            learning_style,
+            language
+        )
+        SELECT
+            CAST(id AS TEXT),
+            name,
+            grade,
+            age,
+            favorite_subject,
+            weak_subject,
+            learning_style,
+            language
+        FROM students_old
+        """)
+
+    # ----------------------------------------------------
+    # Delete backup table
+    # ----------------------------------------------------
+    cursor.execute("DROP TABLE IF EXISTS students_old")
+
     conn.commit()
     conn.close()
 
