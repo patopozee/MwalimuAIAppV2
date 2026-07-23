@@ -121,7 +121,7 @@ def show_upgrade_modal():
 ✓ 5 Study Plans / day  
 ✓ Learning Management  
 """)
-            if st.button("Choose Plus", key="choose_plus", use_container_width=True):
+            if st.button("Choose Plus", key="choose_plus", width="stretch"):
                 st.session_state.selected_plan = "plus"
 
     with col_premium:
@@ -136,7 +136,7 @@ def show_upgrade_modal():
 ✓ Learning Management  
 ✓ Advanced Weak-Topics  
 """)
-            if st.button("Choose Premium", key="choose_premium", use_container_width=True):
+            if st.button("Choose Premium", key="choose_premium", width="stretch"):
                 st.session_state.selected_plan = "premium"
 
     st.divider()
@@ -145,10 +145,10 @@ def show_upgrade_modal():
     # Payment Section (Side-by-side to save height)
     # -------------------------------------------------------
     if st.session_state.selected_plan == "plus":
-        amount = 1
+        amount = 499
         plan_name = "Mwalimu AI Plus"
     else:
-        amount = 2
+        amount = 999
         plan_name = "Mwalimu AI Premium"
 
     col_info, col_input = st.columns([1, 1.3])
@@ -192,7 +192,7 @@ def show_upgrade_modal():
                 
                 # Poll Safaricom status for up to 30 seconds
                 # Change this loop range from 6 to 12
-                for i in range(12):
+                for i in range(6):
                     time.sleep(5)
                     progress_bar.progress((i + 1) * 8)  # Adjust step size accordingly
                     
@@ -214,8 +214,8 @@ def show_upgrade_modal():
                     time.sleep(2)
                     st.rerun()
                 else:
-                    st.warning("⚠️ Payment was sent, but the callback missed localhost. Click below to activate:")
-                    if st.button("🔄 Force Unlock Account Now", use_container_width=True):
+                    st.warning("⚠️Once you pay, Click the button bellow and refresh the page to activate:")
+                    if st.button("🔄 Force Unlock Account Now", width="stretch"):
                         MpesaPaymentService.upgrade_user_subscription(
                             uid=st.session_state.get("uid"), 
                             tier_name=plan_name
