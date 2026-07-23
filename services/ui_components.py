@@ -215,7 +215,7 @@ def show_upgrade_modal():
                     st.rerun()
                 else:
                     st.warning("⚠️Once you pay, Click the button bellow and refresh the page to activate:")
-                    if st.button("🔄 Force Unlock Account Now", width="stretch"):
+                    if st.button("🔄 Unlock Account", width="stretch"):
                         MpesaPaymentService.upgrade_user_subscription(
                             uid=st.session_state.get("uid"), 
                             tier_name=plan_name
