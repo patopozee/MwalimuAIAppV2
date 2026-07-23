@@ -115,7 +115,7 @@ class MpesaPaymentService:
                             "plan": plan,
                             "amount": amount,
                             "phone": phone_number,
-                            "created_at": datetime.utcnow()
+                            "created_at": datetime.utcnow().isoformat()
                         })
 
                     return {
