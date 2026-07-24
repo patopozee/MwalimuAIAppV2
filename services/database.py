@@ -376,22 +376,26 @@ def get_student_learning_analysis(student_uid: str, grade: str, age: int):
     return {"weak_topics": weak_topics, "strong_topics": strong_topics, "current_level": current_level}
 
 @st.cache_data(ttl=5)
-def get_ask_mwalimu_history(student_uid):
+def get_ask_mwalimu_history(student_uid, subject):
     conn = sqlite3.connect(DATABASE_NAME)
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
 
     cursor.execute("""
-    SELECT *
-    FROM progress
-    WHERE student_uid=?
-    AND activity_type IN (
-        'ask_user',
-        'ask_assistant',
-        'ask_user_extraction'
-    )
-    ORDER BY created_at ASC
-    """, (student_uid,))
+        SELECT *
+        FROM progress
+        WHERE student_uid=?
+        AND subject=?
+        AND activity_type IN (
+            'ask_user',
+            'ask_assistant',
+            'ask_user_extraction'
+        )
+        ORDER BY created_at ASC
+        """, (
+            student_uid,
+            subject
+        ))
     
     rows = cursor.fetchall()
     conn.close()
@@ -417,48 +421,73 @@ def get_ask_mwalimu_history(student_uid):
     return history
 
 @st.cache_data(ttl=5)
-def get_voice_chat_history(student_uid):
-    """Pulls vocal histories uniquely by the student's authenticated Firebase ID."""
+def get_voice_chat_history(student_uid, subject):
+    """Pulls voice histories for the authenticated student and selected subject."""
+
     conn = sqlite3.connect(DATABASE_NAME)
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
+
     cursor.execute("""
         SELECT *
         FROM progress
         WHERE student_uid=?
+        AND subject=?
         AND activity_type IN (
             'voice_user',
             'voice_assistant'
         )
         ORDER BY created_at ASC
-    """,(student_uid,))
-    
+    """, (
+        student_uid,
+        subject
+    ))
+
     rows = cursor.fetchall()
     conn.close()
-    
+
     history = []
+
     for row in rows:
+
         role = "user" if row["activity_type"] == "voice_user" else "assistant"
+
         msg_node = {
             "role": role,
             "content": row["topic"],
             "audio_bytes": row["audio_bytes"],
             "is_voice": True
         }
+
         if row["attachment"]:
             try:
                 attachment_data = json.loads(row["attachment"])
+
                 if isinstance(attachment_data, dict):
+
                     if attachment_data.get("type") == "image_base64":
                         msg_node["image_preview"] = attachment_data.get("content")
+
                     elif attachment_data.get("type") == "text_extraction":
                         msg_node["file_preview"] = attachment_data.get("filename")
+
             except Exception:
                 pass
+
         history.append(msg_node)
+
     return history
 
-def save_ask_mwalimu_message(student_uid, student_name, grade, age, role, message, attachment=None):
+def save_ask_mwalimu_message(
+            student_uid,
+            student_name,
+            grade,
+            age,
+            subject,
+            role,
+            message,
+            attachment=None
+        ):
     """Saves a conversational chat message entry tagged with the student's unique ID."""
     conn = sqlite3.connect(DATABASE_NAME)
     cursor = conn.cursor()
@@ -466,36 +495,109 @@ def save_ask_mwalimu_message(student_uid, student_name, grade, age, role, messag
     attachment_json = json.dumps(attachment) if attachment else None
     
     cursor.execute("""
-    INSERT INTO progress (student_uid, student_name, student_grade, student_age, activity_type, topic, attachment, is_voice) 
-    VALUES (?, ?, ?, ?, ?, ?, ?, 0)
-    """, (student_uid, student_name, grade, int(age), activity, message, attachment_json))
+        INSERT INTO progress (
+            student_uid,
+            student_name,
+            student_grade,
+            student_age,
+            activity_type,
+            topic,
+            subject,
+            attachment,
+            is_voice
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0)
+        """,
+        (
+            student_uid,
+            student_name,
+            grade,
+            int(age),
+            activity,
+            message,
+            subject,
+            attachment_json
+        ))
     conn.commit()
     conn.close()
     get_ask_mwalimu_history.clear()
 
-def save_voice_chat_message(student_uid, student_name, grade, age, role, message, audio_bytes=None):
+def save_voice_chat_message(
+        student_uid,
+        student_name,
+        grade,
+        age,
+        subject,
+        role,
+        message,
+        audio_bytes=None
+    ):
     """Saves a vocal record entry tagged with the student's unique ID."""
+
     conn = sqlite3.connect(DATABASE_NAME)
     cursor = conn.cursor()
+
     activity = "voice_user" if role == "user" else "voice_assistant"
-    
+
     cursor.execute("""
-    INSERT INTO progress (student_uid, student_name, student_grade, student_age, activity_type, topic, is_voice, audio_bytes)
-    VALUES (?, ?, ?, ?, ?, ?, 1, ?)
-    """, (student_uid, student_name, grade, age, activity, message, audio_bytes))
+        INSERT INTO progress (
+            student_uid,
+            student_name,
+            student_grade,
+            student_age,
+            activity_type,
+            topic,
+            subject,
+            is_voice,
+            audio_bytes
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?)
+    """, (
+        student_uid,
+        student_name,
+        grade,
+        age,
+        activity,
+        message,
+        subject,
+        audio_bytes
+    ))
+
     conn.commit()
     conn.close()
+
     get_voice_chat_history.clear()
 
-def clear_student_chat_history(student_uid: str, grade: str, age: int):
+def clear_student_chat_history(
+        student_uid: str,
+        grade: str,
+        age: int,
+        subject: str
+    ):
     conn = sqlite3.connect(DATABASE_NAME)
     cursor = conn.cursor()
-    cursor.execute(""" 
-    DELETE FROM progress WHERE student_uid=? AND student_grade=? AND student_age=?
-    AND activity_type IN ('ask_user', 'ask_assistant', 'ask_user_extraction')
-    """, (student_uid, grade, int(age)))
+
+    cursor.execute("""
+        DELETE FROM progress
+        WHERE student_uid=?
+        AND student_grade=?
+        AND student_age=?
+        AND subject=?
+        AND activity_type IN (
+            'ask_user',
+            'ask_assistant',
+            'ask_user_extraction'
+        )
+    """, (
+        student_uid,
+        grade,
+        int(age),
+        subject
+    ))
+
     conn.commit()
     conn.close()
+
     flush_all_database_caches()
 
 @st.cache_data(ttl=120, show_spinner=False)
@@ -553,18 +655,32 @@ def save_support_message(name: str, email: str, subject: str, message: str) -> b
         print(f" Failed to submit message payload structure: {str(e)}")
         return False
 
-def clear_voice_chat_history_only(student_uid: str, grade: str, age: int):
-    """Purges only voice records and audio bytes for the student profile using their unique ID."""
+
+def clear_voice_chat_history_only(student_uid, grade, age, subject):
     conn = sqlite3.connect(DATABASE_NAME)
     cursor = conn.cursor()
+
     cursor.execute("""
-    DELETE FROM progress WHERE student_uid = ? AND student_grade = ? AND student_age = ?
-    AND activity_type IN ('voice_user', 'voice_assistant')
-    """, (student_uid, grade, int(age)))
+        DELETE FROM progress
+        WHERE student_uid=?
+        AND student_grade=?
+        AND student_age=?
+        AND subject=?
+        AND activity_type IN (
+            'voice_user',
+            'voice_assistant'
+        )
+    """, (
+        student_uid,
+        grade,
+        int(age),
+        subject
+    ))
+
     conn.commit()
     conn.close()
-    if hasattr(get_voice_chat_history, "clear"):
-        get_voice_chat_history.clear()
+
+    get_voice_chat_history.clear()
 
 def save_admin_material(subject, topic, sub_topic, filename, content):
     """Saves or updates global teaching material in the system."""

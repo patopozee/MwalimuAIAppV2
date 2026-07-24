@@ -51,12 +51,22 @@ def render_voice_tutor_page(client):
 
     # 2. Database Fetch & Initial Normalization
     student_uid = str(st.session_state.get("uid", ""))
+    current_subject = st.session_state.get("active_subject", "General Studies")
 
     if student_uid:
-        if st.session_state.get("last_voice_uid") != student_uid:
+
+        if (
+            st.session_state.get("last_voice_uid") != student_uid
+            or
+            st.session_state.get("last_voice_subject") != current_subject
+        ):
 
             try:
-                all_raw_history = get_voice_chat_history(student_uid)
+
+                all_raw_history = get_voice_chat_history(
+                    student_uid,
+                    current_subject
+                )
 
                 st.session_state.voice_chat_history = []
 
@@ -73,6 +83,7 @@ def render_voice_tutor_page(client):
                     st.session_state.voice_chat_history.append(msg)
 
                 st.session_state.last_voice_uid = student_uid
+                st.session_state.last_voice_subject = current_subject
 
             except Exception:
                 st.session_state.voice_chat_history = []
@@ -134,7 +145,11 @@ def render_voice_tutor_page(client):
                 student_name=name,
                 grade=grade,
                 age=int(age),
-                role="voice_user",
+                subject=st.session_state.get(
+                    "active_subject",
+                    "General Studies"
+                ),
+                role="user",
                 message=transcribed_text,
                 audio_bytes=None
             )
@@ -192,6 +207,10 @@ def render_voice_tutor_page(client):
                                     student_name=name,
                                     grade=grade,
                                     age=int(age),
+                                    subject=st.session_state.get(
+                                        "active_subject",
+                                        "General Studies"
+                                    ),
                                     role="assistant",
                                     message=ai_response_text,
                                     audio_bytes=audio_bytes
@@ -222,20 +241,41 @@ def render_voice_tutor_page(client):
     # --- DEDICATED CONFIRMATION DIALOG MODAL ---
     @st.dialog("⚠️ Clear Voice Data")
     def confirm_clear_voice_dialog():
-        st.write("Are you sure you want to permanently clear your voice chat history data? This action cannot be undone.")
-        st.write("")
+        current_subject = st.session_state.get(
+            "active_subject",
+            "General Studies"
+        )
+
+        st.warning(
+            f"You are about to permanently delete all Voice Tutor conversations for **{current_subject}**.\n\n"
+            "Voice conversations from other subjects will remain available.\n\n"
+            "This action cannot be undone."
+        )
         
         col_yes, col_cancel = st.columns(2)
         with col_yes:
-            if st.button("Yes, Clear Everything", use_container_width=True, type="primary"):
+            if st.button(
+                    "Yes, Clear This Subject history",
+                    use_container_width=True,
+                    type="primary"
+                ):
                 # 1. Clean the backend database rows
-                clear_voice_chat_history_only(student_uid, grade, int(age))
+                clear_voice_chat_history_only(student_uid=str(st.session_state.get("uid", "")),
+                    grade=st.session_state.get("grade", "Grade 6"),
+                    age=int(st.session_state.get("age", 12)),
+                    subject=st.session_state.get(
+                        "active_subject",
+                        "General Studies"))
                 
                 # 2. Reset visual RAM session storage arrays
                 st.session_state.voice_chat_history = []
                 st.session_state.voice_cache = {}
                 st.session_state.voice_session_active = False
-                
+
+                from services.database import get_voice_chat_history
+                if hasattr(get_voice_chat_history, "clear"):
+                    get_voice_chat_history.clear()
+
                 # 3. Change component key to reset widget state smoothly
                 st.session_state.voice_recorder_version += 1
                 

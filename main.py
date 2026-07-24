@@ -12,6 +12,8 @@ import streamlit.components.v1 as components
 import firebase_admin
 from firebase_admin import credentials, firestore
 from streamlit_cookies_controller import CookieController
+from google.cloud.firestore_v1.base_query import FieldFilter
+
 
 # --- STREAMLIT PAGE CONFIGURATION (MUST BE ABSOLUTE FIRST COMMAND IN STREAMLIT) ---
 st.set_page_config(
@@ -707,28 +709,7 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
     language = st.sidebar.selectbox("Preferred Language", ["English", "Kiswahili", "Sheng"])
 
     # Composite state verification logic to load specific student thread context safely
-     # Fetch your unique authenticated Firebase ID string from memory core
-    student_uid_val = str(st.session_state.get("uid", ""))
-
-    # Composite state verification logic to load specific student thread context safely
-    if student_uid_val and name:
-        if (st.session_state.get("last_checked_uid") != student_uid_val or 
-            st.session_state.get("last_checked_grade") != grade or 
-            st.session_state.get("last_checked_age") != int(age)):
-            
-            # 🌟 FIXED: Pass student_uid_val instead of name to match updated cache signature
-            all_historical_chats = get_ask_mwalimu_history(student_uid_val)
-            
-            # 2. FILTER LOCK: Only assign text/attachment chats to the main view, skip voice entries
-            st.session_state.ask_mwalimu_history = [
-                msg for msg in all_historical_chats 
-                if not msg.get("is_voice")
-            ]
-            
-            st.session_state.last_checked_uid = student_uid_val
-            st.session_state.last_checked_grade = grade
-            st.session_state.last_checked_age = int(age)
-        st.session_state.student_name = name
+    
 
 
     #@st.fragment
@@ -835,22 +816,7 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
             st.session_state.active_sub_topic = sub_topic
             st.session_state.active_learning_outcome = learning_outcome
 
-    # =====================================================================
-    # --- CORRECTED STATE ROUTING ENGINE ---
-    # =====================================================================
-
-    # 1. Keep the heavy database retrieval logic inside the optimization lock
-    student_uid = str(st.session_state.get("uid", ""))
-
-    if student_uid:
-        if st.session_state.get("last_checked_uid") != student_uid:
-
-            st.session_state.ask_mwalimu_history = get_ask_mwalimu_history(student_uid)
-
-            st.session_state.last_checked_uid = student_uid
-
-        st.session_state.student_name = name
-
+    
     # 2. RUN THIS UNCONDITIONAL: Render selectors immediately on page load
     if name:
         render_cbc_selectors(grade, CBC)
@@ -877,7 +843,39 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
         "learning_outcome": learning_outcome
     }
 
+    #=========
+    # Fetch your unique authenticated Firebase ID string from memory core
+    student_uid_val = str(st.session_state.get("uid", ""))
 
+    # Composite state verification logic to load specific student thread context safely       
+    if student_uid_val and name:
+        if (
+            st.session_state.get("last_checked_uid") != student_uid_val
+            or st.session_state.get("last_checked_grade") != grade
+            or st.session_state.get("last_checked_age") != int(age)
+            or st.session_state.get("last_checked_subject")
+                != st.session_state.get("active_subject", "General Studies")
+        ):
+
+            all_historical_chats = get_ask_mwalimu_history(
+                student_uid_val,
+                st.session_state.get("active_subject", "General Studies")
+            )
+
+            st.session_state.ask_mwalimu_history = [
+                msg for msg in all_historical_chats
+                if not msg.get("is_voice")
+            ]
+
+            st.session_state.last_checked_uid = student_uid_val
+            st.session_state.last_checked_grade = grade
+            st.session_state.last_checked_age = int(age)
+            st.session_state.last_checked_subject = st.session_state.get(
+                "active_subject",
+                "General Studies"
+            )
+
+        st.session_state.student_name = name
 
 
     #--- ACTIVE PROFILE CARD
@@ -960,19 +958,38 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
     # ====================================================================
     # --- DEDICATED CONFIRMATION DIALOG MODAL ---
     # ====================================================================
-    @st.dialog("⚠️ Clear Main Chat History")
+    current_subject = st.session_state.get(
+                "active_subject",
+                "General Studies"
+            )
+    @st.dialog(f"⚠️ Clear {current_subject} Chat History")
     def confirm_clear_main_chat_dialog():
-        st.write("Are you sure you want to permanently clear your main text chat history? This action cannot be undone.")
-        st.write("")
+        
+        st.warning(
+            f"You are about to permanently delete your **{current_subject}** chat history."
+        )
+
+        st.write(
+            "Only chats for this subject will be deleted.\n\n"
+            "Your chat history for all other subjects will remain intact."
+        )
         
         col_yes, col_cancel = st.columns(2)
         with col_yes:
-            if st.button("Yes, Clear Everything", use_container_width=True, type="primary"):
+            if st.button(
+                    f"🗑️ Delete {current_subject} History",
+                    use_container_width=True,
+                    type="primary"
+                ):
                 # 1. Clean the backend database rows permanently
                 clear_student_chat_history(
                     student_uid=str(st.session_state.get("uid", "")),
                     grade=st.session_state.get("grade", "Grade 6"),
-                    age=int(st.session_state.get("age", 12))
+                    age=int(st.session_state.get("age", 12)),
+                    subject=st.session_state.get(
+                        "active_subject",
+                        "General Studies"
+                    )
                 )
                 
                 # 2. Reset visual RAM session storage arrays
@@ -1637,7 +1654,10 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
                         user_message_block["image_preview"] = attachment_payload["content"]
                     elif attachment_payload.get("type") == "text_extraction":
                         user_message_block["file_preview"] = attachment_payload["filename"]
-
+                conversation_subject = st.session_state.get(
+                                    "active_subject",
+                                    "General Studies"
+                                )
                 # Append user text to memory history instantly
                 st.session_state.ask_mwalimu_history.append(user_message_block)
 
@@ -1647,12 +1667,16 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
                     student_name=str(st.session_state.get("student_name", "Student")),
                     grade=grade,
                     age=int(age),
+                    subject=conversation_subject,
                     role="user",
-                    message=user_question, # Change to match your exact chat text input variable
-                    attachment=attachment_payload # Change to match your exact file upload variable
+                    message=user_question,
+                    attachment=attachment_payload
                 )
 
-
+                st.session_state.ask_mwalimu_history = get_ask_mwalimu_history(
+                    str(st.session_state.get("uid", "")),
+                    conversation_subject
+                )
                                     # 5. IMMEDIATELY DISPLAY USER BUBBLE ON SCREEN (No waiting!)
                 # This mirrors your Page 42 custom avatar design look instantly
                 st.markdown(f"""
@@ -1748,7 +1772,7 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
                         assistant_placeholder.markdown(assistant_text)
 
 
-               
+                
                 # ====================================================================
                 # 9. SAVE COMPLETE HISTORY RECORD DATA ONLY AFTER STREAMING COMPLETES
                 # ====================================================================
@@ -1765,11 +1789,15 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
                     student_name=str(st.session_state.get("student_name", "Student")),
                     grade=grade,
                     age=int(age),
+                    subject=conversation_subject,
                     role="assistant",
-                    message=assistant_text # Change to match your active text generation output variable
+                    message=assistant_text
                 )
 
-
+                st.session_state.ask_mwalimu_history = get_ask_mwalimu_history(
+                    str(st.session_state.get("uid", "")),
+                    conversation_subject
+                )
 
 
 
@@ -2429,37 +2457,51 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
                     )
                     
                     # 🛡️ LOCAL HISTORY FORCING AT THE SWITCH ROUTER ENTRY
-                    if "voice_chat_history" not in st.session_state or not st.session_state.voice_chat_history:
+                    # 🛡️ LOCAL HISTORY FORCING AT THE SWITCH ROUTER ENTRY
+                    current_subject = st.session_state.get("active_subject", "General Studies")
+
+                    if (
+                        "voice_chat_history" not in st.session_state
+                        or st.session_state.get("last_voice_subject") != current_subject
+                    ):
+
                         from services.database import get_voice_chat_history
+
                         try:
-                            all_raw_history = get_voice_chat_history(student_uid)
-                            
-                            # 1. Clear out any previous layout configurations safely
+                            all_raw_history = get_voice_chat_history(
+                                str(st.session_state.get("uid", "")),
+                                current_subject
+                            )
+
+                            # Clear previous history
                             st.session_state.voice_chat_history = []
-                            
-                            # 2. Extract database records flagged with an active voice signature attribute
+
+                            # Keep only voice records
                             voice_records = [
-                                msg for msg in all_raw_history 
+                                msg for msg in all_raw_history
                                 if msg.get("is_voice") or msg.get("role") in ["voice_student", "voice_assistant"]
                             ]
-                            
-                            # 3. Map the raw database keys to match what your voice view canvas expects ('user' / 'assistant')
+
+                            # Convert roles for the UI
                             for msg in voice_records:
-                                # Determine the role to display in the UI layout container frame
+
                                 if msg["role"] in ["voice_student", "student", "user"]:
                                     ui_role = "user"
                                 else:
                                     ui_role = "assistant"
-                                    
+
                                 st.session_state.voice_chat_history.append({
                                     "role": ui_role,
                                     "content": msg["content"],
                                     "is_voice": True,
                                     "audio_bytes": msg.get("audio_bytes")
                                 })
+
+                            # ✅ Only update after successful loading
+                            st.session_state.last_voice_subject = current_subject
+
                         except Exception:
                             st.session_state.voice_chat_history = []
-                            st.write("VOICE HISTORY ID:", id(st.session_state.voice_chat_history))
                     # Pass this localized client directly to your voice tutor engine
                     render_voice_tutor_page(local_voice_client)
                 else:
@@ -2489,7 +2531,7 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
     elif st.session_state.current_page == "Admin Dashboard":
         render_admin_dashboard()
 
-    #======================================================
+    #======================================================    
     # EDIT STUDENT PROFILE
     # ======================================================
     elif st.session_state.current_page == "Edit Profile":
@@ -2499,7 +2541,7 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
             st.rerun()
             
         st.subheader("⚙ Edit Student Profile")
-        st.write("Keep your academic milestones up to date. Changing your baseline grade helps Mwalimu AI adjust the difficulty of quizzes and voice tasks automatically.")
+        st.write("Keep your academic milestones up to date. Changing your profile details or baseline grade helps Mwalimu AI adjust the difficulty of quizzes and voice tasks automatically.")
         
         # 1. Fetch active data parameters cleanly
         current_uid = st.session_state.get("uid") or st.session_state.get("user_email")
@@ -2508,11 +2550,18 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
         
         if active_profile:
             with st.container(border=True):
-                # 2. Keep Name and Email locked (Read-Only Layout)
-                st.text_input("Student Name", value=active_profile.get("name", st.session_state.get("student_name", "Student")), disabled=True)
-                st.text_input("Registered Email Address", value=active_profile.get("email", st.session_state.get("user_email", "")), disabled=True)
+                # 2. Keep Email locked (Read-Only), but allow Student Name to be modified                               
+                input_name = st.text_input("Student Name", value=active_profile.get("name", st.session_state.get("student_name", "Student")))
+                st.text_input("Registered Email Address", value=active_profile.get("email", st.session_state.get("user_email", "")), disabled=True)                
+                # Type Guard: Coerce the output parameter explicitly into a guaranteed string layout
+                new_name = str(input_name) if input_name is not None else ""
                 
-                # 3. Allow only Grade and Age to change
+                # Validation to ensure the student name isn't left empty
+                if not new_name.strip():
+                    st.error("Student Name cannot be left blank.")
+
+                
+                # 3. Allow Grade and Age to change
                 grades_list = [f"Grade {i}" for i in range(1, 13)]
                 saved_grade = active_profile.get("grade", "Grade 1")
                 
@@ -2537,43 +2586,59 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
                 """)
                 
                 # 5. Requirement confirmation checkbox gateway
-                confirm_reset = st.checkbox("I understand and authorize Mwalimu AI to re-align my progress tracking records to this new grade.")
+                confirm_reset = st.checkbox("I understand and authorize Mwalimu AI to re-align my progress tracking records to this new profile configuration.")
                 
-                # 6. Execution validation button pipeline
+                # 6. Execution validation button pipeline                              
                 if st.button("Save Profile Settings", use_container_width=True, type="primary"):
-                    if not confirm_reset:
+                    # Type Guard: Ensure safe string falling boundaries
+                    safe_name = str(new_name) if new_name is not None else ""
+                    
+                    if not safe_name.strip():
+                        st.error("Please provide a valid Student Name before saving.")
+                    elif not confirm_reset:
                         st.error("Please acknowledge the progress re-alignment warning checkbox above before saving modifications.")
                     else:
                         with st.spinner("Re-aligning your academic workspace profile..."):
-                            # A. Update document values inside Firestore collection mapping
+                            # A. Update document values inside Firestore collection mapping (including name)
                             user_doc_ref.update({
+                                "name": safe_name.strip(),
                                 "grade": new_grade,
                                 "age": int(new_age)
                             })
                             
                             # B. Clear performance collection histories matched to this specific user ID
-                            # Add whatever tracking collection schemas your system creates over time
                             collections_to_wipe = ["quiz_history", "learning_analysis", "quiz_results", "student_progress"]
                             for target_col in collections_to_wipe:
                                 try:
-                                    stale_docs = db.collection(target_col).where("uid", "==", str(current_uid)).stream()
+                                    stale_docs = db.collection(target_col).where(
+                                        filter=FieldFilter("uid", "==", str(current_uid))
+                                    ).stream()
                                     for doc_item in stale_docs:
                                         db.collection(target_col).document(doc_item.id).delete()
                                 except Exception:
                                     pass # Prevent interruptions if an optional analytics collection doesn't exist yet
                             
                             # C. Synchronize state keys locally to immediate runtime context
+                            st.session_state.student_name = safe_name.strip()
                             st.session_state.grade = new_grade
                             st.session_state.age = int(new_age)
-                            if st.session_state.user_profile:
-                                st.session_state.user_profile["grade"] = new_grade
-                                st.session_state.user_profile["age"] = int(new_age)
+                            
+                            # Type Guard: Explicitly verify dictionary structure existence before indexing
+                            current_profile = st.session_state.get("user_profile")
+                            if current_profile is not None and isinstance(current_profile, dict):
+                                current_profile["name"] = safe_name.strip()
+                                current_profile["grade"] = new_grade
+                                current_profile["age"] = int(new_age)
+                                # Re-assign the mutated dictionary cleanly back to session state
+                                st.session_state.user_profile = current_profile
                                 
                             st.toast("🎉 Profile settings synchronized successfully!")
                             st.session_state.current_page = "Main Chat"
                             st.rerun()
+
         else:
             st.error("Unable to load active profile registry parameters from database data stores.")
+
 
      
    
