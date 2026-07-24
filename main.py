@@ -977,7 +977,7 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
         col_yes, col_cancel = st.columns(2)
         with col_yes:
             if st.button(
-                    f"🗑️ Delete {current_subject} History",
+                    f"Yes, Clear This Subject history",
                     use_container_width=True,
                     type="primary"
                 ):
