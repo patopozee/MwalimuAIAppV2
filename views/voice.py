@@ -1,8 +1,8 @@
 import streamlit as st
-from services.upgrade_modal import show_upgrade_modal
+from services.upgrade_modal import upgrade_modal
 from voice_page import render_voice_tutor_page
 import os
-from services.upgrade_modal import show_upgrade_modal
+from services.upgrade_modal import upgrade_modal
 from services.database import (
     
     get_student_data  #  ADD THIS LINE HERE
@@ -97,4 +97,4 @@ def render():
             st.warning("🎙️ **Voice Tutor Mode is a Premium Feature.**")
             st.info("Upgrade to Premium to unlock interactive audio learning and more!")
             if st.button("🚀 Upgrade to Premium", key="voice_upgrade"):
-                show_upgrade_modal()
+                upgrade_modal()

@@ -1,10 +1,10 @@
 import streamlit as st
-from services.upgrade_modal import show_upgrade_modal
+from services.upgrade_modal import upgrade_modal
 from services.tier_guard import verify_tier_allowance
 from services.ai import ask_mwalimu
 from services.vision_service import MwalimuVisionService
 from services.db_service import MwalimuDBService
-from services.upgrade_modal import show_upgrade_modal
+from services.upgrade_modal import upgrade_modal
 
 from services.database import (
     
@@ -129,7 +129,7 @@ def render():
     if st.session_state.get("trigger_chat_upgrade_modal"):
         # Instantly remove the flag so it only runs EXACTLY once
         st.session_state.pop("trigger_chat_upgrade_modal", None)
-        show_upgrade_modal()
+        upgrade_modal()
 
     # ----------------------------------------------------
     # Chat Input

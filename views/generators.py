@@ -2,11 +2,11 @@ import streamlit as st
 import re
 import json
 import ast
-from services.upgrade_modal import show_upgrade_modal
+from services.upgrade_modal import upgrade_modal
 from services.tier_guard import verify_tier_allowance
 from services.ai import ask_mwalimu, generate_quiz, generate_study_plan, generate_flashcards, generate_lesson
 from services.db_service import MwalimuDBService
-from services.upgrade_modal import show_upgrade_modal
+from services.upgrade_modal import upgrade_modal
 from services.quiz_evaluator import evaluate_quiz_submission
 from services.database import (
     save_activity,
@@ -153,7 +153,7 @@ def render():
         if st.session_state.get("trigger_quiz_upgrade_modal"):
             st.session_state.pop("trigger_quiz_upgrade_modal", None)
             if 'show_upgrade_modal' in globals():
-                show_upgrade_modal()
+                upgrade_modal()
 
         # ----------------------------------------------------
         # Quiz Generation Action Trigger
@@ -423,7 +423,7 @@ def render():
         if st.session_state.get("trigger_fc_upgrade_modal"):
             st.session_state.pop("trigger_fc_upgrade_modal", None)
             if 'show_upgrade_modal' in globals():
-                show_upgrade_modal()
+                upgrade_modal()
 
         # ----------------------------------------------------
         # Flashcards Generation Action Trigger
@@ -556,7 +556,7 @@ def render():
         if st.session_state.get("trigger_lesson_upgrade_modal"):
             st.session_state.pop("trigger_lesson_upgrade_modal", None)
             if 'show_upgrade_modal' in globals():
-                show_upgrade_modal()
+                upgrade_modal()
 
         # ----------------------------------------------------
         # Lessons Generation Action Trigger
@@ -680,7 +680,7 @@ def render():
         # Non-locking conditional rendering bridge to process upgrade triggers smoothly
         if st.session_state.get("trigger_study_upgrade_modal"):
             st.session_state.pop("trigger_study_upgrade_modal", None)
-            show_upgrade_modal()
+            upgrade_modal()
 
         # ----------------------------------------------------
         # 3. Functional Execution Controls

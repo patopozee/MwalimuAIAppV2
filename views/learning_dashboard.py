@@ -1,5 +1,5 @@
 import streamlit as st
-from services.upgrade_modal import show_upgrade_modal
+from services.upgrade_modal import upgrade_modal
 
     
 from services.lms_service import (
@@ -58,7 +58,7 @@ def render():
     # Non-locking conditional rendering bridge to process upgrade modal triggers smoothly
     if st.session_state.get("trigger_lms_upgrade_modal"):
         st.session_state.pop("trigger_lms_upgrade_modal", None)
-        show_upgrade_modal() # Launches your system's global tier pricing sheet modal
+        upgrade_modal() # Launches your system's global tier pricing sheet modal
 
     # --------------------------------------------------------------------
     # 📊 Core Learning Progress Card Panel Component

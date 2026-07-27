@@ -87,7 +87,7 @@ img{
 
 
 @st.dialog("Upgrade your account")
-def show_upgrade_modal():
+def upgrade_modal():
 
     if "selected_plan" not in st.session_state:
         st.session_state.selected_plan = "plus"

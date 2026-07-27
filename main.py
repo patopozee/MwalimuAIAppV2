@@ -45,7 +45,7 @@ from services.tier_guard import verify_tier_allowance
 from services.ai import ask_mwalimu, generate_quiz, generate_study_plan, generate_flashcards, generate_lesson
 from services.vision_service import MwalimuVisionService
 from services.db_service import MwalimuDBService
-from services.upgrade_modal import show_upgrade_modal
+from services.upgrade_modal import upgrade_modal
 from services.legal_text import TERMS_AND_CONDITIONS
 from services.quiz_evaluator import evaluate_quiz_submission
 from components.navigation import navigate
@@ -317,7 +317,7 @@ def render_auth_portal(context="auth"):
                                 if db_profile and isinstance(db_profile, dict):
                                     st.session_state.user_authenticated = True
                                     
-                                    st.session_state.show_upgrade_modal = False
+                                    st.session_state.upgrade_modal = False
                                     st.session_state.student_name = str(db_profile.get("name", "Unknown"))
                                     st.session_state.grade = str(db_profile.get("grade", "Grade 1"))
                                     st.session_state.age = int(db_profile.get("age", 10))
@@ -542,7 +542,7 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
         st.session_state.last_known_tier = live_tier
 
     
-   
+    
     #--- BASE64 SIDEBAR IMAGE INJECTOR
     try:
         with open("assets/logo211.png", "rb") as image_file:
@@ -597,75 +597,60 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
 
     # Look for your existing st.html styles block and add this rule inside it:
     
-    # st.markdown("""
-    #     <style>
-    #     /* 1. Reset standard app padding to make maximum room for the message window layout */
-    #     [data-testid="stMainBlockContainer"] {
-    #         max-width: 1000px !important;
-    #         margin: 0 auto !important;
-    #         padding-bottom: 120px !important; /* Prevents final chat items from falling under the sticky input box */
-    #     }
+    st.markdown("""
+    <style>
+    /* ========================================================
+    1. GLOBAL STYLES (Applies to all screens safely)
+    ======================================================== */
+    [data-testid="stMainBlockContainer"] {
+        max-width: 1000px !important;
+        margin: 0 auto !important;
+        padding-bottom: 120px !important; /* Prevents final chat items from falling under sticky input */
+    }
 
-    #     /* 2. Absolute pin the chat input field relative to the browser viewport floor */
-    #     div[data-testid="stChatInput"] {
-    #         position: fixed !important;
-    #         bottom: 40px !important; /* Anchors the chat container bar right above the absolute footer line */
-    #         left: 57% !important;    /* Shifts layout alignment perfectly center relative to the sidebar offset */
-    #         transform: translateX(-10%) !important;
-    #         width: 100% !important;
-    #         max-width: 760px !important; /* Standard ChatGPT visual card size styling */
-    #         z-index: 99999 !important;
-    #         background-color: transparent !important;
-    #     }
-
-    #     /* 3. Keep input form elements structural layout clear of bleeding border shapes */
-    #     div[data-testid="stChatInput"] > div {
-    #         background-color: #2F3037 !important;
-    #         border-radius: 12px !important;
-    #     }
-    #     </style>
-    #     """, unsafe_allow_html=True)
-
-    # st.markdown(
-    #     """
-    #     <style>
-    #     div[data-testid="stChatInput"] {
-    #         bottom: 63px !important;  /* Increase this value to push it higher */
-    #         max-width: 56rem !important;
-    #         left: 58% !important; 
-    #         transform: translateX(-50%) !important;
-    #     }
-    #     </style>
-    #     """,
-    #     unsafe_allow_html=True)
+    /* Keep input form elements structural layout clear of bleeding border shapes */
+    div[data-testid="stChatInput"] > div {
+        background-color: #2F3037 !important;
+        border-radius: 12px !important;
+    }
 
 
-    # Inject custom CSS for responsive alignment
+    /* ========================================================
+    2. DESKTOP ONLY STYLES (Applies only to screens wider than 768px)
+    ======================================================== */
+    @media (min-width: 768px) {
+        /* Absolute pin the chat input field relative to the browser viewport floor */
+        div[data-testid="stChatInput"] {
+            position: fixed !important;
+            bottom: 40px !important; /* Anchors the chat container bar right above the absolute footer line */
+            left: 57% !important;    /* Shifts layout alignment perfectly center relative to the sidebar offset */
+            transform: translateX(-10%) !important;
+            width: 100% !important;
+            max-width: 760px !important; /* Standard ChatGPT visual card size styling */
+            z-index: 99999 !important;
+            background-color: transparent !important;
+        }
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+
     st.markdown(
         """
         <style>
-        /* Center the main content block */
-        .block-container {
-            max-width: 1200px;
-            padding-top: 2rem;
-            padding-bottom: 2rem;
-            padding-left: 5rem;
-            padding-right: 5rem;
-            margin: 0 auto;
-        }
-        
-        /* Make padding scale down nicely on mobile screens */
-        @media (max-width: 768px) {
-            .block-container {
-                padding-left: 1rem;
-                padding-right: 1rem;
-                padding-top: 1rem;
-            }
+        div[data-testid="stChatInput"] {
+            bottom: 63px !important;  /* Increase this value to push it higher */
+            max-width: 56rem !important;
+            left: 58% !important; 
+            transform: translateX(-50%) !important;
         }
         </style>
         """,
-        unsafe_allow_html=True
-    )
+        unsafe_allow_html=True)
+
+
+    # Inject custom CSS for responsive alignment
+    
 
 
     def render_main_chat():
@@ -1246,7 +1231,7 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
             if str(tier).strip().lower() == "free":
                 st.sidebar.info("🚀 Unlock full power with Premium")
                 if st.sidebar.button("🚀 Upgrade to Premium", use_container_width=True):
-                    show_upgrade_modal()
+                    upgrade_modal()
                 
                 #     #MOVED INSIDE SIDEBAR: Verification button for free users who just paid
                 # if st.sidebar.button("💳 I've Paid, Check Status", use_container_width=True):
@@ -1327,7 +1312,7 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
                     "user_authenticated",
                     "user_profile",
                     "messages",
-                    "show_upgrade_modal",
+                    "upgrade_modal",
                     "last_checked_name",
                     "last_checked_grade",
                     "last_checked_age",
