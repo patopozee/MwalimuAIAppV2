@@ -576,14 +576,16 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
     
     st.markdown("""
     <style>
-    /* 1. GLOBAL BASE STYLES (Applies to your phone view seamlessly) */
+    /* ========================================================
+    1. GLOBAL BASE STYLES (Applies to mobile views seamlessly)
+    ======================================================== */
     [data-testid="stMainBlockContainer"] {
         max-width: 1000px !important;
         margin: 0 auto !important;
-        padding-bottom: 120px !important; 
+        padding-bottom: 140px !important; /* Extra padding so text doesn't hide behind input */
     }
 
-    /* Base chat input shape configuration */
+    /* Style the inner chat box */
     div[data-testid="stChatInput"] {
         background-color: transparent !important;
         z-index: 99999 !important;
@@ -595,19 +597,25 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
     }
 
 
-    /* 2. PC & TABLET ONLY ALIGNMENT (Enforces fixed position only above 768px width) */
+    /* ========================================================
+    2. PC & LARGE SCREEN ONLY ALIGNMENT 
+    ======================================================== */
     @media (min-width: 768px) {
         div[data-testid="stChatInput"] {
             position: fixed !important;
-            bottom: 40px !important; 
-            left: 57% !important;   /* Only offsets relative to an open PC sidebar */
-            transform: translateX(-10%) !important;
+            bottom: 55px !important; /* Floats perfectly right above your footer text */
+            max-width: 760px !important; /* Matches standard ChatGPT width */
             width: 100% !important;
-            max-width: 760px !important; 
+            
+            /* THE CORES FIX: Find the center of the screen, offset for the 
+            336px sidebar, and center the element via translateX(-50%) */
+            left: calc(50% + 168px) !important;   
+            transform: translateX(-50%) !important;
         }
     }
     </style>
     """, unsafe_allow_html=True)
+
 
 
 
