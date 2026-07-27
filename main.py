@@ -611,18 +611,7 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
 
 
 
-    st.markdown(
-        """
-        <style>
-        div[data-testid="stChatInput"] {
-            bottom: 63px !important;  /* Increase this value to push it higher */
-            max-width: 56rem !important;
-            left: 58% !important; 
-            transform: translateX(-50%) !important;
-        }
-        </style>
-        """,
-        unsafe_allow_html=True)
+  
 
 
     # Inject custom CSS for responsive alignment
