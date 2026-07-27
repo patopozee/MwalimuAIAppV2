@@ -45,7 +45,7 @@ from services.tier_guard import verify_tier_allowance
 from services.ai import ask_mwalimu, generate_quiz, generate_study_plan, generate_flashcards, generate_lesson
 from services.vision_service import MwalimuVisionService
 from services.db_service import MwalimuDBService
-from services.upgrade_modal import upgrade_modal
+
 from services.legal_text import TERMS_AND_CONDITIONS
 from services.quiz_evaluator import evaluate_quiz_submission
 from components.navigation import navigate
@@ -58,7 +58,7 @@ from views.leaderboard import render as render_leaderboard_view
 from views.admin import render as render_admin_view
 from views.lesson_workspace import render as render_lesson_workspace_view
 from views.edit_profile import render as render_edit_profile_view
-
+from services.upgrade_modal import upgrade_modal
 # --- DATABASE ENGINE CACHE WRAPPERS (IMPORTS REMAIN THE SAME) ---
 from services.database import (
     create_tables,
@@ -316,7 +316,8 @@ def render_auth_portal(context="auth"):
                                 db_profile = get_student_data(uid)                                 
                                 if db_profile and isinstance(db_profile, dict):
                                     st.session_state.user_authenticated = True
-                                    
+                                    from services.upgrade_modal import upgrade_modal
+                                                                        
                                     st.session_state.upgrade_modal = False
                                     st.session_state.student_name = str(db_profile.get("name", "Unknown"))
                                     st.session_state.grade = str(db_profile.get("grade", "Grade 1"))
@@ -1226,6 +1227,7 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
             else:
                 tier = 'Free'
             st.sidebar.write(f"**Current Plan:** {tier}")
+            from services.upgrade_modal import upgrade_modal
 
             # 1. Show upgrade prompt if user is on the Free tier
             if str(tier).strip().lower() == "free":
@@ -1304,6 +1306,7 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
                 type="primary",
                 key="logout_confirm_btn"
             ):
+                from services.upgrade_modal import upgrade_modal
 
                 # -------------------------------------------------------
                 # Clear active session safely
