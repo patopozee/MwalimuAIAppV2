@@ -570,7 +570,27 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
 
     # GLOBAL UI & CSS LAYOUT SETTINGS
     
-
+    # GLOBAL UI & CSS LAYOUT SETTINGS
+    st.html("""
+        <style>
+        /* 1. Safely pull up the root container block without affecting elements inside it */
+        [data-testid="stMainBlockContainer"] {
+        padding-top: 0.5rem !important;
+        }
+        [data-testid="stMainBlockContainer"] > div:first-child {
+        margin-top: -3.0rem !important; /* Pulls the very top of the page layout up cleanly */
+        }
+        /* 2. REPLACED UNSTABLE H1 SELECTOR: Target only the top title element specifically if needed,
+        or let standard elements flow normally to prevent overlaps */
+        .element-container:has(h1:first-child) {
+        margin-top: 0rem !important; /* Resets sub-page headers back to normal flow spacing */
+        }
+        /* If you explicitly want to pull up ONLY the main app branding logo container at the top */
+        div[data-testid="stElementContainer"]:has(img[alt="Mwalimu AI App"]) {
+        margin-top: -2.0rem !important;
+        }
+        </style>
+        """)
 
     # Look for your existing st.html styles block and add this rule inside it:
     
@@ -625,6 +645,8 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
     }
     </style>
     """, unsafe_allow_html=True)
+
+    
 
 
 
