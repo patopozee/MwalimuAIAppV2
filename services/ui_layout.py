@@ -1,7 +1,7 @@
 # services/ui_layout.py
 import streamlit as st
 from services.db_service import MwalimuDBService
-from services.ui_components import show_upgrade_modal
+from services.upgrade_modal import show_upgrade_modal
 
 def render_workspace_sidebar(uid):
     """

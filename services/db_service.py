@@ -6,7 +6,7 @@ from google.cloud import firestore
 
 class MwalimuDBService:
     # 1. Initialize the connection once and store it as a class attribute
-    _credentials_dict = json.loads(st.secrets["firebase"]["service_account_json"])
+    _credentials_dict = json.loads(st.secrets["Firebase"]["service_account_json"])
     _creds = service_account.Credentials.from_service_account_info(_credentials_dict)
     db = firestore.Client(credentials=_creds, project=_credentials_dict["project_id"])
 

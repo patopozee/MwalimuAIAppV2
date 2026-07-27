@@ -8,7 +8,11 @@ from dotenv import load_dotenv
 import firebase_admin
 from firebase_admin import credentials, firestore
 
-
+from services.session_service import (
+    create_session,
+    validate_session,
+    destroy_session,
+)
 
 # --- STREAMLIT PAGE CONFIGURATION (MUST BE ABSOLUTE FIRST COMMAND IN STREAMLIT) ---
 st.set_page_config(
@@ -17,6 +21,10 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded"
 )
+
+# -----------------------------------
+# AUTO LOGIN FROM COOKIE
+# -----------------------------------
 
 # 1. Initialize Firebase Admin SDK (Only if it hasn't been initialized yet)
 if not firebase_admin._apps:
@@ -62,6 +70,7 @@ from services.database import (
     clear_student_chat_history,
     get_student_data #  ADD THIS LINE HERE
 )
+
 
 
 from config import CBC  # Dynamic CBC repository dictionary
@@ -110,57 +119,8 @@ if "active_view" not in st.session_state:
 # 🎯 SPEED FIX: Initialize a specific localized memory caching slot for Firestore profile row responses
 if "new_message" not in st.session_state:st.session_state.new_message = False
 
-# =====================================================
-# Synchronize browser URL with current page
-# =====================================================
 
-# url_page = st.query_params.get("page")
-
-
-# if url_page and url_page != st.session_state.current_page:
-#     st.session_state.current_page = url_page
-
-
-
-# ====================================================================# 
-# ====================================================================
-# 🍪 NATIVE APPLICATION QUERY PERSISTENCE ENGINE (DEPRECATION PROOF)
-# ====================================================================
-if "user_authenticated" not in st.session_state:
-    st.session_state.user_authenticated = False
-
-# Fetch active browser query strings directly
-url_parameters = st.query_params
-
-# 🧼 IF THE USER MANUALLY LOGGED OUT: Wipe tokens completely
-if "clear_storage" in url_parameters:
-    st.query_params.clear()
-    st.session_state.user_authenticated = False
-    st.rerun()
-
-# 🔄 COOKIE REFRESH CAPTURE: Automatically log the user back in if parameters match
-if not st.session_state.user_authenticated and "session_token_id" in url_parameters:
-    persisted_uid = url_parameters["session_token_id"]
-    
-    from services.database import get_student_data
-    db_profile = get_student_data(str(persisted_uid))
-    
-    if db_profile and isinstance(db_profile, dict):
-        st.session_state.user_authenticated = True
-        st.session_state.uid = str(persisted_uid)
-        st.session_state.user_email = str(db_profile.get("email", ""))
-        st.session_state.student_name = str(db_profile.get("name", "Student"))
-        st.session_state.grade = str(db_profile.get("grade", "Grade 11"))
-        st.session_state.age = int(db_profile.get("age", 17))
-        st.session_state.active_subject = db_profile.get("subject") or db_profile.get("favorite_subject") or "Mathematics"
-        st.session_state.user_profile = db_profile
-        st.session_state.show_upgrade_modal = False
-        
-        if "current_page" not in st.session_state:
-            st.session_state.current_page = "Main Chat"
-        st.rerun()
-
-     
+  
 
 
 # ====================================================================
@@ -169,32 +129,37 @@ if not st.session_state.user_authenticated and "session_token_id" in url_paramet
 if "user_authenticated" not in st.session_state:
     st.session_state.user_authenticated = False
 
-# 🧼 IF THE USER MANUALLY LOGGED OUT: Wipe tokens out of the URL completely
-if "clear_storage" in st.query_params:
-    st.query_params.clear()
-    st.session_state.user_authenticated = False
-    st.rerun()
+# Restore session from secure cookie
 
-# 🔄 GOOGLE & EMAIL REFRESH CAPTURE: Re-authenticate natively across page refreshes
-if not st.session_state.user_authenticated and "session_token_id" in st.query_params:
-    persisted_uid = st.query_params["session_token_id"]
-    
-    # Direct look up from your initialized Cloud Firestore client instance
-    check_profile_doc = db.collection("users").document(persisted_uid).get()
-    
-    if check_profile_doc.exists:
-        final_data = check_profile_doc.to_dict() or {}
-        
-        # Hydrate all your core student tracking variables back into session memory
+session = validate_session()
+
+if (
+    not st.session_state.get("user_authenticated")
+    and session is not None
+):
+
+    uid = session["uid"]
+
+    profile = get_student_data(uid)
+
+    if profile:
+
         st.session_state.user_authenticated = True
-        st.session_state.uid = persisted_uid
-        st.session_state.user_email = final_data.get("email", "")
-        st.session_state.student_name = final_data.get("name", "Student")
-        st.session_state.grade = final_data.get("grade", "Grade 6")
-        st.session_state.age = int(final_data.get("age", 12))
-        st.session_state.user_profile = final_data
+
+        st.session_state.uid = uid
+        st.session_state.user_email = profile.get("email", session["email"])
+
+        st.session_state.student_name = profile.get("name", "Student")
+        st.session_state.grade = profile.get("grade", "Grade 1")
+        st.session_state.age = int(profile.get("age", 10))
+
+        st.session_state.user_profile = profile
+
         st.session_state.current_page = "Main Chat"
-        st.rerun()
+
+    else:
+        destroy_session()
+
 
 
 # ====================================================================
@@ -261,6 +226,7 @@ if "code" in st.query_params and not st.session_state.user_authenticated:
                 
                 # Session State Hydration
                 st.session_state.user_authenticated = True
+                
                 st.session_state.uid = google_uid
                 st.session_state.user_email = final_data.get("email", email_val)
                 st.session_state.student_name = final_data.get("name", name_val)
@@ -270,10 +236,8 @@ if "code" in st.query_params and not st.session_state.user_authenticated:
                 st.session_state.current_page = "Main Chat"
                 
                 st.toast(f"🎉 Welcome, {st.session_state.student_name}!")
-
+                create_session(google_uid, email_val)
                 # 🌟 FIXED PERSISTENCE ANCHOR: Lock token inside URL parameters BEFORE reloading the page
-                st.query_params.clear()
-                st.query_params["session_token_id"] = google_uid
                 st.rerun()
 
     except Exception as e:
@@ -352,15 +316,15 @@ def render_auth_portal(context="auth"):
                                 db_profile = get_student_data(uid)                                 
                                 if db_profile and isinstance(db_profile, dict):
                                     st.session_state.user_authenticated = True
+                                    
                                     st.session_state.show_upgrade_modal = False
                                     st.session_state.student_name = str(db_profile.get("name", "Unknown"))
                                     st.session_state.grade = str(db_profile.get("grade", "Grade 1"))
                                     st.session_state.age = int(db_profile.get("age", 10))
                                     st.session_state.user_profile = db_profile
-                                    st.session_state.current_page = "Main Chat"
                                     
-                                    # 🌟 Lock session UID straight into your active native query parameters
-                                    st.query_params["session_token_id"] = uid
+                                    st.session_state.current_page = "Main Chat"
+                                    create_session(uid, email)
                                     st.rerun()
 
 
@@ -1353,11 +1317,12 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
                 st.session_state.current_page = "Main Chat"
 
                 # 🚀 FIX: Hard wipe the browser URL string parameters instantly!
-                # This deletes 'session_token_id' completely before the page reloads.
-                st.query_params.clear()
+             
+                
+                destroy_session()
+                st.session_state.clear()
 
                 # Tell the top-level persistence engine that this was a deliberate logout
-                st.query_params["clear_storage"] = "true"
 
                 st.rerun()
     # ====================================================================
@@ -1525,33 +1490,7 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
             """,
             unsafe_allow_html=True
         )
-    # ====================================================================
-    # 🔄 GLOBAL URL ROUTE PARAMETER FORWARDER
-    # ====================================================================
-    # ====================================================================
-    # 🔄 GLOBAL URL ROUTE PARAMETER FORWARDER (HISTORY-PROOF FIX)
-    # ====================================================================
-    if st.session_state.get("user_authenticated") and st.session_state.get("uid"):
-        current_uid = str(st.session_state.get("uid"))
-        
-        # Check if the URL parameter is missing right now
-        if st.query_params.get("session_token_id") != current_uid:
-            # Update Streamlit's backend tracking silently
-            st.query_params["session_token_id"] = current_uid
-            
-            # 🚀 THE MAGIC TRICK: Inject JS to update the browser URL bar instantly
-            # 'replaceState' overwrites the current URL without creating a duplicate history step!
-            st.html(f"""
-                <script>
-                    (function() {{
-                        const parentUrl = new URL(window.parent.location.href);
-                        if (parentUrl.searchParams.get('session_token_id') !== '{current_uid}') {{
-                            parentUrl.searchParams.set('session_token_id', '{current_uid}');
-                            window.parent.history.replaceState(null, '', parentUrl.toString());
-                        }}
-                    }})();
-                </script>
-            """)
+    
 
     # ====================================================================
     # RUN THE NAVIGATIONAL ROUTER

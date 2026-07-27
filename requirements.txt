@@ -18,3 +18,4 @@ pypdf
 reportlab
 streamlit-cookies-controller
 extra-streamlit-components
+streamlit-cookies-manager
