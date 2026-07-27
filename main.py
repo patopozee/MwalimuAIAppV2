@@ -574,21 +574,30 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
 
     # Look for your existing st.html styles block and add this rule inside it:
     
+
     st.markdown("""
     <style>
     /* ========================================================
-    1. GLOBAL BASE STYLES (Applies to mobile views seamlessly)
+    1. GLOBAL & MOBILE STYLES (Fixed alignment for your phone)
     ======================================================== */
     [data-testid="stMainBlockContainer"] {
         max-width: 1000px !important;
         margin: 0 auto !important;
-        padding-bottom: 140px !important; /* Extra padding so text doesn't hide behind input */
+        padding-bottom: 160px !important; /* Higher padding keeps your chats from hiding */
     }
 
     /* Style the inner chat box */
     div[data-testid="stChatInput"] {
         background-color: transparent !important;
         z-index: 99999 !important;
+        
+        /* FIX FOR PHONE: Float it above the phone's native floor */
+        position: fixed !important;
+        bottom: 50px !important; /* Pushes it UP on mobile to clear the footer */
+        left: 0 !important;
+        right: 0 !important;
+        padding-left: 1rem !important;
+        padding-right: 1rem !important;
     }
 
     div[data-testid="stChatInput"] > div {
@@ -603,19 +612,19 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
     @media (min-width: 768px) {
         div[data-testid="stChatInput"] {
             position: fixed !important;
-            bottom: 70px !important; /* Floats perfectly right above your footer text */
-            max-width: 900px !important; /* Matches standard ChatGPT width */
+            bottom: 70px !important; /* Height clearance for PC footer */
+            max-width: 900px !important; 
             width: 100% !important;
             
-            /* THE CORES FIX: Find the center of the screen, offset for the 
-            336px sidebar, and center the element via translateX(-50%) */
+            /* Centers it exactly inside the desktop viewport grid */
             left: calc(48.5% + 168px) !important;   
             transform: translateX(-50%) !important;
+            padding-left: 0px !important;
+            padding-right: 0px !important;
         }
     }
     </style>
     """, unsafe_allow_html=True)
-
 
 
 
