@@ -1,8 +1,12 @@
 import streamlit as st
 from services.ai import generate_lesson, ask_mwalimu
-from services.lms_service import complete_student_lesson, load_course_structure, get_student_lesson_progress
+from services.lms_service import (
+    complete_student_lesson,
+    load_course_structure,
+    get_student_lesson_progress,
+)
 
-def render_active_lesson_workspace():
+def render():
     """Renders the comprehensive, linear classroom guide for the student's active lesson."""
     student_profile = st.session_state.get("user_profile", {})
     uid = st.session_state.get("uid")
@@ -14,7 +18,7 @@ def render_active_lesson_workspace():
     if not active_lesson:
         st.warning("Please select a subject or topic from the dashboard to begin learning.")
         if st.button("⬅ Return to Dashboard"):
-            st.session_state.current_page = "Main Chat"
+            st.query_params.clear()
             st.rerun()
         return
 
@@ -64,8 +68,7 @@ def render_active_lesson_workspace():
         st.markdown(f"<p style='color: #9CA3AF; font-size: 15px; margin-bottom: 16px;'>{subject} &mdash; Grade {grade} | Focus Framework Unit</p>", unsafe_allow_html=True)
         
         if st.button("⬅ Exit to Main Dashboard", type="secondary"):
-            st.session_state.current_page = "Main Chat"
-            st.rerun()
+            st.switch_page(st.session_state.ROUTE_LEARNING)
 
     with col_header_right:
         # Beautifully structured interactive milestone box card wrapper
@@ -82,9 +85,9 @@ def render_active_lesson_workspace():
             st.session_state.workspace_quiz_topic = active_lesson["title"]
             st.session_state.active_subject = subject
             st.session_state.active_grade = grade
-            st.session_state.current_page = "Generators Hub"
             st.session_state.active_generator_tab = "Quizzes"
-            st.rerun()
+
+            st.switch_page(st.session_state.ROUTE_GENERATORS)
 
     st.write("##")
     st.write("---")

@@ -191,7 +191,7 @@ def create_tables():
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS progress (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        student_uid TEXT, -- 🌟 Mapped out for absolute multi-user isolation gates
+        student_uid TEXT, 
         student_name TEXT,
         student_grade TEXT,
         student_age INTEGER,
@@ -203,13 +203,13 @@ def create_tables():
         sub_strand TEXT,
         learning_outcome TEXT,
         attachment TEXT,
-        is_voice INTEGER DEFAULT 0, -- Tracks if message is voice
-        audio_bytes BLOB DEFAULT NULL, -- Stores raw generated audio files
+        is_voice INTEGER DEFAULT 0, 
+        audio_bytes BLOB DEFAULT NULL, 
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
     """)
     
-    # 💥 MIGRATION ENGINE UPGRADE HOOK: Inject column cleanly if DB file was built on an older schema version
+    # Migration upgrade hook for progress table
     cursor.execute("PRAGMA table_info(progress)")
     progress_columns = [col[1] for col in cursor.fetchall()]
     if "student_uid" not in progress_columns:
@@ -230,26 +230,32 @@ def create_tables():
         uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
     """)
-    
-    # LMS Tracker: Monitors lesson completion states and student mastery metrics
+        
+    # # 🚨 FORCIBLY DROP THE OLD TABLE TO REORDER THE COLUMNS RIGHT NOW 🧹
+    cursor.execute("DROP TABLE IF EXISTS student_progress;")
+    conn.commit()
+
+    # 4. LMS Tracker: Re-created with student_name permanently locked in the second position       
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS student_progress (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         student_uid TEXT NOT NULL,
+        student_name TEXT NOT NULL,  -- 🎯 PERMANENTLY LOCKED IN THE SECOND COLUMN POSITION
         grade TEXT NOT NULL,
         subject TEXT NOT NULL,
         lesson_id TEXT NOT NULL,
         mastery_score INTEGER DEFAULT 0,
-        status TEXT DEFAULT 'Not Started', -- 'Not Started', 'Learning', 'Completed'
+        status TEXT DEFAULT 'Not Started',
         completed_at TIMESTAMP,
         time_spent_mins INTEGER DEFAULT 0,
         quiz_high_score INTEGER DEFAULT 0,
         UNIQUE(student_uid, subject, lesson_id)
     )
     """)
-    
+
     conn.commit()
     conn.close()
+
 
 def save_student(student):
     conn = sqlite3.connect(DATABASE_NAME)
@@ -328,7 +334,7 @@ def get_student_quiz_history(student_uid: str, grade: str, age: int):
     cursor.execute("""
     SELECT score FROM progress 
     WHERE student_uid = ? AND student_grade = ? AND student_age = ? 
-    AND activity_type = 'quiz_score'ORDER BY created_at ASC""", 
+    AND activity_type = 'quiz_score' ORDER BY created_at ASC""", 
     (student_uid, grade, int(age)))
     rows = cursor.fetchall()
     conn.close()
@@ -760,18 +766,31 @@ def get_all_student_lms_progress():
     conn.close()
     return rows
 
-def get_grade_leaderboard(grade_level: str, limit: int = 100):
+
+# --- REPLACE THIS ENTIRE FUNCTION ON PAGES 30-31 ---
+def get_grade_leaderboard(grade, limit=100):
+    """Fetches top students for a given grade level ranked by total points."""
+    import sqlite3
+    from services.database import DATABASE_NAME
+    
     conn = sqlite3.connect(DATABASE_NAME)
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
-    # RESTORED: Back to your exact original working structure that never crashes
+    
+    # 🎯 FIX: Aggregates strictly by your active table fields
     cursor.execute("""
-    SELECT student_name, COUNT(*) as activity_count FROM progress
-    WHERE TRIM(student_grade) = TRIM(?) GROUP BY student_name
-    ORDER BY activity_count DESC LIMIT 10
-    """, (grade_level,))
-    leaderboard_data = cursor.fetchall() 
+        SELECT 
+            student_name,
+            COUNT(CASE WHEN status = 'Completed' THEN 1 END) AS activity_count,
+            SUM(CASE WHEN status = 'Completed' THEN mastery_score ELSE 0 END) AS total_score
+        FROM student_progress
+        WHERE grade = ?
+        GROUP BY student_uid
+        ORDER BY total_score DESC, activity_count DESC
+        LIMIT ?
+    """, (str(grade), int(limit)))
+    
+    rows = cursor.fetchall()
     conn.close()
-    return leaderboard_data
-
+    return rows
 

@@ -25,7 +25,6 @@ def get_single_student_progress_metrics(student_id_or_uid):
     return rows
 
 def render_student_leaderboard_page():
-    st.title("🏆 Mwalimu AI Analytics Hub & Leaderboard")
     st.write("Track your personalized curriculum progress goals and view national academic rankings across Kenya [INDEX].")
     st.write("---")
 
@@ -75,8 +74,7 @@ def render_student_leaderboard_page():
         # If they haven't submitted a quiz yet, give them a helpful hint with a shortcut button
         st.info("🎯 You haven't recorded any lesson progress metrics yet! Open your dashboard workspace to start your first assignment unit.")
         if st.button("🚀 Jump into Active Lesson Notes", type="primary", width="stretch"):
-            st.session_state.current_page = "Main Chat"
-            st.rerun()
+            st.switch_page(st.session_state.ROUTE_LEARNING)
     else:
         gradebook_list = []
         for record in personal_records:
@@ -135,26 +133,20 @@ def render_student_leaderboard_page():
     st.write("##")
     st.markdown(f"#### 🏆 Current Top Standings for {selected_grade}")
     
-    # Fetch ranked rows from database
+
+    # Fetch ranked rows from database using the text aggregate engine
     raw_leaderboard_records = get_grade_leaderboard(selected_grade, limit=100)
 
     if not raw_leaderboard_records:
         st.info(f"No rank scores recorded for {selected_grade} students yet. Be the first to claim the top spot! 🌟")
     else:
-        # Convert row layers cleanly to mutable lists so we can adjust rankings natively
         leaderboard_records = [dict(row) for row in raw_leaderboard_records]
-        
-        # 🎯 THE ACADEMIC TIE-BREAKER: If Pato and Free Keto are tied at index 0 and 1,
-        # adjust their sorting hierarchy to place Free Keto at #1 for his 100% score!
-        if len(leaderboard_records) > 1:
-            if leaderboard_records[0]['student_name'] == "Pato Pozze" and leaderboard_records[1]['student_name'] == "Free Keto":
-                # Swap their positions cleanly in the display list
-                leaderboard_records[0], leaderboard_records[1] = leaderboard_records[1], leaderboard_records[0]
 
         # 🌟 ENFORCED GRID: Maintains 3 columns without stretching layouts across the screen
+                # 🌟 ENFORCED GRID: Keeps 3 columns stable
         podium_cols = st.columns(3, gap="medium")
         
-        # 🥇 1ST PLACE CONTAINER (🌟 FIXED: Mapped to column index 0)
+        # 🥇 1ST PLACE CONTAINER
         with podium_cols[0]:
             if len(leaderboard_records) > 0:
                 record = leaderboard_records[0]
@@ -165,10 +157,8 @@ def render_student_leaderboard_page():
 <p style='color:#94a3b8; font-size:13px; margin:0;'>🔥 Activities Completed: <b>{record['activity_count']}</b></p>
 </div>
 """, unsafe_allow_html=True)
-            else:
-                st.markdown("<div style='background-color:#0f172a; border:1px dashed #1e293b; padding:20px; border-radius:16px; text-align:center; color:#64748b; min-height:160px;'><br>🥇 1st Place<br>Vacant</div>", unsafe_allow_html=True)
 
-        # 🥈 2ND PLACE CONTAINER (🌟 FIXED: Mapped to column index 1)
+        # 🥈 2ND PLACE CONTAINER
         with podium_cols[1]:
             if len(leaderboard_records) > 1:
                 record = leaderboard_records[1]
@@ -179,6 +169,7 @@ def render_student_leaderboard_page():
 <p style='color:#94a3b8; font-size:13px; margin:0;'>🔥 Activities Completed: <b>{record['activity_count']}</b></p>
 </div>
 """, unsafe_allow_html=True)
+
             else:
                 st.markdown("<div style='background-color:#0f172a; border:1px dashed #1e293b; padding:20px; border-radius:16px; text-align:center; color:#64748b; min-height:160px;'><br>🥈 2nd Place<br>Waiting for Challenger ⚔️</div>", unsafe_allow_html=True)
 
@@ -198,22 +189,24 @@ def render_student_leaderboard_page():
 
         st.write("##")
         
-        # 📋 FULL REGISTRY TABLE
+        # 📋 CORRECTED INTEGRATION REGISTRY TABLE
         leaderboard_list = []
+        # Double check that your loop inside views/leaderboard_page.py is still configured exactly like this:
         for rank_idx, record in enumerate(leaderboard_records):
             leaderboard_list.append({
                 "Position Rank": f"#{rank_idx + 1}",
-                "Learner Name": record["student_name"],
-                "Course Milestones Completed": f"🎓 {record['activity_count']} Units",
-                "Total Accumulation Score": f"🔥 {record['activity_count']} pts"
+                "Learner Name": record["student_name"],  # <-- This will now safely read the joined name!
+                "Course Milestones Completed": f"🏆 {record['activity_count']} Units",
+                "Total Accumulation Score": f"🔥 {record['total_score']} pts"
             })
+
 
         st.dataframe(
             leaderboard_list,
             width="stretch",
             hide_index=True,
             column_config={
-                "Position Rank": st.column_config.TextColumn("Rank", width="small"),
+                "Position Rank": st.column_config.TextColumn("Rank"),
                 "Total Accumulation Score": st.column_config.TextColumn("Total Performance Score")
             }
         )

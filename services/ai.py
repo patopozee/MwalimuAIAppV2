@@ -32,6 +32,11 @@ def ask_mwalimu(question, student, messages, adaptive_context="", attachment=Non
     """Dispatches prompts to a specific high-quality free model on OpenRouter."""
     """Handles real-time conversational Q&A locked to the local curriculum guide framework."""
     preferred_language = student.get("preferred_language", student.get("language", "English"))
+        # 🚀 ADD THESE LINES HERE:
+    student_name = student.get("student_name") or student.get("name", "Student")
+    student_grade = student.get("grade", "Grade 6")
+    student_age = student.get("age", "12")
+
     subject = student.get('subject', 'Mathematics')
     topic = student.get('topic', 'Whole Numbers')
     sub_topic = student.get('sub_topic', 'Place Value')
@@ -73,6 +78,9 @@ def ask_mwalimu(question, student, messages, adaptive_context="", attachment=Non
 {SYSTEM_GUARD}
 
 === STUDENT PROFILE & LOCAL CONTEXT ===
+- **Student Name**: {student_name}
+- **Current Grade**: {student_grade}
+- **Age**: {student_age} years old
 - **Subject**: {subject}
 - **Topic**: {topic} (Sub-topic: {sub_topic})
 - **Preferred Language**: {preferred_language}
@@ -83,6 +91,9 @@ def ask_mwalimu(question, student, messages, adaptive_context="", attachment=Non
 
 === LANGUAGE & TEACHING INSTRUCTIONS ===
 {language_rules.get(preferred_language, language_rules["English"])}
+- Break down difficult educational topics into simple, snackable student steps.
+- 🚀 CONVERSATIONAL RULE: Talk naturally like a real human teacher. Greet the student by their name ({student_name}) casually if it's the start of the chat. Never append their grade or age in parentheses or force it into your greetings unless they specifically ask you about it.
+- If the user uploaded an image attachment snippet...
 - Break down difficult educational topics into simple, snackable student steps.
 - If the user uploaded an image attachment snippet, deeply scan it for math problems, handwritten errors, diagrams, or reading exercises. Address its visual elements directly.
 - NEVER output headers like 'Daily Study Goals', 'Study Schedule', or 'Time Intervals'. 
@@ -157,7 +168,7 @@ def generate_quiz(topic, student, difficulty="Medium"):
     prompt = f"""
 {SYSTEM_GUARD}
 = You are Mwalimu AI, an elite CBC Curriculum framework subject expert.
-Generate a 10-question multiple-choice quiz payload.
+Generate a 5-question multiple-choice quiz payload.
 
 TARGET CONTEXT SCHEMA:
 - Subject Domain: {subject}
@@ -211,7 +222,7 @@ Target Difficulty Level: {difficulty}
 Difficulty Context Rules: {difficulty_rules.get(difficulty, "")}
 Preferred Learning Style: {student.get('learning_style', 'General')}
 
-Return your response strictly as a valid JSON array containing EXACTLY 10 objects structured exactly like this layout format:
+Return your response strictly as a valid JSON array containing EXACTLY 5 objects structured exactly like this layout format:
 [
 {{
 "question": "First Question text here",
@@ -224,7 +235,7 @@ Return your response strictly as a valid JSON array containing EXACTLY 10 object
     "options": ["Option A", "Option B", "Option C", "Option D"],
     "answer": "The exact correct option string matching one of the options"
   }},
-  ... up to 10 elements total
+  ... up to 5 elements total
 ]
 CRITICAL OPTION CONSTRAINT RULES:
 1. **No Math Formulations**: Every element in the "options" array MUST be a fully calculated, single final value (e.g., use "48,878 shillings", NEVER "45,678 + 3,200 shillings").

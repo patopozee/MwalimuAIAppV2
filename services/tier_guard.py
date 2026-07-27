@@ -20,7 +20,7 @@ TIER_LIMITS = {
         "flashcards": 30,
         "lessons": 5,
         "has_study_plan": 5,
-        "has_voice": 10,
+        "has_upload": 10,
         "has_voice": False
     },
     "Premium": {

@@ -17,3 +17,4 @@ google-genai
 pypdf
 reportlab
 streamlit-cookies-controller
+extra-streamlit-components

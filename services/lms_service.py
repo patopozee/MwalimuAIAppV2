@@ -83,59 +83,84 @@ def load_course_structure(grade, subject):
     }
 
 def get_student_lesson_progress(student_uid: str, grade: str, subject: str, lesson_id: str):
-    """Pulls execution tracking metrics using standard subject and lesson_id variables."""
+    """Fetches the active milestone tracking state for an individual lesson module."""
+    import sqlite3
+    from services.database import DATABASE_NAME
+    
     conn = sqlite3.connect(DATABASE_NAME)
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
     
+    # 🎯 FIX: Matches your clean column variables perfectly
     cursor.execute("""
-        SELECT * FROM student_progress 
+        SELECT status, mastery_score, quiz_high_score 
+        FROM student_progress 
         WHERE student_uid = ? AND grade = ? AND subject = ? AND lesson_id = ?
     """, (str(student_uid), str(grade), str(subject), str(lesson_id)))
     
     row = cursor.fetchone()
     conn.close()
-    return dict(row) if row else {"status": "Not Started", "mastery_score": 0, "quiz_high_score": 0}
+    
+    if row:
+        return dict(row)
+    
+    # Fallback state if the unit has never been accessed by the learner
+    return {"status": "Not Started", "mastery_score": 0, "quiz_high_score": 0}
 
-def start_or_update_lesson(student_uid: str, grade: str, subject: str, lesson_id: str, status="Learning"):
+def start_or_update_lesson(student_uid: str, student_name: str, grade: str, subject: str, lesson_id: str, status="Learning"):
     """Initializes or updates a lesson state machine transaction record securely."""
     conn = sqlite3.connect(DATABASE_NAME)
     cursor = conn.cursor()
     
+    # 🎯 FIXED: Added missing comma, added 6th value binding slot, and included student_name
     cursor.execute("""
-        INSERT INTO student_progress (student_uid, grade, subject, lesson_id, status)
-        VALUES (?, ?, ?, ?, ?)
+        INSERT INTO student_progress (student_uid, student_name, grade, subject, lesson_id, status)
+        VALUES (?, ?, ?, ?, ?, ?)
         ON CONFLICT(student_uid, subject, lesson_id) 
-        DO UPDATE SET status = EXCLUDED.status
+        DO UPDATE SET 
+            student_name = EXCLUDED.student_name,
+            status = EXCLUDED.status
         WHERE status != 'Completed'
-    """, (str(student_uid), str(grade), str(subject), str(lesson_id), str(status)))
+    """, (str(student_uid), str(student_name), str(grade), str(subject), str(lesson_id), str(status)))
     
     conn.commit()
     conn.close()
 
-def complete_student_lesson(student_uid: str, grade: str, subject: str, lesson_id: str, mastery: int, quiz_score: int):
+def complete_student_lesson(student_uid: str, student_name: str, grade: str, subject: str, lesson_id: str, mastery: int, quiz_score: int):
     """Marks a targeted learning objective node as complete using standard keys."""
     conn = sqlite3.connect(DATABASE_NAME)
     cursor = conn.cursor()
     
     now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     
+    # 🎯 FIXED: Aligned columns sequence to match the passed tuple array exactly
     cursor.execute("""
-        INSERT INTO student_progress (student_uid, grade, subject, lesson_id, mastery_score, status, quiz_high_score, completed_at)
-        VALUES (?, ?, ?, ?, ?, 'Completed', ?, ?)
+        INSERT INTO student_progress (
+            student_uid, student_name, grade, subject, lesson_id, 
+            mastery_score, status, quiz_high_score, completed_at
+        )
+        VALUES (?, ?, ?, ?, ?, ?, 'Completed', ?, ?)
         ON CONFLICT(student_uid, subject, lesson_id) 
         DO UPDATE SET 
-            mastery_score = MAX(mastery_score, EXCLUDED.mastery_score),
-            quiz_high_score = MAX(quiz_high_score, EXCLUDED.quiz_high_score),
+            student_name = EXCLUDED.student_name,
+            mastery_score = CASE WHEN EXCLUDED.mastery_score > student_progress.mastery_score THEN EXCLUDED.mastery_score ELSE student_progress.mastery_score END,
+            quiz_high_score = CASE WHEN EXCLUDED.quiz_high_score > student_progress.quiz_high_score THEN EXCLUDED.quiz_high_score ELSE student_progress.quiz_high_score END,
             status = 'Completed',
-            completed_at = COALESCE(completed_at, EXCLUDED.completed_at)
-    """, (str(student_uid), str(grade), str(subject), str(lesson_id), int(mastery), int(quiz_score), now_str))
+            completed_at = COALESCE(student_progress.completed_at, EXCLUDED.completed_at)
+    """, (
+        str(student_uid), str(student_name), str(grade), str(subject), 
+        str(lesson_id), int(mastery), int(quiz_score), now_str
+    ))
     
     conn.commit()
     conn.close()
 
+# --- UPDATE THIS LOGIC AT THE BOTTOM OF PAGE 6 & TOP OF PAGE 7 ---
 def get_current_active_lesson(student_uid: str, grade: str, subject: str):
-    """Identifies exactly which lesson element nodes the student is currently on."""
+    """
+    Identifies exactly which lesson element nodes the student is currently on.
+    Safely returns None when the entire curriculum track is finished.
+    """
     course = load_course_structure(grade, subject)
     lessons = course.get("lessons", [])
     
@@ -144,12 +169,15 @@ def get_current_active_lesson(student_uid: str, grade: str, subject: str):
         
     for lesson in lessons:
         state = get_student_lesson_progress(student_uid, grade, subject, lesson["lesson_id"])
+        # If an uncompleted lesson is encountered, immediately target it as active
         if state["status"] != "Completed":
             return lesson
             
-    return lessons[-1] if lessons else None
+    # 🎯 FIXED: When all units are mastered, return None to trigger the certificate UI path
+    return None 
 
-def unlock_next_lesson(student_uid: str, grade: str, subject: str, current_lesson_id: str):
+
+def unlock_next_lesson(student_uid: str, student_name: str, grade: str, subject: str, current_lesson_id: str):
     """Calculates the subsequent lesson node configuration using standard curriculum keys."""
     course_structure = load_course_structure(grade, subject)
     lessons_list = course_structure.get("lessons", [])
@@ -162,8 +190,11 @@ def unlock_next_lesson(student_uid: str, grade: str, subject: str, current_lesso
             
     if current_index != -1 and (current_index + 1) < len(lessons_list):
         next_lesson = lessons_list[current_index + 1]
+        
+        # 🎯 FIXED: Now safely passes the required student_name argument
         start_or_update_lesson(
             student_uid=student_uid,
+            student_name=student_name,  # Forward the name token here!
             grade=grade,
             subject=subject,
             lesson_id=next_lesson["lesson_id"],
@@ -171,6 +202,7 @@ def unlock_next_lesson(student_uid: str, grade: str, subject: str, current_lesso
         )
         return next_lesson
     return None
+
 
 def generate_completion_certificate(student_name: str, grade: str, subject: str):
     """Generates an elegant, printable PDF Course Completion Certificate using ReportLab."""
@@ -230,3 +262,103 @@ def generate_completion_certificate(student_name: str, grade: str, subject: str)
     pdf_bytes = pdf_buffer.getvalue()
     pdf_buffer.close()
     return pdf_bytes
+
+
+def get_lms_statistics(student_uid, grade, subject):
+
+    # Number of lessons in the curriculum
+    course = load_course_structure(grade, subject)
+    total_lessons = len(course["lessons"])
+
+    conn = sqlite3.connect(DATABASE_NAME)
+    cursor = conn.cursor()
+
+    cursor.execute("""
+        SELECT
+            COUNT(CASE WHEN status='Completed' THEN 1 END),
+            AVG(quiz_high_score),
+            MAX(mastery_score)
+        FROM student_progress
+        WHERE student_uid = ?
+          AND grade = ?
+          AND subject = ?
+    """, (student_uid, grade, subject))
+
+    row = cursor.fetchone()
+
+    conn.close()
+
+    if row is None:
+        row = (0, 0, 0)
+
+    completed_lessons, average_score, mastery = row
+
+    completed_lessons = completed_lessons or 0
+    average_score = round(average_score or 0)
+    mastery = mastery or 0
+
+    completion = (
+        round((completed_lessons / total_lessons) * 100)
+        if total_lessons > 0 else 0
+    )
+
+    return {
+        "total_lessons": total_lessons,
+        "completed_lessons": completed_lessons,
+        "completion": completion,
+        "average_score": average_score,
+        "mastery": mastery,
+    }
+
+def get_lms_learning_analysis(student_uid: str, subject: str):
+    conn = sqlite3.connect(DATABASE_NAME)
+    cursor = conn.cursor()
+
+    cursor.execute("""
+        SELECT
+            lesson_id,
+            mastery_score,
+            status
+        FROM student_progress
+        WHERE student_uid = ?
+        AND subject = ?
+    """, (student_uid, subject))
+
+    rows = cursor.fetchall()
+    conn.close()
+
+    weak_topics = []
+    strong_topics = []
+
+    for lesson_id, mastery, status in rows:
+
+        lesson_name = lesson_id.replace("_", " ").title()
+
+        if status == "Completed":
+            strong_topics.append(lesson_name)
+
+        elif mastery < 70:
+            weak_topics.append(lesson_name)
+
+    return {
+        "weak_topics": weak_topics,
+        "strong_topics": strong_topics,
+    }
+
+def get_lms_quiz_history(student_uid: str, subject: str):
+    conn = sqlite3.connect(DATABASE_NAME)
+    cursor = conn.cursor()
+
+    cursor.execute("""
+        SELECT quiz_high_score
+        FROM student_progress
+        WHERE student_uid = ?
+        AND subject = ?
+        AND status = 'Completed'
+        ORDER BY completed_at ASC
+    """, (student_uid, subject))
+
+    rows = cursor.fetchall()
+    conn.close()
+
+    return [row[0] for row in rows if row[0] is not None]
