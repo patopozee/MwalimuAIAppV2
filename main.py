@@ -45,7 +45,6 @@ from services.tier_guard import verify_tier_allowance
 from services.ai import ask_mwalimu, generate_quiz, generate_study_plan, generate_flashcards, generate_lesson
 from services.vision_service import MwalimuVisionService
 from services.db_service import MwalimuDBService
-
 from services.legal_text import TERMS_AND_CONDITIONS
 from services.quiz_evaluator import evaluate_quiz_submission
 from components.navigation import navigate
@@ -600,40 +599,39 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
     
     st.markdown("""
     <style>
-    /* ========================================================
-    1. GLOBAL STYLES (Applies to all screens safely)
-    ======================================================== */
+    /* 1. GLOBAL BASE STYLES (Applies to your phone view seamlessly) */
     [data-testid="stMainBlockContainer"] {
         max-width: 1000px !important;
         margin: 0 auto !important;
-        padding-bottom: 120px !important; /* Prevents final chat items from falling under sticky input */
+        padding-bottom: 120px !important; 
     }
 
-    /* Keep input form elements structural layout clear of bleeding border shapes */
+    /* Base chat input shape configuration */
+    div[data-testid="stChatInput"] {
+        background-color: transparent !important;
+        z-index: 99999 !important;
+    }
+
     div[data-testid="stChatInput"] > div {
         background-color: #2F3037 !important;
         border-radius: 12px !important;
     }
 
 
-    /* ========================================================
-    2. DESKTOP ONLY STYLES (Applies only to screens wider than 768px)
-    ======================================================== */
+    /* 2. PC & TABLET ONLY ALIGNMENT (Enforces fixed position only above 768px width) */
     @media (min-width: 768px) {
-        /* Absolute pin the chat input field relative to the browser viewport floor */
         div[data-testid="stChatInput"] {
             position: fixed !important;
-            bottom: 40px !important; /* Anchors the chat container bar right above the absolute footer line */
-            left: 57% !important;    /* Shifts layout alignment perfectly center relative to the sidebar offset */
+            bottom: 40px !important; 
+            left: 57% !important;   /* Only offsets relative to an open PC sidebar */
             transform: translateX(-10%) !important;
             width: 100% !important;
-            max-width: 760px !important; /* Standard ChatGPT visual card size styling */
-            z-index: 99999 !important;
-            background-color: transparent !important;
+            max-width: 760px !important; 
         }
     }
     </style>
     """, unsafe_allow_html=True)
+
 
 
     st.markdown(
