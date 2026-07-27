@@ -603,7 +603,7 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
     @media (min-width: 768px) {
         div[data-testid="stChatInput"] {
             position: fixed !important;
-            bottom: 60px !important; /* Floats perfectly right above your footer text */
+            bottom: 70px !important; /* Floats perfectly right above your footer text */
             max-width: 900px !important; /* Matches standard ChatGPT width */
             width: 100% !important;
             
