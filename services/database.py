@@ -232,8 +232,8 @@ def create_tables():
     """)
         
     # # 🚨 FORCIBLY DROP THE OLD TABLE TO REORDER THE COLUMNS RIGHT NOW 🧹
-    cursor.execute("DROP TABLE IF EXISTS student_progress;")
-    conn.commit()
+    # cursor.execute("DROP TABLE IF EXISTS student_progress;")
+    # conn.commit()
 
     # 4. LMS Tracker: Re-created with student_name permanently locked in the second position       
     cursor.execute("""
