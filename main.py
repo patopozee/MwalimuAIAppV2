@@ -593,7 +593,7 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
         
         /* FIX FOR PHONE: Float it above the phone's native floor */
         position: fixed !important;
-        bottom: 50px !important; /* Pushes it UP on mobile to clear the footer */
+        bottom: 70px !important; /* Pushes it UP on mobile to clear the footer */
         left: 0 !important;
         right: 0 !important;
         padding-left: 1rem !important;
