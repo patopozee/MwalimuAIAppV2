@@ -638,7 +638,36 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
         </style>
         """,
         unsafe_allow_html=True)
+
+
+    # Inject custom CSS for responsive alignment
+    st.markdown(
+        """
+        <style>
+        /* Center the main content block */
+        .block-container {
+            max-width: 1200px;
+            padding-top: 2rem;
+            padding-bottom: 2rem;
+            padding-left: 5rem;
+            padding-right: 5rem;
+            margin: 0 auto;
+        }
         
+        /* Make padding scale down nicely on mobile screens */
+        @media (max-width: 768px) {
+            .block-container {
+                padding-left: 1rem;
+                padding-right: 1rem;
+                padding-top: 1rem;
+            }
+        }
+        </style>
+        """,
+        unsafe_allow_html=True
+    )
+
+
     def render_main_chat():
         render_main_chat_view()
     chat_page = st.Page(
