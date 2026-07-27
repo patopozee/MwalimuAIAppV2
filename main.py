@@ -597,47 +597,47 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
 
     # Look for your existing st.html styles block and add this rule inside it:
     
-    st.markdown("""
-        <style>
-        /* 1. Reset standard app padding to make maximum room for the message window layout */
-        [data-testid="stMainBlockContainer"] {
-            max-width: 1000px !important;
-            margin: 0 auto !important;
-            padding-bottom: 120px !important; /* Prevents final chat items from falling under the sticky input box */
-        }
+    # st.markdown("""
+    #     <style>
+    #     /* 1. Reset standard app padding to make maximum room for the message window layout */
+    #     [data-testid="stMainBlockContainer"] {
+    #         max-width: 1000px !important;
+    #         margin: 0 auto !important;
+    #         padding-bottom: 120px !important; /* Prevents final chat items from falling under the sticky input box */
+    #     }
 
-        /* 2. Absolute pin the chat input field relative to the browser viewport floor */
-        div[data-testid="stChatInput"] {
-            position: fixed !important;
-            bottom: 40px !important; /* Anchors the chat container bar right above the absolute footer line */
-            left: 57% !important;    /* Shifts layout alignment perfectly center relative to the sidebar offset */
-            transform: translateX(-10%) !important;
-            width: 100% !important;
-            max-width: 760px !important; /* Standard ChatGPT visual card size styling */
-            z-index: 99999 !important;
-            background-color: transparent !important;
-        }
+    #     /* 2. Absolute pin the chat input field relative to the browser viewport floor */
+    #     div[data-testid="stChatInput"] {
+    #         position: fixed !important;
+    #         bottom: 40px !important; /* Anchors the chat container bar right above the absolute footer line */
+    #         left: 57% !important;    /* Shifts layout alignment perfectly center relative to the sidebar offset */
+    #         transform: translateX(-10%) !important;
+    #         width: 100% !important;
+    #         max-width: 760px !important; /* Standard ChatGPT visual card size styling */
+    #         z-index: 99999 !important;
+    #         background-color: transparent !important;
+    #     }
 
-        /* 3. Keep input form elements structural layout clear of bleeding border shapes */
-        div[data-testid="stChatInput"] > div {
-            background-color: #2F3037 !important;
-            border-radius: 12px !important;
-        }
-        </style>
-        """, unsafe_allow_html=True)
+    #     /* 3. Keep input form elements structural layout clear of bleeding border shapes */
+    #     div[data-testid="stChatInput"] > div {
+    #         background-color: #2F3037 !important;
+    #         border-radius: 12px !important;
+    #     }
+    #     </style>
+    #     """, unsafe_allow_html=True)
 
-    st.markdown(
-        """
-        <style>
-        div[data-testid="stChatInput"] {
-            bottom: 63px !important;  /* Increase this value to push it higher */
-            max-width: 56rem !important;
-            left: 58% !important; 
-            transform: translateX(-50%) !important;
-        }
-        </style>
-        """,
-        unsafe_allow_html=True)
+    # st.markdown(
+    #     """
+    #     <style>
+    #     div[data-testid="stChatInput"] {
+    #         bottom: 63px !important;  /* Increase this value to push it higher */
+    #         max-width: 56rem !important;
+    #         left: 58% !important; 
+    #         transform: translateX(-50%) !important;
+    #     }
+    #     </style>
+    #     """,
+    #     unsafe_allow_html=True)
 
 
     # Inject custom CSS for responsive alignment
