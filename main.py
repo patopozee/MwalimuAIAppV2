@@ -552,19 +552,7 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
         sidebar_bg_style = ""
         # 🚀 ADD THIS SNIPPET HERE TO MAKE THE LOGO APPEAR
         # 🚀 UPDATED: Centered sidebar logo with proper spacing below it
-    st.markdown(f"""
-        <style>
-        [data-testid="stSidebarHeader"] {{
-            min-height: 90px !important; /* Increased height to create safe vertical breathing room */
-            {sidebar_bg_style}
-            background-size: contain !important;
-            background-repeat: no-repeat !important;
-            background-position: center center !important; /* Centered horizontally and vertically */
-            margin-bottom: 1.5rem !important; /* Replaced negative margin with positive padding to push elements down */
-            padding-bottom: 10px !important;
-        }}
-        </style>
-        """, unsafe_allow_html=True)
+    
 
 
 
