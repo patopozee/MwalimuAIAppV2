@@ -603,13 +603,13 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
     @media (min-width: 768px) {
         div[data-testid="stChatInput"] {
             position: fixed !important;
-            bottom: 55px !important; /* Floats perfectly right above your footer text */
-            max-width: 760px !important; /* Matches standard ChatGPT width */
+            bottom: 60px !important; /* Floats perfectly right above your footer text */
+            max-width: 900px !important; /* Matches standard ChatGPT width */
             width: 100% !important;
             
             /* THE CORES FIX: Find the center of the screen, offset for the 
             336px sidebar, and center the element via translateX(-50%) */
-            left: calc(50% + 168px) !important;   
+            left: calc(48.5% + 168px) !important;   
             transform: translateX(-50%) !important;
         }
     }
