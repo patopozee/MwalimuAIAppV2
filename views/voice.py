@@ -14,9 +14,6 @@ student = st.session_state.get("student_name", "")
 
 def render():   
     st.markdown("---")
-    if st.button("Back to Main Chat Dashboard", use_container_width=True, key="back_from_voice"):
-        st.session_state.current_page = "Main Chat"
-        st.rerun()
         
     # 🚀 FIX: Read directly from session_state so it fetches the live data instantly!
     live_student_name = st.session_state.get("student_name", "").strip()

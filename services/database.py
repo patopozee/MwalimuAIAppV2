@@ -167,6 +167,32 @@ def migrate_students_table():
 
     conn.commit()
     conn.close()
+    
+def migrate_database_for_certificates():
+    import sqlite3
+    from services.database import DATABASE_NAME
+    
+    conn = sqlite3.connect(DATABASE_NAME)
+    cursor = conn.cursor()
+    
+    try:
+        # Add certificate serial tracking column
+        cursor.execute("ALTER TABLE student_progress ADD COLUMN cert_serial TEXT;")
+    except sqlite3.OperationalError:
+        pass # Column already exists safely
+        
+    try:
+        # Add certificate tracking date column
+        cursor.execute("ALTER TABLE student_progress ADD COLUMN cert_date TEXT;")
+    except sqlite3.OperationalError:
+        pass # Column already exists safely
+        
+    conn.commit()
+    conn.close()
+
+# Run the migration patch
+migrate_database_for_certificates()
+
 
 def create_tables():
     migrate_students_table()

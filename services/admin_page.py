@@ -12,7 +12,7 @@ from config import CBC  # Assumes CBC holds your curriculum mappings
 def render_admin_dashboard():
     # 🔙 Return Navigation Trigger Hook
     if st.button("⬅ Return to Student Dashboard", type="secondary"):
-        st.session_state.current_page = "Main Chat"
+        st.switch_page(st.session_state.ROUTE_CHAT)
         st.rerun()
         
     st.title("⚙️ Mwalimu AI - Admin Knowledge Base Manager")

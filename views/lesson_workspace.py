@@ -8,7 +8,8 @@ from services.lms_service import (
 
 def render():
     """Renders the comprehensive, linear classroom guide for the student's active lesson."""
-    student_profile = st.session_state.get("user_profile", {})
+    from services.profile_service import get_student_profile
+    student_profile = get_student_profile()
     uid = st.session_state.get("uid")
     grade = st.session_state.get("grade", "Grade 6")
     subject = st.session_state.get("active_subject", "Mathematics")

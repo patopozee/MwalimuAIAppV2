@@ -58,6 +58,7 @@ from views.admin import render as render_admin_view
 from views.lesson_workspace import render as render_lesson_workspace_view
 from views.edit_profile import render as render_edit_profile_view
 from services.upgrade_modal import upgrade_modal
+from styles.mwalimu_theme import load_theme
 # --- DATABASE ENGINE CACHE WRAPPERS (IMPORTS REMAIN THE SAME) ---
 from services.database import (
     create_tables,
@@ -77,6 +78,7 @@ from config import CBC  # Dynamic CBC repository dictionary
 
 # INITIALIZATION & TRANSPORT ENVIRONMENT SETTING
 load_dotenv()
+
 current_host = st.context.headers.get("host", "")
 
 if "localhost" in current_host or "127.0.0.1" in current_host:
@@ -155,6 +157,8 @@ if (
         st.session_state.user_profile = profile
 
         st.session_state.current_page = "Main Chat"
+
+        
 
     else:
         destroy_session()
@@ -578,7 +582,7 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
         padding-top: 0.5rem !important;
         }
         [data-testid="stMainBlockContainer"] > div:first-child {
-        margin-top: -3.0rem !important; /* Pulls the very top of the page layout up cleanly */
+        margin-top: -5.0rem !important; /* Pulls the very top of the page layout up cleanly */
         }
         /* 2. REPLACED UNSTABLE H1 SELECTOR: Target only the top title element specifically if needed,
         or let standard elements flow normally to prevent overlaps */
@@ -649,13 +653,12 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
     
 
 
-
+    #=============================================
+    #THEME LOAD===================================
+    #=============================================
   
-
-
-    # Inject custom CSS for responsive alignment
+    load_theme()
     
-
 
     def render_main_chat():
         render_main_chat_view()
@@ -788,75 +791,16 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
             ):
                 st.session_state.current_page = page_name
                 st.rerun()
-    #=========================================================
-    # NAVIGATION HUB
-        # =========================================================
-    # 🎨 NAVIGATION HUB DESIGN SYSTEM (HIGH-END MODERN THEME)
-    # =========================================================
-    st.markdown("""
-    <style>
-    /* 1. Global Reset & Overrides for the Sidebar Hub Links */
-    div[data-testid="stSidebarUserContent"] {
-        padding-top: 1rem !important;
-    }
     
-    /* Elegant Title Design for the Hub Header */
-    .nav-hub-title {
-        font-family: 'Inter', sans-serif;
-        color: #8E929E !important;
-        font-size: 11px !important;
-        font-weight: 700 !important;
-        text-transform: uppercase !important;
-        letter-spacing: 1.5px !important;
-        margin-bottom: 16px !important;
-        margin-top: 10px !important;
-        padding-left: 8px !important;
-    }
 
-    /* 2. Format Streamlit Sidebar Page Links to look like premium tabs */
-    [data-testid="stSidebar"] a[data-testid="stSidebarLinkElement"] {
-        background-color: transparent !important;
-        border: 1px solid transparent !important;
-        color: #9CA3AF !important;
-        border-radius: 10px !important;
-        padding: 10px 14px !important;
-        margin-bottom: 6px !important;
-        transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1) !important;
-        font-weight: 500 !important;
-        font-size: 14px !important;
-        display: flex !important;
-        align-items: center !important;
-    }
 
-    /* Elegant Hover State: Dark graphite lift with crisp white text */
-    [data-testid="stSidebar"] a[data-testid="stSidebarLinkElement"]:hover {
-        background-color: #20222C !important;
-        color: #FFFFFF !important;
-        transform: translateX(4px); /* Sleek slide-in motion */
-    }
 
-    /* 3. ACTIVE STATE: Deep royal sapphire theme with left border glow anchor */
-    [data-testid="stSidebar"] a[data-testid="stSidebarLinkElement"][aria-current="page"] {
-        background: linear-gradient(90deg, rgba(29, 78, 216, 0.15) 0%, rgba(30, 58, 138, 0.03) 100%) !important;
-        border: 1px solid rgba(59, 130, 246, 0.2) !important;
-        border-left: 4px solid #3B82F6 !important; /* Vivid neon blue visual selector indicator anchor */
-        color: #3B82F6 !important; /* Changes active link item text color to neon blue */
-        font-weight: 600 !important;
-        padding-left: 11px !important; /* Perfectly balances the 4px left-border space shift */
-        box-shadow: 0 4px 12px rgba(59, 130, 246, 0.05) !important;
-    }
-
-    /* Smooth out the active icon element color filters */
-    [data-testid="stSidebar"] a[data-testid="stSidebarLinkElement"][aria-current="page"] span {
-        color: #3B82F6 !important;
-    }
-    </style>
-    """, unsafe_allow_html=True)
+   
 
     # =========================================================
     # RENDER THE NAVIGATION MENU
     # =========================================================
-    st.sidebar.markdown('<p class="nav-hub-title">Navigation Hub</p>', unsafe_allow_html=True)
+    st.sidebar.markdown("### Navigation Hub")
 
     # Native page links automatically pick up the active matching current style state classes
     st.sidebar.page_link(chat_page, label="Main Chat", icon="🏠")
@@ -866,55 +810,87 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
     st.sidebar.page_link(leaderboard_page, label="National Leaderboard", icon="🏆")
     
 
-    
+    # === STUDENT PROFILE (LOCKED DESIGN BOXES) ===
 
     
     st.sidebar.markdown("---")
     st.sidebar.markdown("### Student Profile")
-    # === SIDEBAR ACCOUNT CONFIGURATION (LOCKED DESIGN BOXES) ===
-    # 1. Fetch values safely from your state memory core
-    name_val = str(st.session_state.get("student_name") or "Student").strip().title()
-    current_grade = st.session_state.get("grade", "Grade 1")
-    age_val = int(st.session_state.get("age", 10))
 
-    # 2. Render parameters inside fields locked with disabled=True 🌟
-    raw_name = st.sidebar.text_input("Student Name", value=name_val, disabled=True)
-    name = raw_name.strip().title() if raw_name else ""
     
-    grades = [
-            "Grade 1", "Grade 2", "Grade 3", "Grade 4",
-            "Grade 5", "Grade 6", "Grade 7", "Grade 8",
-            "Grade 9", "Grade 10", "Grade 11", "Grade 12"
-        ]
-    if current_grade not in grades:
-        current_grade = "Grade 1"
+    with st.sidebar.expander("📝 Student Information", expanded=False):
+        name = str(st.session_state.get("student_name") or "Student").strip().title()
+        grade = st.session_state.get("grade", "Grade 1")
+        age = int(st.session_state.get("age", 10))
+        favorite_subject = st.text_input(
+                    "Favorite Subject",
+                    value=st.session_state.get("favorite_subject") or ""
+                )
+        weak_subject = st.text_input(
+                    "Needs Improvement",
+                    value=st.session_state.get("weak_subject") or ""
+                )
+        initial = name[:1].upper() if name else "S"
+        st.sidebar.markdown(
+                f"""
+            <div class="profile-card">
 
-    grade = st.sidebar.selectbox(
-        "Grade",
-        grades,
-        index=grades.index(current_grade),
-        disabled=True
-    )
+            <div class="profile-avatar">
+            {initial}
+            </div>
+
+            <div class="profile-name">
+            {name}
+            </div>
+
+            <div class="profile-grade">
+            🎓 {grade}
+            </div>
+
+            <hr style="opacity:.12;">
+
+            <div style="font-size:14px;line-height:1.8;">
+
+            🎂 <b>Age</b> : {age}<br>
+
+            ⭐ <b>Favorite</b> : {favorite_subject or "Not Set"}<br>
+
+            📉 <b>Needs Help</b> : {weak_subject or "Not Set"}
+
+            </div>
+            """,
+            unsafe_allow_html=True
+            )
     
-    age_input = st.sidebar.number_input(
-        "Age",
-        min_value=5,
-        max_value=25,
-        value=age_val,
-        disabled=True
-    )
-    age = int(age_input)
 
-    # 3. Leave your other customizable onboarding descriptors active below
-    favorite_subject = st.sidebar.text_input("Favorite Subject", value=st.session_state.get("favorite_subject") or "")
-    weak_subject = st.sidebar.text_input("Weak Subject", value=st.session_state.get("weak_subject") or "")
-    learning_style = st.sidebar.selectbox("Learning Style", ["Visual", "Practical", "Reading/Writing", "Interactive", "Story-based"])
-    language = st.sidebar.selectbox("Preferred Language", ["English", "Kiswahili", "Sheng"])
+
+    with st.sidebar.expander("⚙ Learning Preferences", expanded=False):
+
+        learning_style = st.selectbox(
+            "Learning Style",
+            [
+                "Visual",
+                "Practical",
+                "Reading/Writing",
+                "Interactive",
+                "Story-based"
+            ]
+        )
+
+        language = st.selectbox(
+            "Preferred Language",
+            [
+                "English",
+                "Kiswahili",
+                "Sheng"
+            ]
+        )
+        
 
     # Composite state verification logic to load specific student thread context safely
+    from styles.quick_actions import render_quick_actions
+    render_quick_actions()
+
     
-
-
     #@st.fragment
     # =====================================================================
     # ⚡ REAL-TIME CBC SYNC ENGINE (RUNS BEFORE CODE RENDERS ON CHANGE)
@@ -1080,27 +1056,6 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
 
         st.session_state.student_name = name
 
-
-    #--- ACTIVE PROFILE CARD
-    st.sidebar.markdown("---")
-
-    with st.sidebar.container(border=True):
-
-        st.markdown("### 👤 Active Profile")
-
-        if name:
-            st.info(f"**Student:** {name}\n\n**{grade}** | **Age:** {age}")
-        else:
-            st.warning("Please type your Student Name.")
-
-        if st.button(
-            "✏️ Edit Profile",
-            key="sidebar_edit_profile_btn",
-            use_container_width=True,
-            type="secondary",
-        ):
-            st.switch_page(st.session_state.ROUTE_EDIT_PROFILE)
-
    
     
 
@@ -1204,9 +1159,14 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
     # 🔒 SECURE FIREBASE ROLE-BASED ADMIN PORTAL (ADD THIS HERE)
     # ====================================================================
     # 🔄 REPLACE the string below with your copied Firebase UID string:
-    MASTER_ADMIN_UID = "aYiSGN6DVbOLuM3jYnQSEGpd8Mo2"
+    # 1. Define all your master admin IDs inside a list
+    MASTER_ADMIN_UIDS = [
+        "aYiSGN6DVbOLuM3jYnQSEGpd8Mo2",  # First Admin
+        "dwnwZWdjDhhWRLVm02LGp6D3L7u2"        # Add your new admin ID here
+    ]
 
-    if st.session_state.get("uid") == MASTER_ADMIN_UID:
+    # 2. Check if the logged-in user's UID is found within that authorized list
+    if st.session_state.get("uid") in MASTER_ADMIN_UIDS:
         st.sidebar.markdown("---")
         st.sidebar.subheader("👑 Administrative Access")
 
@@ -1216,6 +1176,7 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
             icon="👑",
             use_container_width=True,
         )
+
             
     #======== 
     #=== Upgrade Tier === 
@@ -1272,16 +1233,14 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
                 #        st.rerun()
                 #     # else:
                 #     #    st.sidebar.warning("Payment not confirmed yet. Please wait a moment.")
-        #====
+      
         
+    render_workspace_sidebar()
 
-
-        # --- DEDICATED LOGOUT CONFIRMATION DIALOG ---
-        # ====================================================================    
-        # ====================================================================
-        # 🚪 DEDICATED LOGOUT CONFIRMATION DIALOG
-        # ====================================================================
-
+    
+    # ====================================================================
+    # 🚪 PROFESSIONAL SIDEBAR LOGOUT CARD
+    # ====================================================================
     @st.dialog("🚪 Log Out")
     def confirm_logout_dialog():
 
@@ -1309,7 +1268,6 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
                 type="primary",
                 key="logout_confirm_btn"
             ):
-                from services.upgrade_modal import upgrade_modal
 
                 # -------------------------------------------------------
                 # Clear active session safely
@@ -1318,7 +1276,7 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
                     "user_authenticated",
                     "user_profile",
                     "messages",
-                    "upgrade_modal",
+                    "show_upgrade_modal",
                     "last_checked_name",
                     "last_checked_grade",
                     "last_checked_age",
@@ -1337,12 +1295,11 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
                 st.session_state.current_page = "Main Chat"
 
                 # 🚀 FIX: Hard wipe the browser URL string parameters instantly!
-             
-                
-                destroy_session()
-                st.session_state.clear()
+                # This deletes 'session_token_id' completely before the page reloads.
+                st.query_params.clear()
 
                 # Tell the top-level persistence engine that this was a deliberate logout
+                st.query_params["clear_storage"] = "true"
 
                 st.rerun()
     # ====================================================================
@@ -1363,14 +1320,14 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
             use_container_width=True
         ):
             confirm_logout_dialog()
-
+           
 
 
 
 
 
     # Call the function to render the complete sidebar layout
-    render_workspace_sidebar()
+    
 
 
     #--- SIDEBAR PROGRESS DASHBOARD GENERATION
@@ -1494,22 +1451,60 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
         st.markdown("<h4 style='margin-top: 2px !important; margin-bottom: 0 !important; color: gray; font-weight: normal;'>Shaping Minds, Shifting Futures.</h4>", unsafe_allow_html=True)
         st.markdown("<div style='margin-bottom: 15px;'></div>", unsafe_allow_html=True)
 
-    st.write("Welcome to Mwalimu AI! I am your friendly, adaptive Kenyan AI teacher. To begin, create your student profile in the sidebar to sync your learning. From there, you can ask me any school question, explore real-time interactive lessons, challenge yourself with 5-question targeted quizzes, or launch into Voice Tutor Mode for an immersive audio learning experience tailored precisely to your grade, learning style, and topic tracking!")
+    # Create an elegant, compact intro container matching your app theme
+    st.markdown("""
+    <div style="
+        background-color: #101726; 
+        border: 1px solid rgba(36, 115, 242, 0.15); 
+        border-radius: 14px; 
+        padding: 20px; 
+        margin-bottom: 25px;
+    ">
+        <h3 style="margin-top: 0; color: #FFFFFF; font-size: 1.3rem; margin-bottom: 8px;">
+            👋 Welcome to Mwalimu AI – Your Adaptive Learning Partner
+        </h3>
+        <p style="color: #94A3B8; font-size: 14px; line-height: 1.5; margin-bottom: 15px;">
+            Start by setting up your student profile in the sidebar. Explore your interactive learning hubs below:
+        </p>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px;">
+            <div style="color: #E2E8F0; font-size: 13.5px;">💬 <b>Main Chat & Voice:</b> Ask questions or talk to a live voice tutor.</div>
+            <div style="color: #E2E8F0; font-size: 13.5px;">⚡ <b>AI Generators:</b> Create custom study flashcards and revisions.</div>
+            <div style="color: #E2E8F0; font-size: 13.5px;">🏫 <b>LMS Dashboard:</b> Complete structured lessons to earn certificates.</div>
+            <div style="color: #E2E8F0; font-size: 13.5px;">🏆 <b>Leaderboard:</b> Challenge yourself with quizzes and rank nationally.</div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
 
     # DISPLAY ACTIVE CBC TARGET TRACKER BOX AT TOP OF PAGE
     if name:
         st.markdown(
             f"""
-            <div style="background-color: #1e293b; border-left: 5px solid #3b82f6; padding: 15px; border-radius: 5px; margin-bottom: 20px;">
-            <span style="color: #3b82f6; font-weight: bold;">🎯Active Curriculum Targeting:</span>
-            <span style="color: #f8fafc;">Grade: {grade} &bull; Subject: {subject} &bull; Topic: {topic} &bull; Sub-topic: {sub_topic}</span>
-            <br>
-            <span style="color: #94a3b8; font-weight: bold;">Target Learning Outcome:</span>
-            <span style="color: #f8fafc;">{learning_outcome}</span>
+            <div style="
+                background-color: #101726; 
+                border-left: 5px solid #2473F2; 
+                padding: 16px 20px; 
+                border-radius: 12px; 
+                margin-bottom: 25px;
+                border-top: 1px solid rgba(36, 115, 242, 0.08);
+                border-right: 1px solid rgba(36, 115, 242, 0.08);
+                border-bottom: 1px solid rgba(36, 115, 242, 0.08);
+                box-shadow: 0 4px 14px rgba(0, 0, 0, 0.15);
+            ">
+                <div style="margin-bottom: 6px; line-height: 1.4;">
+                    <span style="color: #2473F2; font-weight: 700; font-size: 14px; letter-spacing: 0.3px;">🎯 Active Curriculum Targeting:</span>
+                    <span style="color: #E2E8F0; font-size: 14px; font-weight: 500; margin-left: 4px;">
+                        Grade: {grade} &bull; Subject: {subject} &bull; Topic: {topic} &bull; Sub-topic: {sub_topic}
+                    </span>
+                </div>
+                <div style="line-height: 1.4;">
+                    <span style="color: #94A3B8; font-weight: 600; font-size: 13.5px;">Target Learning Outcome:</span>
+                    <span style="color: #F1F5F9; font-size: 13.5px; font-weight: 400; margin-left: 4px;">{learning_outcome}</span>
+                </div>
             </div>
             """,
             unsafe_allow_html=True
         )
+
     
 
     # ====================================================================
@@ -1550,81 +1545,103 @@ else:
     def inject_polished_css():
         st.markdown("""
         <style>
-        /* Premium Slate Dark Mode Theme Base */
-        [data-testid="stAppViewContainer"] { 
-            background-color: #020617; 
+        /* 1. PREMIUM APPMID GROUND MATCH (Matches the deep workspace base layer background) */
+        [data-testid="stAppViewContainer"],
+        [data-testid="stHeader"] { 
+            background-color: #0F1117 !important; 
         }
         
-        /* Dynamic Feature Card System */
+        /* 2. THE COMPACT CARD HOVER BLOCKS (Matches your beautiful inside card metrics) */
         .card {
-            background: #0f172a;
-            padding: 28px;
-            border-radius: 16px;
-            border: 1px solid #1e293b;
-            transition: all 0.3s ease;
-            margin-bottom: 15px;
-            min-height: 160px;
+            background: #101726 !important; /* Unified dark navy container hex */
+            padding: 22px 24px !important;
+            border-radius: 12px !important; /* Smooth curved card border profiles */
+            border: 1px solid rgba(36, 115, 242, 0.12) !important; /* Faint signature blue border line */
+            transition: all 0.25s ease-in-out !important;
+            margin-bottom: 15px !important;
+            min-height: 150px !important;
         }
+        
         .card:hover { 
-            border-color: #3b82f6;
-            transform: translateY(-2px);
-            box-shadow: 0 10px 20px -10px rgba(59, 130, 246, 0.3);
+            border-color: #2473F2 !important; /* Glows signature action blue on hover */
+            transform: translateY(-2px) !important;
+            box-shadow: 0 8px 20px rgba(36, 115, 242, 0.15) !important;
         }
+        
         .card h3 {
             margin-top: 0px !important;
-            font-size: 1.25rem !important;
+            font-size: 1.15rem !important;
             font-weight: 700 !important;
-            color: #f8fafc !important;
+            color: #FFFFFF !important;
         }
         
-        /* Flagship Highlight Cards */
+        /* 3. FLAGSHIP CONTAINER INTERACTIVE LINK SECTIONS */
         .flagship-card {
-            background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%);
-            border: 1px solid #3b82f6;
-            padding: 32px;
-            border-radius: 20px;
-            min-height: 190px;
-            transition: all 0.3s ease;
-        }
-        .flagship-card:hover {
-            transform: translateY(-3px);
-            box-shadow: 0 15px 30px -10px rgba(59, 130, 246, 0.4);
-            border-color: #60a5fa;
+            background: linear-gradient(135deg, #101726 0%, #1E293B 100%) !important;
+            border: 1px solid rgba(36, 115, 242, 0.2) !important;
+            border-left: 4px solid #2473F2 !important; /* Pulls your beautiful sidebar indicator strip into the grid! */
+            padding: 24px !important;
+            border-radius: 12px !important;
+            min-height: 240px !important;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-start;
+            transition: all 0.25s ease-in-out !important;
         }
         
-        /* Trust Metrics Grid Boxes */
-        .metric-box { 
-            background: #1e293b; 
-            padding: 20px; 
-            border-radius: 12px; 
-            text-align: center;
-            border: 1px solid rgba(255,255,255,0.03);
+        .flagship-card:hover {
+            transform: translateY(-2px) !important;
+            border-color: #2473F2 !important;
+            box-shadow: 0 10px 22px rgba(36, 115, 242, 0.2) !important;
         }
+        
+        /* 4. TRUST ACCREDITATION METRIC RIBBONS CONTAINER */
+        .metric-box { 
+            background: #101726 !important; /* Matches inside workspace background tracking boxes */
+            padding: 18px !important; 
+            border-radius: 12px !important; 
+            text-align: center !important;
+            border: 1px solid rgba(36, 115, 242, 0.12) !important;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1) !important;
+        }
+        
         .metric-box h3 {
             margin: 0px !important;
-            font-size: 2rem !important;
+            font-size: 1.8rem !important;
             font-weight: 800 !important;
-            color: #3b82f6 !important;
+            color: #2473F2 !important; /* Bold metrics turn your signature vibrant blue */
         }
+        
         .metric-box p {
-            margin: 4px 0 0 0 !important;
+            margin: 6px 0 0 0 !important;
             font-size: 0.85rem !important;
-            color: #94a3b8 !important;
+            color: #94A3B8 !important;
         }
         
-        /* Buttons Native Uniform Enhancers */
+        /* 5. NATIVE BUTTON LAYOUT UNIFICATION ACCENTS */
         .stButton > button { 
-            border-radius: 8px; 
-            border: none; 
-            font-weight: 600;
+            border-radius: 10px !important; 
+            font-weight: 600 !important;
+            transition: all 0.2s ease-in-out !important;
         }
         
+        .stButton > button[type="primary"] {
+            background-color: #2473F2 !important;
+            border: none !important;
+        }
+        
+        .stButton > button[type="primary"]:hover {
+            background-color: #1D4ED8 !important;
+            box-shadow: 0 4px 14px rgba(36, 115, 242, 0.4) !important;
+        }
+
         @media (max-width: 768px) {
-            .card { padding: 18px; min-height: auto; }
-            .flagship-card { padding: 20px; min-height: auto; }
+            .card { padding: 16px; min-height: auto; }
+            .flagship-card { padding: 18px; min-height: auto; }
         }
         </style>
         """, unsafe_allow_html=True)
+
 
     # Execute CSS styles injection immediately
     inject_polished_css()
@@ -1656,7 +1673,6 @@ else:
                 st.session_state.show_auth = True
                 st.rerun()
 
-    st.write("##")
 
     # ====================================================================
     # # 3. VIEW SWITCHER DISPATCH ENGINE HOOKS
@@ -1786,21 +1802,23 @@ else:
                 unsafe_allow_html=True
             )
 
-
+        #================
         with flag_col2:
             st.markdown(
                 """
                 <div class='flagship-card'>
                     <h3 style='font-size:1.4rem !important; color:#60a5fa !important;'>💻 Learning Management System</h3>
                     <p style='color:#94a3b8; margin:8px 0 0 0; line-height:1.4;'>
-                       Power your growth with our integrated Learning Management System. 
-                       Test mastery through interactive quizzes, track performance, 
-                       and benchmark progress against peers on our National Leaderboard.
+                        Power your growth with our integrated Learning Management System. 
+                        Test mastery through interactive quizzes, track your performance, 
+                        and benchmark progress against peers on our National Leaderboard—plus, 
+                        **earn a printable Certificate of Completion** the moment you master an entire course curriculum.
                     </p>
                 </div>
                 """, 
                 unsafe_allow_html=True
             )
+
         with flag_col3:
             st.markdown(
                 """

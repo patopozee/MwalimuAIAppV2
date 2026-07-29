@@ -204,64 +204,202 @@ def unlock_next_lesson(student_uid: str, student_name: str, grade: str, subject:
     return None
 
 
-def generate_completion_certificate(student_name: str, grade: str, subject: str):
-    """Generates an elegant, printable PDF Course Completion Certificate using ReportLab."""
+def generate_completion_certificate(student_uid: str, student_name: str, grade: str, subject: str):
+    """Generates a premium completion certificate, pulling or creating frozen serial numbers from SQLite."""
     import io
-    from reportlab.lib.pagesizes import letter, landscape
-    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
+    import time
+    import random
+    import os
+    import sqlite3
+    import qrcode
+    from qrcode.image.pil import PilImage
+    from reportlab.lib.pagesizes import A4, landscape  
+    from reportlab.lib import colors
+    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image
     from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-    from reportlab.lib.colors import HexColor
-    
+    from reportlab.graphics.shapes import Drawing, Line
+    from reportlab.pdfbase import pdfmetrics
+    from reportlab.pdfbase.ttfonts import TTFont
+    from services.database import DATABASE_NAME
+
     pdf_buffer = io.BytesIO()
     
-    # Create a clean landscape orientation certificate layout template sheet
     doc = SimpleDocTemplate(
         pdf_buffer,
-        pagesize=landscape(letter),
-        rightMargin=54, leftMargin=54,
-        topMargin=54, bottomMargin=54
+        pagesize=landscape(A4),
+        rightMargin=30, leftMargin=30,
+        topMargin=25, bottomMargin=25
     )
     
+    # =========================================================
+    # 🔒 SQLITE DATABASE DATA INTEGRITY FETCH OR LOCK
+    # =========================================================
+    conn = sqlite3.connect(DATABASE_NAME)
+    cursor = conn.cursor()
+    
+    cursor.execute("""
+        SELECT cert_serial, cert_date FROM student_progress 
+        WHERE student_uid = ? AND grade = ? AND subject = ?
+    """, (str(student_uid), str(grade), str(subject)))
+    
+    row = cursor.fetchone()
+    
+    if row and row[0] is not None and row[1] is not None:
+        # A saved certificate exists! Use the exact historical metrics
+        cert_number = row[0]
+        issue_date = row[1]
+    else:
+        # No saved certificate found. Create a permanent record for the first time
+        timestamp = int(time.time())
+        rand_seq = random.randint(1000, 9999)
+        cert_number = f"MW-AI-{timestamp}-{rand_seq}"
+        issue_date = time.strftime("%B %d, %Y")
+        
+        # Save these values directly into the active lesson transaction matrix mapping
+        cursor.execute("""
+            UPDATE student_progress 
+            SET cert_serial = ?, cert_date = ?
+            WHERE student_uid = ? AND grade = ? AND subject = ?
+        """, (cert_number, issue_date, str(student_uid), str(grade), str(subject)))
+        conn.commit()
+        
+    conn.close()
+    
+    # ---------------------------------------------------------
+    # 🎨 EXACT FONT REGISTRATION SYSTEM
+    # ---------------------------------------------------------
+    cloister_font_path = "assets/fonts/CloisterBlack.ttf"
+    lucida_font_path = "assets/fonts/LHANDW.TTF"
+    
+    title_font_name = 'Helvetica-Bold'
+    name_font_name = 'Helvetica-Bold'
+    
+    if os.path.exists(cloister_font_path):
+        pdfmetrics.registerFont(TTFont('CloisterBlack', cloister_font_path))
+        title_font_name = 'CloisterBlack'
+        
+    if os.path.exists(lucida_font_path):
+        pdfmetrics.registerFont(TTFont('LucidaHandwriting', lucida_font_path))
+        name_font_name = 'LucidaHandwriting'
+
+    # ---------------------------------------------------------
+    # 📲 IN-MEMORY QR CODE GENERATOR SYSTEM
+    # ---------------------------------------------------------
+    qr_payload = f"URL: ://mwalimuaiapp.com\nStudent: {student_name}\nSerial: {cert_number}"
+    qr = qrcode.QRCode(version=1, box_size=10, border=1)
+    qr.add_data(qr_payload)
+    qr.make(fit=True)
+    
+    qr_img_buffer = io.BytesIO()
+    qr_pil_img = qr.make_image(image_factory=PilImage, fill_color="#101726", back_color="white")
+    qr_pil_img.save(qr_img_buffer, format="PNG")
+    qr_img_buffer.seek(0)
+    
+    qr_element = Image(qr_img_buffer, width=65, height=65)
+
+    # DESIGN FRAME SYSTEM (Canvas Background Painting Layer - CLEAN NO WATERMARK)
+    def draw_certificate_background(canvas, doc):
+        canvas.saveState()
+        canvas.setFillAlpha(1.0)
+        
+        # Thick Outer Corporate Frame Border Lines
+        canvas.setStrokeColor(colors.HexColor("#101726"))
+        canvas.setLineWidth(10)
+        canvas.rect(15, 15, doc.width + 30, doc.height + 40)
+        
+        # Inner Accent Pin-Stripe Frame Line in Mwalimu Blue
+        canvas.setStrokeColor(colors.HexColor("#2473F2"))
+        canvas.setLineWidth(2.0)
+        canvas.rect(25, 25, doc.width + 10, doc.height + 20)
+        
+        # Decorative Left Corner Accent blocks
+        canvas.setFillColor(colors.HexColor("#101726"))
+        canvas.rect(15, 15, 180, 24, fill=True, stroke=False)
+        canvas.setFillColor(colors.HexColor("#2473F2"))
+        canvas.rect(195, 15, 90, 24, fill=True, stroke=False)
+        canvas.restoreState()
+
     styles = getSampleStyleSheet()
     
-    # Custom certificate typography styles
-    title_style = ParagraphStyle(
-        'CertTitle', parent=styles['Normal'],
-        fontName='Helvetica-Bold', fontSize=32, leading=38,
-        textColor=HexColor('#1E88E5'), alignment=1, spaceAfter=20
-    )
-    subtitle_style = ParagraphStyle(
-        'CertSub', parent=styles['Normal'],
-        fontName='Helvetica', fontSize=14, leading=18,
-        textColor=HexColor('#64748B'), alignment=1, spaceAfter=30
-    )
-    name_style = ParagraphStyle(
-        'CertName', parent=styles['Normal'],
-        fontName='Helvetica-Bold', fontSize=26, leading=32,
-        textColor=HexColor('#0F172A'), alignment=1, spaceAfter=20
-    )
-    detail_style = ParagraphStyle(
-        'CertDetail', parent=styles['Normal'],
-        fontName='Helvetica', fontSize=12, leading=16,
-        textColor=HexColor('#334155'), alignment=1
-    )
+    # Typography Styles Mapping System
+    title_style = ParagraphStyle('CertTitle', parent=styles['Normal'], fontName=title_font_name, fontSize=55, leading=50, textColor=colors.HexColor("#101726"), alignment=1, spaceAfter=12)
+    subtext_style = ParagraphStyle('CertSubText', parent=styles['Normal'], fontName='Helvetica', fontSize=14, leading=18, textColor=colors.HexColor("#64748B"), alignment=1, spaceAfter=18)
+    name_style = ParagraphStyle('CertStudentName', parent=styles['Normal'], fontName=name_font_name, fontSize=38, leading=46, textColor=colors.HexColor("#2473F2"), alignment=1, spaceAfter=18)
+    body_style = ParagraphStyle('CertBodyText', parent=styles['Normal'], fontName='Helvetica', fontSize=14, leading=26, textColor=colors.HexColor("#334155"), alignment=1, spaceAfter=25)
+    footer_lbl_style = ParagraphStyle('CertFooterLbl', parent=styles['Normal'], fontName='Helvetica-Bold', fontSize=11, leading=14, textColor=colors.HexColor("#101726"), alignment=1)
+    footer_val_style = ParagraphStyle('CertFooterVal', parent=styles['Normal'], fontName='Helvetica', fontSize=10, leading=13, textColor=colors.HexColor("#64748B"), alignment=1)
+    ceo_name_style = ParagraphStyle('CertCeoName', parent=styles['Normal'], fontName='Helvetica-Bold', fontSize=12, leading=15, textColor=colors.HexColor("#101726"), alignment=1)
+    ceo_title_style = ParagraphStyle('CertCeoTitle', parent=styles['Normal'], fontName='Helvetica', fontSize=10, leading=13, textColor=colors.HexColor("#64748B"), alignment=1)
+
+    story = []
     
-    story = [
-        Spacer(1, 40),
-        Paragraph("CERTIFICATE OF COURSE COMPLETION", title_style),
-        Paragraph("This official award document is proudly presented to", subtitle_style),
-        Paragraph(student_name.upper(), name_style),
-        Paragraph(f"for successfully completing all curriculum lesson units and diagnostic mastery evaluations", subtitle_style),
-        Spacer(1, 10),
-        Paragraph(f"<b>Course Domain:</b> {subject} | <b>Academic Level:</b> {grade}", detail_style),
-        Paragraph(f"Verified via Mwalimu AI CBC Curriculum Guardrails Engine", detail_style),
-        Spacer(1, 40)
+    # Logo Head Placement
+    logo_path = "assets/cert_logo.png" 
+    if os.path.exists(logo_path):
+        story.append(Image(logo_path, width=300, height=95, kind='proportional'))
+        story.append(Spacer(1, 10))
+    else:
+        story.append(Spacer(1, 30))
+
+    # Branding Text
+    story.append(Paragraph("Certificate of Course Completion", title_style))
+    story.append(Paragraph("This official award document is proudly presented to", subtext_style))
+    story.append(Paragraph(student_name, name_style)) 
+    
+    course_narrative = (
+        f"for successfully completing all curriculum lesson units, diagnostic mastery evaluations, "
+        f"and structured challenge frameworks assigned under the <b>{subject}</b> domain "
+        f"at the <b>{grade}</b> execution tier verified via the Mwalimu AI platform engines."
+    )
+    story.append(Paragraph(course_narrative, body_style))
+    story.append(Spacer(1, 15))
+    
+    # Signature Asset
+    sig_path = "assets/signature.png"
+    if os.path.exists(sig_path):
+        sig_element = Image(sig_path, width=250, height=60, kind='proportional')
+    else:
+        sig_script_style = ParagraphStyle('CertSignScript', parent=styles['Normal'], fontName='Times-BoldItalic', fontSize=18, leading=22, textColor=colors.HexColor("#0F172A"), alignment=1)
+        sig_element = Paragraph("<i>Mwalimu AI Director</i>", sig_script_style)
+
+    # Vector Rows Lines
+    d_line = Drawing(doc.width, 2)
+    d_line.add(Line(20, 0, 280, 0, strokeColor=colors.HexColor("#CBD5E1"), strokeWidth=1))
+    d_line.add(Line(doc.width - 280, 0, doc.width - 20, 0, strokeColor=colors.HexColor("#CBD5E1"), strokeWidth=1))
+    story.append(d_line)
+    story.append(Spacer(1, 4))
+    
+    # Structural Table Grid Row 1
+    graphics_table_data = [[sig_element, "", qr_element]]
+    graphics_table = Table(graphics_table_data, colWidths=[300, doc.width - 600, 300])
+    graphics_table.setStyle(TableStyle([
+        ('ALIGN', (0,0), (-1,-1), 'CENTER'), ('VALIGN', (0,0), (-1,-1), 'BOTTOM'),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 0), ('TOPPADDING', (0,0), (-1,-1), 0),
+    ]))
+    story.append(graphics_table)
+    story.append(Spacer(1, 4))
+    
+    # Structural Table Grid Row 2
+    footer_table_data = [
+        [
+            [Paragraph("Patrick Wachira Mugo", ceo_name_style), Spacer(1, 2), Paragraph("CEO Mwalimu AI App", ceo_title_style)], 
+            "", 
+            [Paragraph(cert_number, footer_lbl_style), Spacer(1, 2), Paragraph(f"Official Security Tracking ID • Issued: {issue_date}", footer_val_style)]
+        ]
     ]
     
-    doc.build(story)
+    footer_table = Table(footer_table_data, colWidths=[300, doc.width - 600, 300])
+    footer_table.setStyle(TableStyle([
+        ('ALIGN', (0,0), (-1,-1), 'CENTER'), ('VALIGN', (0,0), (-1,-1), 'TOP'),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 0), ('TOPPADDING', (0,0), (-1,-1), 2),
+    ]))
+    story.append(footer_table)
+    
+    doc.build(story, onFirstPage=draw_certificate_background)
     pdf_bytes = pdf_buffer.getvalue()
     pdf_buffer.close()
     return pdf_bytes
+
 
 
 def get_lms_statistics(student_uid, grade, subject):

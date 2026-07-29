@@ -99,13 +99,20 @@ def render():
                         st.session_state.age = int(new_age)
                         
                         # Type Guard: Explicitly verify dictionary structure existence before indexing
-                        current_profile = st.session_state.get("user_profile")
-                        if current_profile is not None and isinstance(current_profile, dict):
-                            current_profile["name"] = safe_name.strip()
-                            current_profile["grade"] = new_grade
-                            current_profile["age"] = int(new_age)
-                            # Re-assign the mutated dictionary cleanly back to session state
-                            st.session_state.user_profile = current_profile
+                        # Reload the latest profile directly from Firestore
+                        updated_profile = user_doc_ref.get().to_dict() or {}
+
+                        # Replace the entire cached profile
+                        st.session_state.user_profile = updated_profile
+
+                        # Keep convenience variables synchronized
+                        st.session_state.student_name = updated_profile.get("name", safe_name.strip())
+                        st.session_state.grade = updated_profile.get("grade", new_grade)
+                        st.session_state.age = int(updated_profile.get("age", new_age))
+                        st.session_state.user_email = updated_profile.get(
+                            "email",
+                            st.session_state.get("user_email", "")
+                        )
                             
                         st.toast("🎉 Profile settings synchronized successfully!")
                         st.switch_page(st.session_state.ROUTE_CHAT)

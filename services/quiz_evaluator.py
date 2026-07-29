@@ -10,7 +10,9 @@ def evaluate_quiz_submission(correct_answers: int, total_questions: int):
         
     score_percentage = int((correct_answers / total_questions) * 100)
     active_node = st.session_state.get("lms_active_lesson_node")
-    user_profile = st.session_state.get("user_profile", {})
+    from services.profile_service import get_student_profile
+
+    user_profile = get_student_profile()
     """
     Computes final grading percentages and dynamically coordinates database 
     LMS state updates across both local progress tables and national leaderboards.
@@ -22,7 +24,7 @@ def evaluate_quiz_submission(correct_answers: int, total_questions: int):
     
     # Extract keys safely from the standard user tracking profile dictionary
     active_node = st.session_state.get("lms_active_lesson_node")
-    user_profile = st.session_state.get("user_profile", {})
+    user_profile = get_student_profile()
     
     if active_node:
         student_uid = str(st.session_state.get("uid") or user_profile.get("id") or "")

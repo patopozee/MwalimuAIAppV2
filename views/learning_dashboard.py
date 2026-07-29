@@ -1,6 +1,7 @@
 import streamlit as st
 from services.upgrade_modal import upgrade_modal
-
+from services.profile_service import (get_student_profile, 
+                                      get_student_grade)
     
 from services.lms_service import (
     get_lms_statistics,
@@ -11,7 +12,7 @@ from services.lms_service import (
 
 def render():
     student_uid = str(st.session_state.get("uid") or "")
-    student_grade = str(st.session_state.get("grade", "Grade 6"))
+    student_grade = get_student_grade()
     active_subject = str(st.session_state.get("active_subject", "Mathematics"))
     lms_stats = get_lms_statistics(
         student_uid,
@@ -27,7 +28,8 @@ def render():
     #=========
     # # 🏫 LMS CORE INTEGRATION: TODAY'S LEARNING & CONTINUE LEARNING GATE
     # # ====================================================================               
-        
+    
+    student_profile_dict = get_student_profile()
     # 1. Unpack subscription details
     student_profile_dict = st.session_state.get("user_profile", {})    
     subscription_tree = student_profile_dict.get('subscription', {}) if isinstance(student_profile_dict.get('subscription'), dict) else {}
@@ -39,7 +41,7 @@ def render():
     current_lesson = get_current_active_lesson(student_uid, student_grade, active_subject)
     course_structure = load_course_structure(student_grade, active_subject)
     all_lessons_list = course_structure.get("lessons", [])
-    
+    #current_lesson = None
     
     st.markdown("### 🏫 Your Learning Path (Get Certificate Upon Completion)")
 
@@ -65,7 +67,7 @@ def render():
     # --------------------------------------------------------------------
     with st.container(border=True):
         col_lbl, col_progress, col_btn = st.columns([1.2, 1, 1], vertical_alignment="center")
-        
+
         with col_lbl:
             if current_lesson:
                 st.markdown(f"🎯 **Today's Goal:** `{active_subject}`")
@@ -89,7 +91,6 @@ def render():
         with col_btn:
             if current_lesson:
                 if st.button("🚀 Continue Learning", key="lms_dash_continue_learning_action_btn", use_container_width=True, type="primary"):
-                    
                     if not ("premium" in user_tier.lower() or "plus" in user_tier.lower()):
                         st.session_state.lms_limit_reached = True
                         st.rerun()
@@ -98,26 +99,34 @@ def render():
                         st.session_state.lms_active_lesson_node = current_lesson
                         st.session_state.active_subject = active_subject 
                         
-                        # SWITCH PAGES NATIVELY WITH THE NAVIGATION SLUG 🚀
                         if "ROUTE_LESSON" in st.session_state:
                             st.switch_page(st.session_state.ROUTE_LESSON)
-
-
+            #============================================
             else:
                 from services.lms_service import generate_completion_certificate
-                student_name_str = str(st.session_state.get("student_name", "Student"))
+                
+                # Fetch student profile details from session state safely
+                user_profile = st.session_state.get("user_profile", {})
+                student_name = user_profile.get("name", "Student")
+
+                # UPDATED: Now passes student_uid as the first parameter to lock the serial
                 cert_bytes = generate_completion_certificate(
-                    student_name=student_name_str,
+                    student_uid=str(student_uid), # PASSED HERE 🚀
+                    student_name=student_name,
                     grade=str(student_grade),
                     subject=str(active_subject)
                 )
+
                 st.download_button(
                     label="📜 Download Completion Certificate",
                     data=cert_bytes,
-                    file_name=f"Certificate_{student_name_str.replace(' ', '_')}_{active_subject}.pdf",
+                    file_name=f"Certificate_{student_name.replace(' ', '_')}_{active_subject}.pdf",
                     mime="application/pdf",
-                    width="stretch"
-                    )
+                    use_container_width=True,
+                    type="primary"
+                )
+
+
                 
     st.markdown("## 📈 Learning Statistics")
     with st.container(border=True):
