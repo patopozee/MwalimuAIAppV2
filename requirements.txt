@@ -21,3 +21,4 @@ extra-streamlit-components
 streamlit-cookies-manager
 reportlab
 qrcode
+mutagen
