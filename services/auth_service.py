@@ -4,6 +4,7 @@ import streamlit as st
 import requests
 from datetime import datetime
 from google.cloud.firestore_v1.base_query import FieldFilter
+from services.auth_helpers import get_or_create_user_profile
 
 # ---------------------------------------------------------------------
 # FIXED: Move Firebase Auth import to top level to avoid unbound exceptions

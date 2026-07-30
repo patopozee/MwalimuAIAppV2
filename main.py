@@ -7,6 +7,8 @@ from PIL import Image
 from dotenv import load_dotenv
 import firebase_admin
 from firebase_admin import credentials, firestore
+from firebase_admin import auth
+from datetime import datetime
 
 from services.session_service import (
     create_session,
@@ -59,6 +61,7 @@ from views.lesson_workspace import render as render_lesson_workspace_view
 from views.edit_profile import render as render_edit_profile_view
 from services.upgrade_modal import upgrade_modal
 from styles.mwalimu_theme import load_theme
+from services.auth_helpers import get_or_create_user_profile
 # --- DATABASE ENGINE CACHE WRAPPERS (IMPORTS REMAIN THE SAME) ---
 from services.database import (
     create_tables,
@@ -183,52 +186,46 @@ if "code" in st.query_params and not st.session_state.user_authenticated:
                     headers={"Authorization": f"Bearer {token_response['access_token']}"},
                 ).json()
                 
-                google_uid = user_info.get("id") or user_info.get("sub")
+                
                 email_val = user_info.get("email", "").strip().lower()
                 name_val = user_info.get("name", "Student").strip().title()
                 
-                if not google_uid:
-                    st.error("Authentication failed: Missing unique user ID from Google.")
-                    st.stop()
                 
-                check_doc = db.collection("users").document(google_uid).get()
-                
-                user_profile_payload = {
-                    "uid": google_uid,
-                    "name": name_val,
-                    "email": email_val,
-                    "grade": "Grade 6",
-                    "age": 12,
-                    "created_at": "2026-07-11T13:08:00Z",
-                    "subscription": {
-                        "tier": "Free",
-                        "payment_status": "Pending",
-                        "reference_id": "",
-                        "expiry_date": ""
-                    }
-                }
-                
-                if not check_doc.exists:
-                    db.collection("users").document(google_uid).set(user_profile_payload, merge=True)
-                
-                fresh_doc = db.collection("users").document(google_uid).get()
-                doc_data = fresh_doc.to_dict()
-                final_data = doc_data if (fresh_doc.exists and doc_data is not None) else user_profile_payload
-                
+                try:
+                    firebase_user = auth.get_user_by_email(email_val)
+
+                    firebase_uid = firebase_user.uid
+
+                except auth.UserNotFoundError:
+
+                    firebase_user = auth.create_user(
+                        email=email_val,
+                        display_name=name_val
+                    )
+
+                    firebase_uid = firebase_user.uid
+                    
+                profile = get_or_create_user_profile(
+                    firebase_uid,
+                    email_val,
+                    name_val
+                )
+                assert profile is not None
                 # Session State Hydration
                 st.session_state.user_authenticated = True
-                
-                st.session_state.uid = google_uid
-                st.session_state.user_email = final_data.get("email", email_val)
-                st.session_state.student_name = final_data.get("name", name_val)
-                st.session_state.grade = final_data.get("grade", "Grade 6")
-                st.session_state.age = int(final_data.get("age", 12))
-                st.session_state.user_profile = final_data
+
+                st.session_state.uid = profile["uid"]
+                st.session_state.user_email = profile["email"]
+                st.session_state.student_name = profile["name"]
+                st.session_state.grade = profile.get("grade", "Grade 6")
+                st.session_state.age = int(profile.get("age", 12))
+                st.session_state.user_profile = profile
                 st.session_state.current_page = "Main Chat"
-                
+
                 st.toast(f"🎉 Welcome, {st.session_state.student_name}!")
-                create_session(google_uid, email_val)
-                # 🌟 FIXED PERSISTENCE ANCHOR: Lock token inside URL parameters BEFORE reloading the page
+
+                create_session(firebase_uid, email_val)
+
                 st.rerun()
 
     except Exception as e:
@@ -1277,17 +1274,19 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
                     "current_page"
                 ]
 
-                for key in tracking_keys_to_purge:
-                    st.session_state.pop(key, None)
+                destroy_session()
+
+                # -------------------------------------------------------
+                # Clear Streamlit session
+                # -------------------------------------------------------
+                for key in list(st.session_state.keys()):
+                    del st.session_state[key]
 
                 st.session_state.current_page = "Main Chat"
 
                 # 🚀 FIX: Hard wipe the browser URL string parameters instantly!
                 # This deletes 'session_token_id' completely before the page reloads.
-                st.query_params.clear()
-
-                # Tell the top-level persistence engine that this was a deliberate logout
-                st.query_params["clear_storage"] = "true"
+                
 
                 st.rerun()
     # ====================================================================
