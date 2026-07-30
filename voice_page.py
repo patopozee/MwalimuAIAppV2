@@ -291,5 +291,5 @@ def render_voice_tutor_page(client):
         st.write("") 
         
         # Kept only the permanent deletion button as requested
-        if st.button("🗑️ Permanently Delete Voice DB Logs", use_container_width=True):
+        if st.button("🗑️ Permanently Delete Voice DB Logs", type = "secondary"):
             confirm_clear_voice_dialog()

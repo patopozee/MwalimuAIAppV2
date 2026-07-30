@@ -244,5 +244,32 @@ def load_theme():
 
         </style>
         """, unsafe_allow_html=True)
+    st.html(f"""
+            <style>
+            @media (min-width: 768px) {{
+            [data-testid="stHeader"], header {{ background-color: transparent !important; height: 3.5rem !important; }}
+            [data-testid="stAppViewMainObj"], .stMain, [data-testid="stMain"] {{ margin-top: -2.4rem !important; padding-top: 0rem !important; }}
+            [data-testid="stMainBlockContainer"], [data-testid="stAppViewBlockContainer"], .block-container {{ padding-top: 1.5rem !important; margin-top: 0rem !important; }}
+            }}
+            @media (max-width: 1000px) {{
+            [data-testid="stHeader"], header {{ background-color: transparent !important; height: 3.5rem !important; }}
+            [data-testid="stAppViewMainObj"], .stMain, [data-testid="stMain"] {{ margin-top: 0rem !important; padding-top: 0.5rem !important; }}
+            }}
+            [data-testid="stMainBlockContainer"], [data-testid="stAppViewBlockContainer"], .block-container {{ padding-top: 1rem !important; }}
+            [data-testid="stHeader"] button {{ background-color: rgba(255, 255, 255, 0.1) !important; border-radius: 4px !important; z-index: 999999 !important; }}
+            [data-testid="stSidebarUserContent"] {{ padding-top: 0rem !important; margin-top: 0rem !important; }}
+            
+            /* 🎯 THE CRITICAL ARCHITECTURAL FIX: 
+                Excludes the voice recording button element key from global style alterations */
+            div.stButton > button:not([key*="mwalimu_voice_recorder"]) {{
+            transition: all 0.2s ease-in-out !important;
+            }}
+            div.stButton > button:not([key*="mwalimu_voice_recorder"]):hover {{
+            border-color: #1E3A8A !important;
+            color: #1E3A8A !important;
+            box-shadow: 0 2px 8px rgba(30, 58, 138, 0.1) !important;
+            }}
+            </style>
+            """)
 
     

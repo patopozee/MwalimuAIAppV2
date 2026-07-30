@@ -20,7 +20,28 @@ student = st.session_state.get("student_name", "")
 
 
 def render():   
-        
+    st.markdown("""
+        <div style="
+            background-color: #101726; 
+            border: 1px solid rgba(36, 115, 242, 0.15); 
+            border-radius: 14px; 
+            padding: 20px; 
+            margin-bottom: 25px;
+        ">
+            <h3 style="margin-top: 0; color: #FFFFFF; font-size: 1.3rem; margin-bottom: 8px;">
+                👋 Welcome to Mwalimu AI – Your Adaptive Learning Partner
+            </h3>
+            <p style="color: #94A3B8; font-size: 14px; line-height: 1.5; margin-bottom: 15px;">
+                Start by setting up your student profile in the sidebar. Explore your interactive learning hubs below:
+            </p>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px;">
+                <div style="color: #E2E8F0; font-size: 13.5px;">💬 <b>Main Chat & Voice:</b> Ask questions or talk to a live voice tutor.</div>
+                <div style="color: #E2E8F0; font-size: 13.5px;">⚡ <b>AI Generators:</b> Create custom study flashcards and revisions.</div>
+                <div style="color: #E2E8F0; font-size: 13.5px;">🏫 <b>LMS Dashboard:</b> Complete structured lessons to earn certificates.</div>
+                <div style="color: #E2E8F0; font-size: 13.5px;">🏆 <b>Leaderboard:</b> Challenge yourself with quizzes and rank nationally.</div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
 
     # =====================================================
     # CHAT WITH MWALIMU SECTION
