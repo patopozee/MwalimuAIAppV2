@@ -13,12 +13,9 @@ from services.database import (
      
 )
 
-grade = st.session_state.get("grade", "")
-age = st.session_state.get("age", "")
-student = st.session_state.get("student_name", "")
 
-
-def render():   
+def render(): 
+    
     st.markdown("""
         <div style="
             background-color: #101726; 
@@ -49,6 +46,7 @@ def render():
     st.write("### 💬 Chat with Mwalimu")
     # Display previous chat messages (State-Guarded Scroll Tracker)
     # -----------------------------
+    grade = st.session_state.get("grade", "")  
     assistant_messages_count = sum(1 for m in st.session_state.ask_mwalimu_history if m["role"] not in ["student", "user"])
     current_ai_index = 0
 

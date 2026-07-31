@@ -42,14 +42,8 @@ db = firestore.client()
 
 # --- SERVICES & BACKEND IMPORTS ---
 from services.auth_service import MwalimuAuthService
-from services.payment_service import MpesaPaymentService
-from services.tier_guard import verify_tier_allowance
-from services.ai import ask_mwalimu, generate_quiz, generate_study_plan, generate_flashcards, generate_lesson
-from services.vision_service import MwalimuVisionService
 from services.db_service import MwalimuDBService
 from services.legal_text import TERMS_AND_CONDITIONS
-from services.quiz_evaluator import evaluate_quiz_submission
-from components.navigation import navigate
 from views.learning_dashboard import render as render_learning_dashboard
 from views.main_chat import render as render_main_chat_view
 from views.voice import render as render_voice_view
@@ -59,7 +53,6 @@ from views.leaderboard import render as render_leaderboard_view
 from views.admin import render as render_admin_view
 from views.lesson_workspace import render as render_lesson_workspace_view
 from views.edit_profile import render as render_edit_profile_view
-from services.upgrade_modal import upgrade_modal
 from styles.mwalimu_theme import load_theme
 from services.auth_helpers import get_or_create_user_profile
 # --- DATABASE ENGINE CACHE WRAPPERS (IMPORTS REMAIN THE SAME) ---
@@ -1484,17 +1477,27 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
     
 
     # # MAIN BRANDING HEADER CONTAINER
-    col1, col2 = st.columns([1, 5], vertical_alignment="center")
-    with col1:
-        try:
-            title_logo = Image.open("assets/logo112.png")
-            st.image(title_logo, width=100)
-        except Exception:
-            pass
-    with col2:
-        st.markdown("<h2 style='margin-top: 0 !important; margin-bottom: 0 !important; padding: 0;'>Mwalimu AI App</h2>", unsafe_allow_html=True)
-        st.markdown("<h4 style='margin-top: 2px !important; margin-bottom: 0 !important; color: gray; font-weight: normal;'>Shaping Minds, Shifting Futures.</h4>", unsafe_allow_html=True)
-        st.markdown("<div style='margin-bottom: 15px;'></div>", unsafe_allow_html=True)
+    left, middle, right = st.columns([6, 1, 3], vertical_alignment="center")
+    with left:
+        col1, col2 = st.columns([1, 4], vertical_alignment="center")
+        with col1:
+            try:
+                title_logo = Image.open("assets/logo112.png")
+                st.image(title_logo, width=160)
+            except Exception:
+                pass
+        with col2:
+            
+            st.markdown("<h2 style='margin:0; padding:0; line-height:1;'>Mwalimu AI App</h2>", unsafe_allow_html=True)
+            st.markdown("<h5 style='margin:-6px 0 0 0;margin-top: 2px; padding:0; line-height:1; color: gray; font-weight: normal;'>Shaping Minds, Shifting Futures.</h5>", unsafe_allow_html=True)
+            st.markdown("<div style='margin-bottom: 3px;'></div>", unsafe_allow_html=True)
+        
+
+
+
+
+
+
 
     # Create an elegant, compact intro container matching your app theme
     
@@ -1679,12 +1682,13 @@ else:
         with col1:
             try:
                 title_logo = Image.open("assets/logo112.png")
-                st.image(title_logo, width=160)
+                st.image(title_logo, width=120)
             except Exception:
                 pass
-        with col2:
-            st.markdown("<h1 style='margin:0; font-weight:800; color:#ffffff;'>Mwalimu AI App</h1>", unsafe_allow_html=True)
-            st.markdown("<h4 style='margin:0; color:#64748b; font-weight:normal;'>Shaping Minds, Shifting Futures.</h4>", unsafe_allow_html=True)
+        with col2:                    
+            st.markdown("<h1 style='margin:0; padding:0; line-height:1; font-weight: 10px;'>Mwalimu AI App</h1>", unsafe_allow_html=True)
+            st.markdown("<h4 style='margin:-6px 0 0 0;margin-top: 2px; padding:0; line-height:1; color: gray; font-weight: normal;'>Shaping Minds, Shifting Futures.</h4>", unsafe_allow_html=True)
+            st.markdown("<div style='margin-bottom: 3px;'></div>", unsafe_allow_html=True)
 
     with right:
         # Toggle interface view redirection flags safely

@@ -6,10 +6,7 @@ from services.database import (
     
     get_student_data  #  ADD THIS LINE HERE
 )
-name = st.session_state.get("student_name", "")
-grade = st.session_state.get("grade", "")
-age = st.session_state.get("age", "")
-student = st.session_state.get("student_name", "")
+
 
 def render():   
     st.markdown("---")

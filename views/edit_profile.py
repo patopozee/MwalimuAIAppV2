@@ -5,10 +5,7 @@ from google.cloud.firestore_v1.base_query import FieldFilter
 
 db = firestore.client()
 
-name = st.session_state.get("student_name", "")
-grade = st.session_state.get("grade", "")
-age = st.session_state.get("age", "")
-student = st.session_state.get("student_name", "")
+
 
 def render():  
     st.markdown("---")
@@ -17,7 +14,11 @@ def render():
         
     st.subheader("⚙ Edit Student Profile")
     st.write("Keep your academic milestones up to date. Changing your profile details or baseline grade helps Mwalimu AI adjust the difficulty of quizzes and voice tasks automatically.")
-    
+
+    name = st.session_state.get("student_name", "")
+    grade = st.session_state.get("grade", "")
+    age = st.session_state.get("age", "")
+    student = st.session_state.get("student_name", "")
     # 1. Fetch active data parameters cleanly
     current_uid = st.session_state.get("uid") or st.session_state.get("user_email")
     user_doc_ref = db.collection("users").document(str(current_uid))
