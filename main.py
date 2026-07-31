@@ -1488,11 +1488,11 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
     with col1:
         try:
             title_logo = Image.open("assets/logo112.png")
-            st.image(title_logo, width="stretch")
+            st.image(title_logo, width=100)
         except Exception:
             pass
     with col2:
-        st.markdown("<h1 style='margin-top: 0 !important; margin-bottom: 0 !important; padding: 0;'>Mwalimu AI App</h1>", unsafe_allow_html=True)
+        st.markdown("<h2 style='margin-top: 0 !important; margin-bottom: 0 !important; padding: 0;'>Mwalimu AI App</h2>", unsafe_allow_html=True)
         st.markdown("<h4 style='margin-top: 2px !important; margin-bottom: 0 !important; color: gray; font-weight: normal;'>Shaping Minds, Shifting Futures.</h4>", unsafe_allow_html=True)
         st.markdown("<div style='margin-bottom: 15px;'></div>", unsafe_allow_html=True)
 
