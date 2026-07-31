@@ -1,5 +1,4 @@
 import streamlit as st
-from services.upgrade_modal import upgrade_modal
 from services.tier_guard import verify_tier_allowance
 from services.ai import ask_mwalimu
 from services.vision_service import MwalimuVisionService

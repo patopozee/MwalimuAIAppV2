@@ -3,91 +3,87 @@ import time
 import streamlit as st
 from services.payment_service import MpesaPaymentService
 
-st.markdown("""
-<style>
-
-/* ===============================
-    Ultra-Compact 2-Plan Upgrade Modal
-================---------------- */
-[data-testid="stDialog"] > div{
-    width:700px !important;
-    max-width:700px !important;
-    border-radius:16px !important;
-    padding:0.5rem 0.8rem !important;
-}
-
-/* Minimal header margins */
-[data-testid="stDialog"] h2{
-    margin-top:0rem !important;
-    margin-bottom:0rem !important;
-    font-size:1.15rem !important;
-}
-
-[data-testid="stDialog"] p{
-    margin-bottom:0.15rem !important;
-    font-size:0.75rem !important;
-}
-
-/* Close gap between columns */
-[data-testid="stHorizontalBlock"]{
-    gap:0.4rem !important;
-}
-
-/* Slim plan containers */
-[data-testid="stVerticalBlockBorderWrapper"]{
-    border-radius:10px !important;
-    padding:0.3rem 0.4rem !important;
-}
-
-[data-testid="stVerticalBlockBorderWrapper"] h3 {
-    font-size:0.9rem !important;
-    margin-bottom:0rem !important;
-}
-
-/* Tiny buttons */
-div.stButton > button{
-    height:24px !important;
-    border-radius:6px !important;
-    font-size:11px !important;
-    font-weight:600 !important;
-    padding:0px !important;
-}
-
-/* Input field */
-div[data-baseweb="input"]{
-    border-radius:6px !important;
-}
-
-/* Divider spacing */
-hr{
-    margin:0.3rem 0 !important;
-}
-
-/* Tight feature lists */
-ul{
-    margin-top:0.05rem !important;
-    margin-bottom:0.05rem !important;
-    padding-left:0.6rem !important;
-}
-
-li{
-    margin-bottom:0.05rem !important;
-    font-size:10.5px !important;
-    line-height:1.15 !important;
-}
-
-/* Logo constraint */
-img{
-    max-height: 28px !important;
-    margin-bottom:0rem !important;
-}
-
-</style>
-""", unsafe_allow_html=True)
 
 
 @st.dialog("Upgrade your account")
 def upgrade_modal():
+
+    st.markdown("""
+    <style>
+
+    /* ==========================================
+       Upgrade Modal ONLY
+    ========================================== */
+
+    [data-testid="stDialog"] > div{
+        width:700px !important;
+        max-width:700px !important;
+        border-radius:16px !important;
+        padding:0.5rem 0.8rem !important;
+    }
+
+    [data-testid="stDialog"] h2{
+        margin-top:0rem !important;
+        margin-bottom:0rem !important;
+        font-size:1.15rem !important;
+    }
+
+    [data-testid="stDialog"] p{
+        margin-bottom:0.15rem !important;
+        font-size:0.75rem !important;
+    }
+
+    [data-testid="stDialog"] [data-testid="stHorizontalBlock"]{
+        gap:0.4rem !important;
+    }
+
+    [data-testid="stDialog"] [data-testid="stVerticalBlockBorderWrapper"]{
+        border-radius:10px !important;
+        padding:0.3rem 0.4rem !important;
+    }
+
+    [data-testid="stDialog"] h3{
+        font-size:0.9rem !important;
+        margin-bottom:0rem !important;
+    }
+
+    [data-testid="stDialog"] div.stButton > button{
+        height:24px !important;
+        border-radius:6px !important;
+        font-size:11px !important;
+        font-weight:600 !important;
+        padding:0 !important;
+    }
+
+    [data-testid="stDialog"] div[data-baseweb="input"]{
+        border-radius:6px !important;
+    }
+
+    [data-testid="stDialog"] hr{
+        margin:0.3rem 0 !important;
+    }
+
+    [data-testid="stDialog"] ul{
+        margin-top:0.05rem !important;
+        margin-bottom:0.05rem !important;
+        padding-left:0.6rem !important;
+    }
+
+    [data-testid="stDialog"] li{
+        margin-bottom:0.05rem !important;
+        font-size:10.5px !important;
+        line-height:1.15 !important;
+    }
+
+    /* ONLY the M-Pesa logo inside the dialog */
+    [data-testid="stDialog"] img{
+        max-height:100px !important;
+        width:500px !important;
+        object-fit:contain !important;
+    }
+
+    </style>
+    """, unsafe_allow_html=True)
 
     if "selected_plan" not in st.session_state:
         st.session_state.selected_plan = "plus"

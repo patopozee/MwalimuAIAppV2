@@ -2,7 +2,6 @@ import streamlit as st
 from services.upgrade_modal import upgrade_modal
 from voice_page import render_voice_tutor_page
 import os
-from services.upgrade_modal import upgrade_modal
 from services.database import (
     
     get_student_data  #  ADD THIS LINE HERE

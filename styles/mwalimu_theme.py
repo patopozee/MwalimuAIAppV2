@@ -192,7 +192,7 @@ def load_theme():
             border: 1px solid rgba(36, 115, 242, 0.18) !important; /* Subtle blue outline */
             border-radius: 12px !important;
             padding: 14px 18px !important; /* Spacious inner breathing room */
-            margin-bottom: 12px !important; /* Generous gap BETWEEN navigation blocks */
+            margin-bottom: 5px !important; /* Generous gap BETWEEN navigation blocks */
             transition: all 0.2s ease-in-out !important;
             text-decoration: none !important;
             
