@@ -680,7 +680,7 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
     learning_page = st.Page(
             render_learning_dashboard,
             title="Learning Dashboard",
-            icon="🏫",
+            icon="📚",
             url_path="learning"
         )
 
@@ -791,7 +791,7 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
     st.sidebar.page_link(chat_page, label="Main Chat", icon="🏠")
     st.sidebar.page_link(voice_page, label="Voice Tutor", icon="🎙️")
     st.sidebar.page_link(generator_page, label="AI Generators", icon="⚡")
-    st.sidebar.page_link(learning_page, label="Learning Dashboard", icon="🏫")
+    st.sidebar.page_link(learning_page, label="Learning Dashboard", icon="📚")
     st.sidebar.page_link(leaderboard_page, label="National Leaderboard", icon="🏆")
     
 
