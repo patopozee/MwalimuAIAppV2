@@ -1430,7 +1430,7 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
     with col1:
         try:
             title_logo = Image.open("assets/logo112.png")
-            st.image(title_logo, width=100)
+            st.image(title_logo, width="stretch")
         except Exception:
             pass
     with col2:
@@ -1621,7 +1621,7 @@ else:
         with col1:
             try:
                 title_logo = Image.open("assets/logo112.png")
-                st.image(title_logo, width=85)
+                st.image(title_logo, width=160)
             except Exception:
                 pass
         with col2:
