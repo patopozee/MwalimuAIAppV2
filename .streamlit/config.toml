@@ -14,7 +14,10 @@ showErrorDetails = false
 # Disables magic parsing to reduce CPU overhead and accelerate layout calculations.
 magicEnabled = false
 
+
 [browser]
-# Drops analytics telemetry tracking background pings to save user network bandwidth.
 gatherUsageStats = false
+
+
+
 

@@ -15,14 +15,72 @@ from services.session_service import (
     validate_session,
     destroy_session,
 )
+import streamlit as st
 
-# --- STREAMLIT PAGE CONFIGURATION (MUST BE ABSOLUTE FIRST COMMAND IN STREAMLIT) ---
+# Hide Streamlit loading messages, footer, and hamburger menu
 st.set_page_config(
     page_title="Mwalimu AI App",
     page_icon="assets/logo112.png",
     layout="wide",
     initial_sidebar_state="expanded"
 )
+
+# 2. --- HIDE MENUS, FOOTERS, AND DEV GLASSES ---
+# 2. --- HIDE MENUS, FOOTERS, RUNNING MAN, AND ACTION BARS ---
+hide_st_style = """
+    <style>
+    /* Hide hamburger menu */
+    #MainMenu {
+        visibility: hidden;
+    }
+
+    /* Hide footer */
+    footer {
+        visibility: hidden;
+    }
+
+    /* Hide Streamlit header */
+    header {
+        visibility: hidden;
+    }
+
+    /* Hide top toolbar */
+    [data-testid="stHeader"] {
+        display: none !important;
+    }
+
+    [data-testid="stToolbar"] {
+        display: none !important;
+    }
+
+    [data-testid="stDecoration"] {
+        display: none !important;
+    }
+
+    /* Hide running indicator */
+    [data-testid="stStatusWidget"] {
+        display: none !important;
+    }
+
+    .stStatusWidget {
+        display: none !important;
+    }
+
+    /* Hide deploy button */
+    [data-testid="stDeployButton"] {
+        display: none !important;
+    }
+
+    /* Hide viewer badge (if present) */
+    .viewerBadge_container__1QSob {
+        display: none !important;
+    }
+    </style>
+    """
+
+st.markdown(hide_st_style, unsafe_allow_html=True)
+
+
 
 # -----------------------------------
 # AUTO LOGIN FROM COOKIE
@@ -230,7 +288,7 @@ st.html(f"""
     <style>
     @media (min-width: 768px) {{
     [data-testid="stHeader"], header {{ background-color: transparent !important; height: 3.5rem !important; }}
-    [data-testid="stAppViewMainObj"], .stMain, [data-testid="stMain"] {{ margin-top: -2.4rem !important; padding-top: 0rem !important; }}
+    [data-testid="stAppViewMainObj"], .stMain, [data-testid="stMain"] {{ margin-top: -4.4rem !important; padding-top: 0rem !important; }}
     [data-testid="stMainBlockContainer"], [data-testid="stAppViewBlockContainer"], .block-container {{ padding-top: 1.5rem !important; margin-top: 0rem !important; }}
     }}
     @media (max-width: 1000px) {{
