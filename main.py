@@ -17,13 +17,13 @@ from services.session_service import (
 )
 import streamlit as st
 
-st.markdown("""
-<style>
-html {
-    zoom: 100%;
-}
-</style>
-""", unsafe_allow_html=True)
+# st.markdown("""
+# <style>
+# html {
+#     zoom: 100%;
+# }
+# </style>
+# """, unsafe_allow_html=True)
 import streamlit as st
 
 # Hide Streamlit loading messages, footer, and hamburger menu
