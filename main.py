@@ -17,6 +17,15 @@ from services.session_service import (
 )
 import streamlit as st
 
+st.markdown("""
+<style>
+html {
+    zoom: 100%;
+}
+</style>
+""", unsafe_allow_html=True)
+import streamlit as st
+
 # Hide Streamlit loading messages, footer, and hamburger menu
 st.set_page_config(
     page_title="Mwalimu AI App",
@@ -24,6 +33,7 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded"
 )
+
 
 # 2. --- HIDE MENUS, FOOTERS, AND DEV GLASSES ---
 # 2. --- HIDE MENUS, FOOTERS, RUNNING MAN, AND ACTION BARS ---
