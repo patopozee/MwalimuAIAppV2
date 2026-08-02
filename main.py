@@ -123,6 +123,7 @@ from views.lesson_workspace import render as render_lesson_workspace_view
 from views.edit_profile import render as render_edit_profile_view
 from styles.mwalimu_theme import load_theme
 from services.auth_helpers import get_or_create_user_profile
+from services.support import send_support_email
 # --- DATABASE ENGINE CACHE WRAPPERS (IMPORTS REMAIN THE SAME) ---
 from services.database import (
     create_tables,
@@ -2051,20 +2052,69 @@ else:
                 st.write("Yes! You can choose to upgrade or scale your active tier levels at any time from your account panel.")
             with st.expander(" What equipment do I need for the Voice Tutor mode?"):
                 st.write("No extra microphone gear or headsets are required! Standard built-in browser microphone access is perfectly fine.")
-                
+        #=============
+        #       
         with tab_contact:
-            st.markdown("<br>", unsafe_allow_html=True)
-            with st.form(key="landing_contact_tab_form", clear_on_submit=True):
-                col_sender, col_mail = st.columns(2)
-                with col_sender:
-                    sender_name = st.text_input("Your Name", placeholder="e.g., Patrick Wachira")
-                with col_mail:
-                    sender_email = st.text_input("Your Email Address", placeholder="name@gmail.com")
-                msg_subject = st.text_input("Subject", placeholder="How can Mwalimu AI support desk assist you today?")
-                msg_body = st.text_area("Your Message Details", placeholder="Type your question or revision inquiry here...", height=120)
-                submit_support_btn = st.form_submit_button(label="Submit Secure Message 📩", use_container_width=True)
-                if submit_support_btn:
-                    st.toast("Support ticket captured! Our desk will follow up via email within 24 hours.", icon="✉")
+            st.markdown("### 📞 Contact Mwalimu AI")
+
+            st.info("""
+        📧 **Email:** info@mwalimuaiapp.com
+
+        💬 **WhatsApp:** +254 710 694 297
+
+        📞 **Call:** +254 710 694 297
+        """)
+
+            with st.form("contact_form", clear_on_submit=True):
+
+                col1, col2 = st.columns(2)
+
+                with col1:
+                    sender_name = st.text_input(
+                        "Your Name",
+                        placeholder="e.g. Patrick Wachira"
+                    )
+
+                with col2:
+                    sender_email = st.text_input(
+                        "Your Email",
+                        placeholder="name@gmail.com"
+                    )
+
+                phone = st.text_input(
+                    "Phone Number (Optional)",
+                    placeholder="+254712345678"
+                )
+
+                subject = st.text_input(
+                    "Subject",
+                    placeholder="How can we help you?"
+                )
+
+                message = st.text_area(
+                    "Message",
+                    height=150,
+                    placeholder="Type your message here..."
+                )
+
+                submitted = st.form_submit_button(
+                    "📩 Send Message",
+                    use_container_width=True
+                )
+                if submitted:
+
+                    success = send_support_email(
+                        sender_name,
+                        sender_email,
+                        phone,
+                        subject,
+                        message
+                    )
+
+                    if success:
+                        st.success("✅ Your message has been sent successfully.")
+                    else:
+                        st.error("❌ Failed to send your message.")
                     
         with tab_terms:
             st.markdown("<br>", unsafe_allow_html=True)
