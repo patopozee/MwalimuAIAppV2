@@ -658,7 +658,7 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
         right:12px !important;
         width:auto !important;
         transform:none !important;
-        bottom:55px !important;
+        bottom:65px !important;
 
     }
 
