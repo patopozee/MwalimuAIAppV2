@@ -611,56 +611,110 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
     # Look for your existing st.html styles block and add this rule inside it:
     
 
+    import streamlit as st
+
     st.markdown("""
     <style>
-    /* ========================================================
-    1. GLOBAL & MOBILE STYLES (Fixed alignment for your phone)
-    ======================================================== */
-    [data-testid="stMainBlockContainer"] {
-        max-width: 1000px !important;
-        margin: 0 auto !important;
-        padding-bottom: 160px !important; /* Higher padding keeps your chats from hiding */
+
+    /* Main content */
+    [data-testid="stMainBlockContainer"]{
+        max-width:900px;
+        margin:auto;
+        padding-bottom:120px !important;
     }
 
-    /* Style the inner chat box */
-    div[data-testid="stChatInput"] {
-        background-color: transparent !important;
-        z-index: 99999 !important;
-        
-        /* FIX FOR PHONE: Float it above the phone's native floor */
-        position: fixed !important;
-        bottom: 70px !important; /* Pushes it UP on mobile to clear the footer */
-        left: 0 !important;
-        right: 0 !important;
-        padding-left: 1rem !important;
-        padding-right: 1rem !important;
+    /* Chat input */
+    div[data-testid="stChatInput"]{
+        position:fixed !important;
+        bottom:65px !important;
+
+        z-index:999999;
+
+        transition:
+            left .25s ease,
+            width .25s ease,
+            transform .25s ease;
+
+        padding:0 !important;
+        background:transparent !important;
     }
 
-    div[data-testid="stChatInput"] > div {
-        background-color: #2F3037 !important;
-        border-radius: 12px !important;
+    /* Chat box - Optimized Height Profile */
+    div[data-testid="stChatInput"] > div{
+        background:#2F3037 !important;
+        border-radius:14px !important;
+        min-height: 55px !important;
+        padding-top: 10px !important;
+        padding-bottom: 1px !important;
     }
 
+    
+    /* Mobile */
+    @media (max-width:768px){
 
-    /* ========================================================
-    2. PC & LARGE SCREEN ONLY ALIGNMENT 
-    ======================================================== */
-    @media (min-width: 768px) {
-        div[data-testid="stChatInput"] {
-            position: fixed !important;
-            bottom: 70px !important; /* Height clearance for PC footer */
-            max-width: 900px !important; 
-            width: 100% !important;
-            
-            /* Centers it exactly inside the desktop viewport grid */
-            left: calc(48.5% + 168px) !important;   
-            transform: translateX(-50%) !important;
-            padding-left: 0px !important;
-            padding-right: 0px !important;
-        }
+    div[data-testid="stChatInput"]{
+
+        left:12px !important;
+        right:12px !important;
+        width:auto !important;
+        transform:none !important;
+        bottom:15px !important;
+
     }
+
+    }
+
     </style>
     """, unsafe_allow_html=True)
+
+    #=============================================
+    #=============================================
+
+    st.iframe(
+    """
+    <script>
+
+    function updateChatInput(){
+
+        const sidebar =
+            window.parent.document.querySelector('section[data-testid="stSidebar"]');
+
+        const chat =
+            window.parent.document.querySelector('div[data-testid="stChatInput"]');
+
+        const main =
+            window.parent.document.querySelector('[data-testid="stMainBlockContainer"]');
+
+        if(!sidebar || !chat || !main) return;
+
+        const sidebarWidth = sidebar.getBoundingClientRect().width;
+
+        const mainRect = main.getBoundingClientRect();
+
+        chat.style.left = mainRect.left + "px";
+
+        chat.style.width = mainRect.width + "px";
+
+        chat.style.transform = "none";
+
+    }
+
+    updateChatInput();
+
+    const resizeObserver = new ResizeObserver(updateChatInput);
+
+    resizeObserver.observe(
+        window.parent.document.querySelector('section[data-testid="stSidebar"]')
+    );
+
+    window.parent.addEventListener("resize", updateChatInput);
+
+    setInterval(updateChatInput,300);
+
+    </script>
+    """,
+    height=1, # Fixed: set to 1 pixel to satisfy Streamlit's validation while staying invisible
+    )
 
     
 
