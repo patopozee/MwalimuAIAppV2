@@ -37,58 +37,23 @@ st.set_page_config(
 
 # 2. --- HIDE MENUS, FOOTERS, AND DEV GLASSES ---
 # 2. --- HIDE MENUS, FOOTERS, RUNNING MAN, AND ACTION BARS ---
-hide_st_style = """
+hide_branding = """
     <style>
-    /* Hide hamburger menu */
-    #MainMenu {
-        visibility: hidden;
-    }
-
-    /* Hide footer */
-    footer {
-        visibility: hidden;
+    /* Force the sidebar collapse/expand button to stay visible */
+    [data-testid="collapsedControl"], [data-testid="stSidebarCollapseButton"] {
+        display: block !important;
+        visibility: visible !important;
     }
 
     /* Hide Streamlit header */
     header {
-        visibility: hidden;
-    }
+        visibility: visible !important;
+    }   
 
-    /* Hide top toolbar */
-    [data-testid="stHeader"] {
-        display: none !important;
-    }
-
-    [data-testid="stToolbar"] {
-        display: none !important;
-    }
-
-    [data-testid="stDecoration"] {
-        display: none !important;
-    }
-
-    /* Hide running indicator */
-    [data-testid="stStatusWidget"] {
-        display: none !important;
-    }
-
-    .stStatusWidget {
-        display: none !important;
-    }
-
-    /* Hide deploy button */
-    [data-testid="stDeployButton"] {
-        display: none !important;
-    }
-
-    /* Hide viewer badge (if present) */
-    .viewerBadge_container__1QSob {
-        display: none !important;
-    }
     </style>
     """
 
-st.markdown(hide_st_style, unsafe_allow_html=True)
+st.markdown(hide_branding, unsafe_allow_html=True)
 
 
 
