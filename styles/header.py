@@ -67,14 +67,18 @@ def load():
 
     .mw-brand-card{{
         display:flex;
-
-        align-items:center;
-
-        gap:14px;
-
-        height:52px;
-
-        padding:0 28px;
+        
+            align-items:center;
+    
+            gap:10px;
+    
+            height:52px;
+    
+            padding:0 20px;
+    
+            color:#E5E7EB;
+    
+            font-size:10px;
     }}
 
     .mw-logo{{
@@ -89,13 +93,13 @@ def load():
 
     .mw-title{{
         color:white;
-        font-size:16px;
+        font-size:12px;
         font-weight:700;
     }}
 
     .mw-subtitle{{
         color:#94A3B8;
-        font-size:10px;
+        font-size:8px;
     }}
 
     /* ========================= */
