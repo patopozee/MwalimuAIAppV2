@@ -77,7 +77,6 @@ db = firestore.client()
 from services.auth_service import MwalimuAuthService
 from services.db_service import MwalimuDBService
 from services.legal_text import TERMS_AND_CONDITIONS
-from views.learning_dashboard import render as render_learning_dashboard
 from views.main_chat import render as render_main_chat_view
 from views.voice import render as render_voice_view
 from views.learning_dashboard import render as render_learning_dashboard_view
@@ -89,6 +88,10 @@ from views.edit_profile import render as render_edit_profile_view
 from styles.mwalimu_theme import load_theme
 from services.auth_helpers import get_or_create_user_profile
 from services.support import send_support_email
+from components.header import render as render_header
+from styles.sidebar import load as load_sidebar_style
+from components.sidebar import render as render_sidebar
+from components.learning_context import render as render_learning_context
 # --- DATABASE ENGINE CACHE WRAPPERS (IMPORTS REMAIN THE SAME) ---
 from services.database import (
     create_tables,
@@ -559,6 +562,7 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
 
     
     
+   
     #--- BASE64 SIDEBAR IMAGE INJECTOR
     try:
         with open("assets/logo211.png", "rb") as image_file:
@@ -581,14 +585,17 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
         }}
         </style>
         """, unsafe_allow_html=True)
-
-
-
-    # GLOBAL UI & CSS LAYOUT SETTINGS
     
+        
     # GLOBAL UI & CSS LAYOUT SETTINGS
     st.html("""
         <style>
+        html {
+            font-size: 14px !important; /* Slightly downsizes default standard text */
+        }
+        section[data-testid="stSidebar"] {
+            width: 320px !important; /* Reduced from 320px to fit scaled screens */
+        }
         /* 1. Safely pull up the root container block without affecting elements inside it */
         [data-testid="stMainBlockContainer"] {
         padding-top: 0.5rem !important;
@@ -716,74 +723,80 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
     height=1, # Fixed: set to 1 pixel to satisfy Streamlit's validation while staying invisible
     )
 
-    
-
 
     #=============================================
     #THEME LOAD===================================
     #=============================================
-  
-    load_theme()
     
+    load_theme()
+    from styles.sidebar import load as load_sidebar_style
+    load_sidebar_style()
+    from styles.sidebar import load_style
+    load_style()
+
+    # ======================================================
+    # CREATE PAGES
+    # ======================================================
 
     def render_main_chat():
         render_main_chat_view()
+
     chat_page = st.Page(
-            render_main_chat,
-            title="Main Chat",
-            icon="🏠",
-            url_path="chat"
-        )
+        render_main_chat,
+        title="Main Chat",
+        icon="🏠",
+        url_path="chat",
+    )
 
     def render_voice_tutor():
         render_voice_view()
 
     voice_page = st.Page(
-            render_voice_tutor,
-            title="Voice Tutor",
-            icon="🎙️",
-            url_path="voice"
-        )
+        render_voice_tutor,
+        title="Voice Tutor",
+        icon="🎙️",
+        url_path="voice",
+    )
 
     def render_generators():
         render_generators_view()
 
     generator_page = st.Page(
-            render_generators,
-            title="AI Generators",
-            icon="⚡",
-            url_path="generators"
-        )
+        render_generators,
+        title="AI Generators",
+        icon="⚡",
+        url_path="generators",
+    )
 
     def render_learning_dashboard():
         render_learning_dashboard_view()
 
     learning_page = st.Page(
-            render_learning_dashboard,
-            title="Learning Dashboard",
-            icon="📚",
-            url_path="learning"
-        )
+        render_learning_dashboard,
+        title="Learning Dashboard",
+        icon="📚",
+        url_path="learning",
+    )
 
     def render_leaderboard():
         render_leaderboard_view()
 
     leaderboard_page = st.Page(
-            render_leaderboard,
-            title="Leaderboard",
-            icon="🏆",
-            url_path="leaderboard"
-        )
+        render_leaderboard,
+        title="Leaderboard",
+        icon="🏆",
+        url_path="leaderboard",
+    )
 
     def render_admin():
         render_admin_view()
 
     admin_page = st.Page(
-            render_admin,
-            title="Admin Dashboard",
-            icon="👑",
-            url_path="admin"
-        )
+        render_admin,
+        title="Admin Dashboard",
+        icon="👑",
+        url_path="admin",
+    )
 
     def render_lesson_workspace():
         render_lesson_workspace_view()
@@ -792,7 +805,7 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
         render_lesson_workspace,
         title="Lesson Workspace",
         icon="📖",
-        url_path="lesson"
+        url_path="lesson",
     )
 
     def render_edit_profile():
@@ -802,8 +815,12 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
         render_edit_profile,
         title="Edit Profile",
         icon="⚙️",
-        url_path="edit-profile"
+        url_path="edit-profile",
     )
+
+    # ======================================================
+    # STREAMLIT ROUTER
+    # ======================================================
 
     router = st.navigation(
         [
@@ -819,6 +836,10 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
         position="hidden",
     )
 
+    # ======================================================
+    # SAVE ROUTES
+    # ======================================================
+
     st.session_state.ROUTE_CHAT = chat_page
     st.session_state.ROUTE_VOICE = voice_page
     st.session_state.ROUTE_GENERATORS = generator_page
@@ -828,797 +849,47 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
     st.session_state.ROUTE_LESSON = lesson_page
     st.session_state.ROUTE_EDIT_PROFILE = edit_profile_page
     
-    #user_data = get_student_data(st.session_state.user_email)
-
-     #==========================
-    # NAVIGATION HUB AREA
-    #========================
-    def nav_item(icon, title, page_name):
-
-        current = st.session_state.get("current_page", "Main Chat")
-
-        active = current == page_name
-
-        if active:
-           st.sidebar.markdown(
-            f"""
-        <div style="display:flex;align-items:center;background:#233044;transition:all .18s ease;border-left:4px solid #3b82f6;padding:10px 14px;border-radius:0 8px 8px 0;margin-bottom:8px;color:white;font-weight:600;">
-            {icon}&nbsp;&nbsp;{title}
-        </div>
-        """,
-            unsafe_allow_html=True,
-        )
-
-        else:
-            if st.sidebar.button(
-                f"{icon} {title}",
-                key=f"nav_{page_name}",
-                use_container_width=True
-            ):
-                st.session_state.current_page = page_name
-                st.rerun()
-    
-
 
 
    
-
-    # =========================================================
-    # RENDER THE NAVIGATION MENU
-    # =========================================================
-    st.sidebar.markdown("### Navigation Hub")
-
-    # Native page links automatically pick up the active matching current style state classes
-    st.sidebar.page_link(chat_page, label="Main Chat", icon="🏠")
-    st.sidebar.page_link(voice_page, label="Voice Tutor", icon="🎙️")
-    st.sidebar.page_link(generator_page, label="AI Generators", icon="⚡")
-    st.sidebar.page_link(learning_page, label="Learning Dashboard", icon="📚")
-    st.sidebar.page_link(leaderboard_page, label="National Leaderboard", icon="🏆")
+    render_header()
+    render_sidebar()
     
 
-    # === STUDENT PROFILE (LOCKED DESIGN BOXES) ===
-
-    
-    st.sidebar.markdown("---")
-    st.sidebar.markdown("### Student Profile")
-
-    
-    with st.sidebar.expander("📝 Student Information", expanded=False):
-        name = str(st.session_state.get("student_name") or "Student").strip().title()
-        grade = st.session_state.get("grade", "Grade 1")
-        age = int(st.session_state.get("age", 10))
-        favorite_subject = st.text_input(
-                    "Favorite Subject",
-                    value=st.session_state.get("favorite_subject") or ""
-                )
-        weak_subject = st.text_input(
-                    "Needs Improvement",
-                    value=st.session_state.get("weak_subject") or ""
-                )
-        initial = name[:1].upper() if name else "S"
-        st.sidebar.markdown(
-                f"""
-            <div class="profile-card">
-
-            <div class="profile-avatar">
-            {initial}
-            </div>
-
-            <div class="profile-name">
-            {name}
-            </div>
-
-            <div class="profile-grade">
-            🎓 {grade}
-            </div>
-
-            <hr style="opacity:.12;">
-
-            <div style="font-size:14px;line-height:1.8;">
-
-            🎂 <b>Age</b> : {age}<br>
-
-            ⭐ <b>Favorite</b> : {favorite_subject or "Not Set"}<br>
-
-            📉 <b>Needs Help</b> : {weak_subject or "Not Set"}
-
-            </div>
-            """,
-            unsafe_allow_html=True
-            )
-    
-
-
-    with st.sidebar.expander("⚙ Learning Preferences", expanded=False):
-
-        learning_style = st.selectbox(
-            "Learning Style",
-            [
-                "Visual",
-                "Practical",
-                "Reading/Writing",
-                "Interactive",
-                "Story-based"
-            ]
-        )
-
-        language = st.selectbox(
-            "Preferred Language",
-            [
-                "English",
-                "Kiswahili",
-                "Sheng"
-            ]
-        )
         
-
-    # Composite state verification logic to load specific student thread context safely
-    from styles.quick_actions import render_quick_actions
-    render_quick_actions()
-
-    
-    #@st.fragment
-    # =====================================================================
-    # ⚡ REAL-TIME CBC SYNC ENGINE (RUNS BEFORE CODE RENDERS ON CHANGE)
-    # =====================================================================
-    def render_cbc_selectors(grade, CBC):
-
-        st.sidebar.markdown("---")
-        st.sidebar.subheader("📚 Learning Context")
-
-        grade_dict = CBC.get(grade, {})
-
-        if not isinstance(grade_dict, dict):
-            grade_dict = {}
-
-        # ---------------------------------------------------
-        # SUBJECT
-        # ---------------------------------------------------
-
-        subjects = list(grade_dict.keys()) or ["General Studies"]
-
-        subject = st.sidebar.selectbox(
-            "Subject",
-            subjects,
-            key="sidebar_subject_select"
-        )
-
-        subject_dict = grade_dict.get(subject, {})
-
-        if not isinstance(subject_dict, dict):
-            subject_dict = {}
-
-        # ---------------------------------------------------
-        # TOPIC
-        # ---------------------------------------------------
-
-        topics = list(subject_dict.keys()) or ["General Topic"]
-
-        topic = st.sidebar.selectbox(
-            "Topic",
-            topics,
-            key="sidebar_topic_select"
-        )
-
-        topic_dict = subject_dict.get(topic, {})
-
-        # ---------------------------------------------------
-        # SUB TOPIC
-        # ---------------------------------------------------
-
-        if isinstance(topic_dict, dict):
-
-            sub_topics = list(topic_dict.keys()) or ["General Sub-Topic"]
-
-            sub_topic = st.sidebar.selectbox(
-                "Sub-topic",
-                sub_topics,
-                key="sidebar_subtopic_select"
-            )
-
-            outcomes = topic_dict.get(sub_topic, [])
-
-        else:
-
-            sub_topic = "General Sub-Topic"
-
-            outcomes = topic_dict
-
-        if not outcomes:
-
-            outcomes = ["General Learning Outcome"]
-
-        # ---------------------------------------------------
-        # LEARNING OUTCOME
-        # ---------------------------------------------------
-
-        learning_outcome = st.sidebar.selectbox(
-            "Learning Outcome",
-            outcomes,
-            key="sidebar_outcome_select"
-        )
-
-        # ============================================================
-        # SINGLE SOURCE OF TRUTH
-        # ============================================================
-
-        current_curriculum = {
-            "subject": subject,
-            "topic": topic,
-            "sub_topic": sub_topic,
-            "learning_outcome": learning_outcome
-        }
-
-        old_curriculum = st.session_state.get("active_curriculum")
-
-        # Only update Session State if something actually changed.
-        if old_curriculum != current_curriculum:
-
-            st.session_state.active_curriculum = current_curriculum
-
-            st.session_state.active_subject = subject
-            st.session_state.active_topic = topic
-            st.session_state.active_sub_topic = sub_topic
-            st.session_state.active_learning_outcome = learning_outcome
-
-    
-    # 2. RUN THIS UNCONDITIONAL: Render selectors immediately on page load
-    if name:
-        render_cbc_selectors(grade, CBC)
-
-    # 3. Safe contextual extraction fallbacks (Guaranteed up-to-date by the callback)
-    subject = st.session_state.get("active_subject", "Mathematics")
-    topic = st.session_state.get("active_topic", "Whole Numbers")
-    sub_topic = st.session_state.get("active_sub_topic", "Place Value")
-    learning_outcome = st.session_state.get("active_learning_outcome", "General Learning Outcome")
-
-    # 4. Create the global student dictionary map
-    student = {
-        "name": name if name else "Student",
-        "grade": grade,
-        "age": int(age),
-        "favorite_subject": favorite_subject,
-        "weak_subject": weak_subject,
-        "learning_style": learning_style,
-        "language": language,
-        "preferred_language": language,
-        "subject": subject,
-        "topic": topic,
-        "sub_topic": sub_topic,
-        "learning_outcome": learning_outcome
-    }
-    st.session_state.active_student_profile = student
-    #=========
-    # Fetch your unique authenticated Firebase ID string from memory core
-    student_uid_val = str(st.session_state.get("uid", ""))
-
-    # Composite state verification logic to load specific student thread context safely       
-    if student_uid_val and name:
-        if (
-            st.session_state.get("last_checked_uid") != student_uid_val
-            or st.session_state.get("last_checked_grade") != grade
-            or st.session_state.get("last_checked_age") != int(age)
-            or st.session_state.get("last_checked_subject")
-                != st.session_state.get("active_subject", "General Studies")
-        ):
-
-            all_historical_chats = get_ask_mwalimu_history(
-                student_uid_val,
-                st.session_state.get("active_subject", "General Studies")
-            )
-
-            st.session_state.ask_mwalimu_history = [
-                msg for msg in all_historical_chats
-                if not msg.get("is_voice")
-            ]
-
-            st.session_state.last_checked_uid = student_uid_val
-            st.session_state.last_checked_grade = grade
-            st.session_state.last_checked_age = int(age)
-            st.session_state.last_checked_subject = st.session_state.get(
-                "active_subject",
-                "General Studies"
-            )
-
-        st.session_state.student_name = name
-
-   
-    
-
-    # ====================================================================
-    # --- DEDICATED CONFIRMATION DIALOG MODAL ---
-    # ====================================================================
-    # ==========================================================
-    # 💬 CHAT ACTIONS
-    # ==========================================================
-
-    current_subject = st.session_state.get(
-        "active_subject",
-        "General Studies"
-    )
-
-
-    @st.dialog(f"🗑️ Clear {current_subject} Chat")
-    def confirm_clear_main_chat_dialog():
-
-        st.markdown(
-            f"""
-    ### Delete **{current_subject}** Chat History
-
-    This will permanently delete **all conversations** for the **{current_subject}** subject.
-
-    ✅ Chats from your other subjects will remain untouched.
-
-    ⚠️ This action **cannot be undone**.
-    """
-        )
-
-        col_delete, col_cancel = st.columns(2)
-
-        with col_delete:
-
-            if st.button(
-                "🗑️ Delete History",
-                key="confirm_delete_subject_chat",
-                type="primary",
-                use_container_width=True,
-            ):
-
-                clear_student_chat_history(
-                    student_uid=str(st.session_state.get("uid", "")),
-                    grade=st.session_state.get("grade", "Grade 6"),
-                    age=int(st.session_state.get("age", 12)),
-                    subject=current_subject,
-                )
-
-                # Reset local session memory
-                st.session_state.ask_mwalimu_history = []
-
-                # Clear cached database functions
-                from services.database import (
-                    get_ask_mwalimu_history,
-                    get_student_stats,
-                )
-
-                if hasattr(get_ask_mwalimu_history, "clear"):
-                    get_ask_mwalimu_history.clear()
-
-                if hasattr(get_student_stats, "clear"):
-                    get_student_stats.clear()
-
-                st.toast(
-                    f"{current_subject} chat history deleted successfully.",
-                    icon="🗑️",
-                )
-
-                st.rerun()
-
-        with col_cancel:
-
-            if st.button(
-                "↩ Cancel",
-                key="cancel_delete_subject_chat",
-                use_container_width=True,
-            ):
-                st.rerun()
-
-
-    # ==========================================================
-    # 💬 SIDEBAR CHAT CARD
-    # ==========================================================
-
-    st.sidebar.markdown("---")
-
-    with st.sidebar.container(border=True):
-
-        st.markdown("### 💬 Chat")
-
-        if st.button(
-            "🗑️ Clear Chat History",
-            key="sidebar_clear_chat_btn",
-            use_container_width=True,
-            type="secondary",
-        ):
-            confirm_clear_main_chat_dialog()
-
-    # ====================================================================
-    # 🔒 SECURE FIREBASE ROLE-BASED ADMIN PORTAL (ADD THIS HERE)
-    # ====================================================================
-    # 🔄 REPLACE the string below with your copied Firebase UID string:
-    # 1. Define all your master admin IDs inside a list
-    MASTER_ADMIN_UIDS = [
-        "aYiSGN6DVbOLuM3jYnQSEGpd8Mo2",  # First Admin
-        "dwnwZWdjDhhWRLVm02LGp6D3L7u2"        # Add your new admin ID here
-    ]
-
-    # 2. Check if the logged-in user's UID is found within that authorized list
-    if st.session_state.get("uid") in MASTER_ADMIN_UIDS:
-        st.sidebar.markdown("---")
-        st.sidebar.subheader("👑 Administrative Access")
-
-        st.sidebar.page_link(
-            admin_page,
-            label="⚙️ Open Admin Dashboard",
-            icon="👑",
-            use_container_width=True,
-        )
-
-            
-    #======== 
-    #=== Upgrade Tier === 
-    from datetime import datetime, UTC
-    import streamlit as st
-
-    def render_workspace_sidebar():
-        if "user_email" in st.session_state:
-            active_target_id = st.session_state.get("uid") or st.session_state.user_email
-            
-            # Safely fetch student data from database layer
-            user_data = get_student_data(str(active_target_id))
-
-            subscription = {}
-            if user_data:
-                subscription = user_data.get('subscription', {})
-                tier = subscription.get('tier', 'Free')
-            else:
-                tier = 'Free'
-
-            # Process dates cleanly using modern timezone-aware UTC objects
-            today = datetime.now(UTC)
-            expiry_date = subscription.get("expiry_date")
-
-            status_text = ""
-            status_color = "#22C55E"  # Default Green
-
-            if expiry_date and str(tier).strip().lower() != "free":
-                try:
-                    # Convert string to timezone-aware datetime for flawless comparison
-                    expiry = datetime.strptime(expiry_date, "%Y-%m-%d").replace(tzinfo=UTC)
-                    remaining_days = (expiry - today).days
-
-                    if remaining_days > 0:
-                        status_text = f"⏳ {remaining_days} days remaining"
-                        status_color = "#22C55E"
-
-                    elif remaining_days == 0:
-                        status_text = "⚠️ Expires today"
-                        status_color = "#F59E0B"
-
-                    else:
-                        status_text = "❌ Subscription expired"
-                        status_color = "#EF4444"
-
-                except Exception:
-                    status_text = "Unable to determine expiry."
-                    status_color = "#94A3B8"
-
-            elif str(tier).strip().lower() == "free":
-                status_text = "🚀 Upgrade to unlock Premium features"
-                status_color = "#3B82F6"
-
-            # --- FIX: Outer wrapper switched to single quotes (''') to isolate HTML double quotes ("") ---
-            st.sidebar.markdown(
-                f'''
-                <div style="background: #101726; border: 1px solid rgba(59,130,246,0.15); border-radius: 14px; padding: 16px; margin-bottom: 12px;">
-                    <div style="font-size: 20px; color: #94A3B8; margin-bottom: 6px;">
-                        Current Plan
-                    </div>
-                    <div style="font-size: 17px; font-weight: 700; color: white; margin-bottom: 10px;">
-                        {tier}
-                    </div>
-                    <div style="color: {status_color}; font-size: 14px; font-weight: 600;">
-                        {status_text}
-                    </div>
-                </div>
-                ''',
-                unsafe_allow_html=True,
-            )
-
-            # Import modal helper safely
-            from services.upgrade_modal import upgrade_modal
-
-            # Show upgrade prompt if user is on the Free tier
-            if str(tier).strip().lower() == "free":
-                if st.sidebar.button("🚀 Upgrade to Premium", width="stretch"):
-                    upgrade_modal()
-
-
-                #     #MOVED INSIDE SIDEBAR: Verification button for free users who just paid
-                # if st.sidebar.button("💳 I've Paid, Check Status", use_container_width=True):
-                #     # ----------------------------------------------------------------
-                #     # TEMPORARY MOCK PAYMENT TRIGGER (REMOVE BEFORE PRODUCTION)
-                #     # ----------------------------------------------------------------
-                #     from datetime import datetime, timedelta
-                    
-                #     mock_expiry = (datetime.utcnow() + timedelta(days=30)).strftime("%Y-%m-%d")
-                #     mock_subscription = {
-                #         "tier": "Premium",  # Change this to "Mwalimu AI Plus" to test that tier too
-                #         "expiry_date": mock_expiry,
-                #         "payment_status": "Completed",
-                #         "reference_id": "MOCK_PAYMENT_12345"
-                #     }
-                    
-                #     # Directly update your Firestore user document layout
-                #     from services.database import db
-                #     uid = st.session_state.get("uid") or st.session_state.user_email
-                #     db.collection('users').document(str(uid)).update({
-                #         "subscription": mock_subscription
-                #     })
-                #     st.sidebar.success("🔧 Mock Payment Simulated!")
-                #     # ----------------------------------------------------------------
-
-                #     # Refresh data from database to check if everything updates live
-                #     user_data = get_student_data(st.session_state.user_email)
-                #     subscription = user_data.get('subscription', {}) if user_data else {}
-                #     updated_tier = subscription.get('tier', 'Free')
-                    
-                #     if str(updated_tier).strip().lower() != "free":
-                #        st.sidebar.success(f"Upgrade successful! You are now {updated_tier}")
-                #        st.rerun()
-                #     # else:
-                #     #    st.sidebar.warning("Payment not confirmed yet. Please wait a moment.")
-      
-        
-    render_workspace_sidebar()
-
-    
-    # ====================================================================
-    # 🚪 PROFESSIONAL SIDEBAR LOGOUT CARD
-    # ====================================================================
-    @st.dialog("🚪 Log Out")
-    def confirm_logout_dialog():
-
-        st.info(
-            "You are about to sign out of your Mwalimu AI account.\n\n"
-            "✅ Your learning progress has already been saved."
-        )
-
-        st.write("")
-
-        col_cancel, col_logout = st.columns(2)
-
-        with col_cancel:
-            if st.button(
-                "Cancel",
-                use_container_width=True,
-                key="logout_cancel_btn"
-            ):
-                st.rerun()
-
-        with col_logout:
-            if st.button(
-                "🚪 Log Out",
-                use_container_width=True,
-                type="primary",
-                key="logout_confirm_btn"
-            ):
-
-                # -------------------------------------------------------
-                # Clear active session safely
-                # -------------------------------------------------------
-                tracking_keys_to_purge = [
-                    "user_authenticated",
-                    "user_profile",
-                    "messages",
-                    "show_upgrade_modal",
-                    "last_checked_name",
-                    "last_checked_grade",
-                    "last_checked_age",
-                    "student_name",
-                    "uid",
-                    "user_email",
-                    "active_subject",
-                    "active_topic",
-                    "active_sub_topic",
-                    "current_page"
-                ]
-
-                destroy_session()
-
-                # -------------------------------------------------------
-                # Clear Streamlit session
-                # -------------------------------------------------------
-                for key in list(st.session_state.keys()):
-                    del st.session_state[key]
-
-                st.session_state.current_page = "Main Chat"
-
-                # 🚀 FIX: Hard wipe the browser URL string parameters instantly!
-                # This deletes 'session_token_id' completely before the page reloads.
-                
-
-                st.rerun()
-    # ====================================================================
-    # 🚪 PROFESSIONAL SIDEBAR LOGOUT CARD
-    # ====================================================================
-
-    st.sidebar.markdown("---")
-
-    with st.sidebar.container(border=True):
-
-        st.markdown("### 🚪 Sign Out")
-
-        st.write("")
-
-        if st.button(
-            "Log Out",
-            key="main_sidebar_logout_btn",
-            use_container_width=True
-        ):
-            confirm_logout_dialog()
-           
-
-
-
-
-
-    # Call the function to render the complete sidebar layout
-    
-
-
-    #--- SIDEBAR PROGRESS DASHBOARD GENERATION
-    # =====================================================================
-    # --- FRAGMENT 2: SANDBOXED METRICS & DAILY USAGE BALANCES ---
-    # =====================================================================
-    @st.fragment
-    def render_sandboxed_metrics_dashboard(name, grade, age):
-        # 1. Render Progress Charts and Trends
-        st.sidebar.markdown("---")
-        st.sidebar.subheader(" Progress Dashboard")
-        
-        # 🌟 FIXED: Swapped 'name' for the unique 'uid' string variable tracking key
-        current_uid = str(st.session_state.get("uid", ""))
-        stats = get_student_stats(current_uid, grade, int(age))
-        st.sidebar.metric(label="Quizzes Taken", value=stats["quizzes"])
-        st.sidebar.metric("Average Score", f"{stats.get('average_score', 0)}%")
-        
-        analysis = get_student_learning_analysis(current_uid, grade, int(age))
-        st.sidebar.markdown(f"**Learning Status:** `{analysis.get('current_level', 'Medium')}`")
-        
-        if analysis.get('weak_topics'):
-            st.sidebar.markdown("**Needs Improvement:**")
-            for t in analysis['weak_topics']:
-                st.sidebar.caption(f"❌ {t}")
-        if analysis.get('strong_topics'):
-            st.sidebar.markdown("**Mastered Areas:**")
-            for t in analysis['strong_topics']:
-                st.sidebar.caption(f"✅ {t}")
-                
-        history_scores = get_student_quiz_history(current_uid, grade, int(age))
-        if len(history_scores) > 0:
-            st.sidebar.markdown("**Performance Trend**")
-            st.sidebar.line_chart(history_scores)
-
-        # 2. Render Quota Limits Indicators (Firestore Checks Sandbox)
-        st.sidebar.markdown("---")
-        st.sidebar.subheader(" Daily Generation Limits")
-        
-        sidebar_profile_raw = get_student_data(st.session_state.user_email)
-        sidebar_profile = sidebar_profile_raw if sidebar_profile_raw is not None else {}
-        sb_sub_tree = sidebar_profile.get('subscription', {}) if isinstance(sidebar_profile.get('subscription'), dict) else {}
-        sb_current_plan = str(sb_sub_tree.get('tier', 'Free')).strip()
-        
-        from services.tier_guard import TIER_LIMITS
-        sb_limits_key = "Free"
-        if "plus" in sb_current_plan.lower():
-            sb_limits_key = "Mwalimu AI Plus"
-        elif "premium" in sb_current_plan.lower():
-            sb_limits_key = "Premium"
-        sb_user_limits = TIER_LIMITS.get(sb_limits_key, TIER_LIMITS["Free"])
-        
-        sb_uid = str(st.session_state.get("uid") or st.session_state.user_email)
-        
-        sb_q_limit = sb_user_limits.get("quizzes", 1)
-        sb_fc_limit = sb_user_limits.get("flashcards", 1)
-        sb_ask_limit = sb_user_limits.get("questions", 1)
-        sb_plan_limit = sb_user_limits.get("has_study_plan", 1)
-        sb_lesson_limit = sb_user_limits.get("lessons", 1)
-        sb_upload_limit = sb_user_limits.get("has_upload", 1)
-        
-        sb_q_used = MwalimuDBService.get_daily_usage(sb_uid, "quizzes")
-        sb_fc_used = MwalimuDBService.get_daily_usage(sb_uid, "flashcards")
-        sb_ask_used = MwalimuDBService.get_daily_usage(sb_uid, "questions")
-        sb_plan_used = MwalimuDBService.get_daily_usage(sb_uid, "has_study_plan")
-        sb_lesson_used = MwalimuDBService.get_daily_usage(sb_uid, "lessons")
-        sb_upload_used = MwalimuDBService.get_daily_usage(sb_uid, "has_upload")
-        
-        def format_sb_balance(used, max_limit):
-            if max_limit == float('inf'):
-                return f"{used} / ∞ (Unlimited)"
-            remaining = max(0, max_limit - used)
-            return f"{remaining} left (of {max_limit})"
-            
-        st.sidebar.markdown(f"💬 **Ask Mwalimu:** `{format_sb_balance(sb_ask_used, sb_ask_limit)}`")
-        if sb_ask_limit != float('inf') and sb_ask_used >= sb_ask_limit:
-            st.sidebar.caption("⚠️ AI Ask limit reached for today.")
-            
-        st.sidebar.markdown(f"📅 **Study Plans:** `{format_sb_balance(sb_plan_used, sb_plan_limit)}`")
-        if sb_plan_limit != float('inf') and sb_plan_used >= sb_plan_limit:
-            st.sidebar.caption("⚠️ Study Plan limit reached for today.")
-            
-        st.sidebar.markdown(f"📝 **Quizzes:** `{format_sb_balance(sb_q_used, sb_q_limit)}`")
-        if sb_q_limit != float('inf') and sb_q_used >= sb_q_limit:
-            st.sidebar.caption("⚠️ Quiz limit reached for today.")
-            
-        st.sidebar.markdown(f"🎴 **Flashcards:** `{format_sb_balance(sb_fc_used, sb_fc_limit)}`")
-        if sb_fc_limit != float('inf') and sb_fc_used >= sb_fc_limit:
-            st.sidebar.caption("⚠️ Flashcard limit reached for today.")
-            
-        st.sidebar.markdown(f"📚 **Lessons:** `{format_sb_balance(sb_lesson_used, sb_lesson_limit)}`")
-        if sb_lesson_limit != float('inf') and sb_lesson_used >= sb_lesson_limit:
-            st.sidebar.caption("⚠️ Lesson limit reached for today.")
-        
-        st.sidebar.markdown(f" **Uploads:** `{format_sb_balance(sb_upload_used, sb_upload_limit)}`")
-        if sb_upload_limit != float('inf') and sb_upload_used >= sb_upload_limit:
-            st.sidebar.caption(" Uploads limit reached for today.")
-
-
-    # Safe initialization trigger at runtime execution context
-    if name:
-        render_sandboxed_metrics_dashboard(name, grade, age)
-    else:
-        st.sidebar.markdown("---")
-        st.sidebar.subheader(" Progress Dashboard")
-        st.sidebar.caption("Fill in your name to start tracking parameters.")
-
-
-    
-
-    # # MAIN BRANDING HEADER CONTAINER
-    left, middle, right = st.columns([6, 1, 3], vertical_alignment="center")
-    with left:
-        col1, col2 = st.columns([1, 4], vertical_alignment="center")
-        with col1:
-            try:
-                title_logo = Image.open("assets/logo112.png")
-                st.image(title_logo, width=160)
-            except Exception:
-                pass
-        with col2:
-            
-            st.markdown("<h2 style='margin:0; padding:0; line-height:1;'>Mwalimu AI App</h2>", unsafe_allow_html=True)
-            st.markdown("<h5 style='margin:-6px 0 0 0;margin-top: 2px; padding:0; line-height:1; color: gray; font-weight: normal;'>Shaping Minds, Shifting Futures.</h5>", unsafe_allow_html=True)
-            st.markdown("<div style='margin-bottom: 3px;'></div>", unsafe_allow_html=True)
-        
-
-
-
-
-
-
 
     # Create an elegant, compact intro container matching your app theme
     
 
     # DISPLAY ACTIVE CBC TARGET TRACKER BOX AT TOP OF PAGE
-    if name:
-        st.markdown(
-            f"""
-            <div style="
-                background-color: #101726; 
-                border-left: 5px solid #2473F2; 
-                padding: 16px 20px; 
-                border-radius: 12px; 
-                margin-bottom: 25px;
-                border-top: 1px solid rgba(36, 115, 242, 0.08);
-                border-right: 1px solid rgba(36, 115, 242, 0.08);
-                border-bottom: 1px solid rgba(36, 115, 242, 0.08);
-                box-shadow: 0 4px 14px rgba(0, 0, 0, 0.15);
-            ">
-                <div style="margin-bottom: 6px; line-height: 1.4;">
-                    <span style="color: #2473F2; font-weight: 700; font-size: 14px; letter-spacing: 0.3px;">🎯 Active Curriculum Targeting:</span>
-                    <span style="color: #E2E8F0; font-size: 14px; font-weight: 500; margin-left: 4px;">
-                        Grade: {grade} &bull; Subject: {subject} &bull; Topic: {topic} &bull; Sub-topic: {sub_topic}
-                    </span>
-                </div>
-                <div style="line-height: 1.4;">
-                    <span style="color: #94A3B8; font-weight: 600; font-size: 13.5px;">Target Learning Outcome:</span>
-                    <span style="color: #F1F5F9; font-size: 13.5px; font-weight: 400; margin-left: 4px;">{learning_outcome}</span>
-                </div>
-            </div>
-            """,
-            unsafe_allow_html=True
-        )
+    # if name:
+    #     st.markdown(
+    #         f"""
+    #         <div style="
+    #             background-color: #101726; 
+    #             border-left: 5px solid #2473F2; 
+    #             padding: 16px 20px; 
+    #             border-radius: 12px; 
+    #             margin-bottom: 25px;
+    #             border-top: 1px solid rgba(36, 115, 242, 0.08);
+    #             border-right: 1px solid rgba(36, 115, 242, 0.08);
+    #             border-bottom: 1px solid rgba(36, 115, 242, 0.08);
+    #             box-shadow: 0 4px 14px rgba(0, 0, 0, 0.15);
+    #         ">
+    #             <div style="margin-bottom: 6px; line-height: 1.4;">
+    #                 <span style="color: #2473F2; font-weight: 700; font-size: 14px; letter-spacing: 0.3px;">🎯 Active Curriculum Targeting:</span>
+    #                 <span style="color: #E2E8F0; font-size: 14px; font-weight: 500; margin-left: 4px;">
+    #                     Grade: {grade} &bull; Subject: {subject} &bull; Topic: {topic} &bull; Sub-topic: {sub_topic}
+    #                 </span>
+    #             </div>
+    #             <div style="line-height: 1.4;">
+    #                 <span style="color: #94A3B8; font-weight: 600; font-size: 13.5px;">Target Learning Outcome:</span>
+    #                 <span style="color: #F1F5F9; font-size: 13.5px; font-weight: 400; margin-left: 4px;">{learning_outcome}</span>
+    #             </div>
+    #         </div>
+    #         """,
+    #         unsafe_allow_html=True
+    #     )
 
     
 

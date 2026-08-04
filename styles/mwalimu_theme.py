@@ -25,6 +25,15 @@ def load_theme():
 
     html, body, [class*="css"]{
         font-family:Inter,sans-serif;
+        }
+        .mwalimu-page{
+
+        margin-top:80px;
+
+        padding:20px 30px;
+
+        min-height:calc(100vh - 150px);
+
     }
     </style>
     """, unsafe_allow_html=True)

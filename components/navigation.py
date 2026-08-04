@@ -1,21 +1,29 @@
 import streamlit as st
 
-PAGES = [
-    ("🏠", "Main Chat"),
-    ("🎙️", "Voice Tutor"),
-    ("⚡", "Generators Hub"),
-    ("🏫", "Learning Dashboard"),
-    ("🏆", "Leaderboard Hub"),
-]
+def render():
 
+    st.sidebar.markdown("### Navigation Hub")
+    st.sidebar.page_link(
+        st.session_state.ROUTE_CHAT,
+        use_container_width=True,
+    )
 
+    st.sidebar.page_link(
+        st.session_state.ROUTE_VOICE,
+        use_container_width=True,
+    )
 
-def navigate(page_name: str):
-    """
-    Navigate to a page and synchronize it with the browser URL.
-    """
-    st.session_state.current_page = page_name
+    st.sidebar.page_link(
+        st.session_state.ROUTE_GENERATORS,
+        use_container_width=True,
+    )
 
-    st.query_params["page"] = page_name
+    st.sidebar.page_link(
+        st.session_state.ROUTE_LEARNING,
+        use_container_width=True,
+    )
 
-    st.rerun()
+    st.sidebar.page_link(
+        st.session_state.ROUTE_LEADERBOARD,
+        use_container_width=True,
+    )

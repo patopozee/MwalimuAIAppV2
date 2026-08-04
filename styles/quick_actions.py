@@ -19,10 +19,4 @@ def render_quick_actions():
     ):
         st.switch_page(st.session_state.ROUTE_LEARNING)
 
-    if st.sidebar.button(
-        "⚙️ Edit Profile\n/Manage your student profile",
-        
-        key="profile_btn",
-        use_container_width=True,
-    ):
-        st.switch_page(st.session_state.ROUTE_EDIT_PROFILE)
+    
