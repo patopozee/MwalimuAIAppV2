@@ -23,32 +23,75 @@ def render():
 
     initial = student[0].upper() if student else "S"
 
-    st.html(
-        f"""
-    <div class="mwalimu-header-wrapper">
-        <div class="hdr-banner">
-            <div class="hdr-left">
-                <img class="hdr-logo" src="data:image/png;base64,{logo64}">
-                <div class="hdr-title">
-                    <h2>Mwalimu AI App</h2>
-                    <span>Shaping Minds. Shifting Futures.</span>
+    st.html(f"""
+    <div class="mw-header">
+
+        <div class="mw-brand-card">
+
+            <img class="mw-logo"
+            src="data:image/png;base64,{logo64}">
+
+            <div class="mw-brand-text">
+
+                <div class="mw-title">
+                    Mwalimu AI
                 </div>
+
+                <div class="mw-subtitle">
+                    Shaping Minds. Shifting Futures.
+                </div>
+
             </div>
 
-            <div class="hdr-center">
-                <span>{grade}</span> • <span>{subject}</span> • <span>{topic}</span> • <span>{subtopic}</span>
-            </div>
-
-            <div class="hdr-right">
-                <div class="hdr-icon">🔔</div>
-                <div class="hdr-icon">🌙</div>
-                <div class="hdr-premium">{tier}</div>
-                <div class="hdr-profile">
-                    <div class="hdr-avatar">{initial}</div>
-                    <div class="hdr-name">{student}</div>
-                </div>
-            </div>
         </div>
+
+        <div class="mw-context-card">
+
+            <span>{grade}</span>
+
+            <span>•</span>
+
+            <span>{subject}</span>
+
+            <span>•</span>
+
+            <span>{topic}</span>
+
+            <span>•</span>
+
+            <span>{subtopic}</span>
+
+        </div>
+
+        <div class="mw-right">
+
+            <div class="mw-icon">🔔</div>
+
+            <div class="mw-icon">🌙</div>
+
+            <div class="mw-plan">
+
+                {tier}
+
+            </div>
+
+            <div class="mw-profile">
+
+                <div class="mw-avatar">
+
+                    {initial}
+
+                </div>
+
+                <div class="mw-name">
+
+                    {student}
+
+                </div>
+
+            </div>
+
+        </div>
+
     </div>
-    """
-    )
+    """)
