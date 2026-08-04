@@ -25,9 +25,9 @@ def load():
 
         top:0;
 
-        left:{left_offset};
+        left:0;
 
-        right:0;
+        width:0;
 
         height:72px;
 
@@ -39,9 +39,13 @@ def load():
 
         padding:10px 20px;
 
-        z-index:9999;
+        z-index:99999;
 
-        transition:left .25s ease;
+        transition:
+            left .25s ease,
+            width .25s ease;
+
+        box-sizing:border-box;
     }}
 
     /* Shared card style */
@@ -70,12 +74,12 @@ def load():
 
         height:52px;
 
-        padding:0 18px;
+        padding:0 28px;
     }}
 
     .mw-logo{{
-        width:38px;
-        height:38px;
+        width:44px;
+        height:44px;
     }}
 
     .mw-brand-text{{
@@ -85,13 +89,13 @@ def load():
 
     .mw-title{{
         color:white;
-        font-size:18px;
+        font-size:16px;
         font-weight:700;
     }}
 
     .mw-subtitle{{
         color:#94A3B8;
-        font-size:11px;
+        font-size:10px;
     }}
 
     /* ========================= */
@@ -109,7 +113,7 @@ def load():
 
         color:#E5E7EB;
 
-        font-size:13px;
+        font-size:10px;
     }}
 
     /* ========================= */
@@ -137,7 +141,7 @@ def load():
 
         cursor:pointer;
 
-        font-size:17px;
+        font-size:14px;
 
         color:white;
 
@@ -179,9 +183,9 @@ def load():
     }}
 
     .mw-avatar{{
-        width:34px;
+        width:40px;
 
-        height:34px;
+        height:40px;
 
         border-radius:50%;
 
@@ -203,7 +207,7 @@ def load():
 
         font-size:14px;
 
-        font-weight:600;
+        font-weight:400;
     }}
 
     /* Push page below header */
@@ -218,24 +222,36 @@ def load():
 
     @media (max-width: 768px){{
 
-        .mw-header{{
+       .mw-header{{
 
-            left:0 !important;
+        position:fixed;
 
-            right:0 !important;
+        top:10px;
 
-            height:auto;
+        left:0;
 
-            padding:10px;
+        width:0;
 
-            flex-direction:column;
+        height:72px;
 
-            align-items:stretch;
+        display:flex;
 
-            gap:10px;
+        justify-content:space-between;
 
-        }}
+        align-items:center;
 
+        gap:14px;
+
+        padding:0;                 /* <-- remove padding */
+
+        box-sizing:border-box;
+
+        z-index:99999;
+
+        transition:
+            left .25s ease,
+            width .25s ease;
+    }}
         /* Brand */
 
         .mw-brand-card{{
@@ -360,3 +376,50 @@ def load():
     """,
         unsafe_allow_html=True,
     )
+    st.iframe("""
+    <script>
+
+    function updateHeader(){
+
+        const sidebar =
+            window.parent.document.querySelector(
+                'section[data-testid="stSidebar"]'
+            );
+
+        const header =
+            window.parent.document.querySelector(".mw-header");
+
+        const main =
+            window.parent.document.querySelector(
+                '[data-testid="stMainBlockContainer"]'
+            );
+
+        if(!sidebar || !header || !main) return;
+
+        const rect = main.getBoundingClientRect();
+
+        header.style.left = rect.left + "px";
+        header.style.width = rect.width + "px";
+
+    }
+
+    updateHeader();
+
+    const resizeObserver =
+        new ResizeObserver(updateHeader);
+
+    resizeObserver.observe(
+        window.parent.document.querySelector(
+            'section[data-testid="stSidebar"]'
+        )
+    );
+
+    window.parent.addEventListener(
+        "resize",
+        updateHeader
+    );
+
+    setInterval(updateHeader,300);
+
+    </script>
+    """, height=1)

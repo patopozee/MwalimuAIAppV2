@@ -19,8 +19,18 @@ def render():
     subject = st.session_state.get("active_subject", "Mathematics")
     topic = st.session_state.get("active_topic", "Numbers")
     subtopic = st.session_state.get("active_sub_topic", "Place Value")
-    tier = st.session_state.get("subscription_tier", "FREE")
+    from services.database import get_student_data
 
+    active_target_id = (
+        st.session_state.get("uid")
+        or st.session_state.get("user_email")
+    )
+
+    user_data = get_student_data(str(active_target_id))
+
+    subscription = user_data.get("subscription", {}) if user_data else {}
+
+    tier = subscription.get("tier", "Free")
     initial = student[0].upper() if student else "S"
 
     st.html(f"""
@@ -34,7 +44,7 @@ def render():
             <div class="mw-brand-text">
 
                 <div class="mw-title">
-                    Mwalimu AI
+                    Mwalimu AI App
                 </div>
 
                 <div class="mw-subtitle">
