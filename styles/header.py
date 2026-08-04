@@ -7,7 +7,8 @@ def load():
 
     left_offset = "320px" if sidebar_open else "60px"
 
-    st.markdown(f"""
+    st.markdown(
+        f"""
     <style>
 
     /* Hide Streamlit header background only */
@@ -211,5 +212,151 @@ def load():
         padding-top:82px !important;
     }}
 
+    /* ===========================================================
+   MOBILE (Phones & Small Tablets)
+    =========================================================== */
+
+    @media (max-width: 768px){{
+
+        .mw-header{{
+
+            left:0 !important;
+
+            right:0 !important;
+
+            height:auto;
+
+            padding:10px;
+
+            flex-direction:column;
+
+            align-items:stretch;
+
+            gap:10px;
+
+        }}
+
+        /* Brand */
+
+        .mw-brand-card{{
+
+            width:100%;
+
+            height:auto;
+
+            padding:10px 14px;
+
+        }}
+
+        .mw-logo{{
+
+            width:32px;
+
+            height:32px;
+
+        }}
+
+        .mw-title{{
+
+            font-size:16px;
+
+        }}
+
+        .mw-subtitle{{
+
+            font-size:10px;
+
+        }}
+
+        /* Subject card */
+
+        .mw-context-card{{
+
+            width:100%;
+
+            justify-content:center;
+
+            flex-wrap:wrap;
+
+            height:auto;
+
+            padding:10px;
+
+            gap:6px;
+
+            font-size:11px;
+
+        }}
+
+        /* Right section */
+
+        .mw-right{{
+
+            width:100%;
+
+            justify-content:space-between;
+
+            gap:8px;
+
+        }}
+
+        .mw-icon{{
+
+            width:38px;
+
+            height:38px;
+
+            font-size:15px;
+
+        }}
+
+        .mw-plan{{
+
+            padding:6px 10px;
+
+            font-size:10px;
+
+        }}
+
+        .mw-profile{{
+
+            flex:1;
+
+            justify-content:center;
+
+            height:44px;
+
+            padding:0 10px;
+
+        }}
+
+        .mw-avatar{{
+
+            width:28px;
+
+            height:28px;
+
+            font-size:12px;
+
+        }}
+
+        .mw-name{{
+
+            font-size:12px;
+
+        }}
+
+        /* Push Streamlit page down enough */
+
+        div[data-testid="stMainBlockContainer"]{{
+
+            padding-top:180px !important;
+
+        }}
+
+    }}
+
     </style>
-    """, unsafe_allow_html=True)
+    """,
+        unsafe_allow_html=True,
+    )
