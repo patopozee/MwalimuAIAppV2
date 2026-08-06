@@ -10,7 +10,9 @@ from firebase_admin import credentials, firestore
 from firebase_admin import auth
 from datetime import datetime
 
-from services.session_service import create_session, update_session
+from services.session_service import create_session
+from services.session_service import update_session
+
 
 
 # Hide Streamlit loading messages, footer, and hamburger menu
