@@ -13,7 +13,6 @@ from services.database import (
      
 )
 
-
 def render(): 
     
     st.markdown("""

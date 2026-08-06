@@ -10,21 +10,8 @@ from firebase_admin import credentials, firestore
 from firebase_admin import auth
 from datetime import datetime
 
-from services.session_service import (
-    create_session,
-    validate_session,
-    destroy_session,
-)
-import streamlit as st
+from services.session_service import create_session, update_session
 
-# st.markdown("""
-# <style>
-# html {
-#     zoom: 100%;
-# }
-# </style>
-# """, unsafe_allow_html=True)
-import streamlit as st
 
 # Hide Streamlit loading messages, footer, and hamburger menu
 st.set_page_config(
@@ -34,7 +21,14 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-
+st.markdown("""
+    <head>
+        <title>Mwalimu AI App</title>
+        <meta name="description" content="Mwalimu AI is your all-in-one intelligent workspace, precision-engineered for Kenya’s CBC curriculum. We combine empathetic, 
+        conversational AI tutoring with a robust Learning Management System to help you master complex topics, automate your study planning, 
+        and track your academic milestones—all in one seamless hub.">
+    </head>
+""", unsafe_allow_html=True)
 # 2. --- HIDE MENUS, FOOTERS, AND DEV GLASSES ---
 # 2. --- HIDE MENUS, FOOTERS, RUNNING MAN, AND ACTION BARS ---
 hide_branding = """
@@ -64,7 +58,7 @@ st.markdown(hide_branding, unsafe_allow_html=True)
 # 1. Initialize Firebase Admin SDK (Only if it hasn't been initialized yet)
 if not firebase_admin._apps:
     try:
-        secret_json = json.loads(st.secrets["firebase"]["service_account_json"])
+        secret_json = json.loads(st.secrets["Firebase"]["service_account_json"])
         cred = credentials.Certificate(secret_json)
         firebase_admin.initialize_app(cred)
     except Exception as e:
@@ -128,6 +122,8 @@ create_tables()
 # --- INITIALIZE STATE WORKSPACE PARAMS (WITH PERFORMANCE PROFILE STORAGE CACHE) ---
 if "user_authenticated" not in st.session_state: st.session_state.user_authenticated = False
 if "current_page" not in st.session_state: st.session_state.current_page = "Main Chat"
+if st.session_state.user_authenticated:
+    update_session()
 if "quiz_questions" not in st.session_state: st.session_state.quiz_questions = []
 if "quiz_raw_score" not in st.session_state: st.session_state.quiz_raw_score = 0
 if "quiz_score" not in st.session_state: st.session_state.quiz_score = 0
@@ -149,45 +145,73 @@ if "new_message" not in st.session_state:
 
 if "active_view" not in st.session_state:
     st.session_state.active_view = "main"
+if st.session_state.user_authenticated:
+    update_session()
 
 # 🎯 SPEED FIX: Initialize a specific localized memory caching slot for Firestore profile row responses
 if "new_message" not in st.session_state:st.session_state.new_message = False
 
 
   
-
-
 # ====================================================================
-# 🍪 SESSION RESTORER (RUNS ONLY ONCE)
+# NATIVE JAVASCRIPT COOKIE SESSION RESTORER
 # ====================================================================
+from services.session_service import validate_session
 
-if "session_restored" not in st.session_state:
+if "session_checked" not in st.session_state:
+    st.session_state.session_checked = False
 
-    st.session_state.session_restored = True
+if (
+    not st.session_state.get("user_authenticated", False)
+    and
+    not st.session_state.session_checked
+):
 
     session = validate_session()
 
-    if session is not None:
+    if session:
 
         uid = session["uid"]
+
         profile = get_student_data(uid)
 
         if profile:
 
             st.session_state.user_authenticated = True
+            st.session_state.session_checked = True
+
             st.session_state.uid = uid
-            st.session_state.user_email = profile.get("email", session["email"])
-            st.session_state.student_name = profile.get("name", "Student")
-            st.session_state.grade = profile.get("grade", "Grade 1")
-            st.session_state.age = int(profile.get("age", 10))
+            st.session_state.user_email = profile["email"]
+            st.session_state.student_name = profile["name"]
+            st.session_state.grade = profile["grade"]
+            st.session_state.age = int(profile["age"])
             st.session_state.user_profile = profile
 
-        else:
-            destroy_session()
+            # -----------------------------
+            # Restore workspace
+            # -----------------------------
+
+            workspace = session.get("workspace", {})
+
+            st.session_state.current_page = workspace.get(
+                "current_page",
+                "Main Chat"
+            )
+            if st.session_state.user_authenticated:
+                update_session()
+            st.session_state.active_view = workspace.get(
+                "active_view",
+                "main"
+            )
+            if st.session_state.user_authenticated:
+                update_session()
+            st.rerun()
+
+    st.session_state.session_checked = True
 
 
 # ====================================================================
-# 🚀 STEP 2: TOP-LEVEL GOOGLE OAUTH INTERCEPTOR (MODIFIED FOR PERSISTENCE)
+# 🚀 STEP 2: TOP-LEVEL GOOGLE OAUTH INTERCEPTOR (FIXED FOR PERSISTENCE)
 # ====================================================================
 if "code" in st.query_params and not st.session_state.user_authenticated:
     auth_code = st.query_params["code"]
@@ -216,23 +240,17 @@ if "code" in st.query_params and not st.session_state.user_authenticated:
                     headers={"Authorization": f"Bearer {token_response['access_token']}"},
                 ).json()
                 
-                
                 email_val = user_info.get("email", "").strip().lower()
                 name_val = user_info.get("name", "Student").strip().title()
                 
-                
                 try:
                     firebase_user = auth.get_user_by_email(email_val)
-
                     firebase_uid = firebase_user.uid
-
                 except auth.UserNotFoundError:
-
                     firebase_user = auth.create_user(
                         email=email_val,
                         display_name=name_val
                     )
-
                     firebase_uid = firebase_user.uid
                     
                 profile = get_or_create_user_profile(
@@ -240,26 +258,34 @@ if "code" in st.query_params and not st.session_state.user_authenticated:
                     email_val,
                     name_val
                 )
-                assert profile is not None
-                # Session State Hydration
+
+                create_session(
+                    profile["uid"],
+                    profile["email"]
+                )
+
                 st.session_state.user_authenticated = True
+                st.session_state.session_checked = True
 
                 st.session_state.uid = profile["uid"]
                 st.session_state.user_email = profile["email"]
                 st.session_state.student_name = profile["name"]
-                st.session_state.grade = profile.get("grade", "Grade 6")
-                st.session_state.age = int(profile.get("age", 12))
+                st.session_state.grade = profile["grade"]
+                st.session_state.age = int(profile["age"])
                 st.session_state.user_profile = profile
+
                 st.session_state.current_page = "Main Chat"
-
-                st.toast(f"🎉 Welcome, {st.session_state.student_name}!")
-
-                create_session(firebase_uid, email_val)
+                st.session_state.active_view = "main"
+                if st.session_state.user_authenticated:
+                    update_session()
+                st.query_params.clear()
 
                 st.rerun()
 
     except Exception as e:
         st.error(f"Authentication background sync failed: {str(e)}")
+
+
 
 
     # ADD THE CSS BLOCK HERE (Right after page config)
@@ -327,30 +353,42 @@ def render_auth_portal(context="auth"):
                     if email.strip() and password.strip():
                         with st.spinner("Verifying credentials..."):
                             auth_res = MwalimuAuthService.login_user(email.strip(), password.strip())                    
-                            if auth_res.get("success"):                              
-                                st.session_state.user_email = email.strip().lower()
-                                uid = str(auth_res.get("uid", ""))
-                                st.session_state.uid = uid
-                                db_profile = get_student_data(uid)                                 
-                                if db_profile and isinstance(db_profile, dict):
-                                    st.session_state.user_authenticated = True
-                                    from services.upgrade_modal import upgrade_modal
-                                                                        
-                                    st.session_state.upgrade_modal = False
-                                    st.session_state.student_name = str(db_profile.get("name", "Unknown"))
-                                    st.session_state.grade = str(db_profile.get("grade", "Grade 1"))
-                                    st.session_state.age = int(db_profile.get("age", 10))
-                                    st.session_state.user_profile = db_profile
-                                    
-                                    st.session_state.current_page = "Main Chat"
-                                    create_session(uid, email)
-                                    st.rerun()
+                            if auth_res.get("success"):
 
+                                uid = str(auth_res["uid"])
+
+                                db_profile = get_student_data(uid)
+
+                                if db_profile:
+
+                                    # Create one browser session
+                                    create_session(uid, db_profile["email"])
+
+                                    # Hydrate Streamlit state
+                                    st.session_state.user_authenticated = True
+                                    st.session_state.session_checked = True
+
+                                    st.session_state.uid = uid
+                                    st.session_state.user_email = db_profile["email"]
+                                    st.session_state.student_name = db_profile["name"]
+                                    st.session_state.grade = db_profile["grade"]
+                                    st.session_state.age = int(db_profile["age"])
+                                    st.session_state.user_profile = db_profile
+
+                                    st.session_state.current_page = "Main Chat"
+                                    if st.session_state.user_authenticated:
+                                        update_session()
+                                    st.session_state.active_view = "main"
+                                    if st.session_state.user_authenticated:
+                                        update_session()
+                                    st.rerun()
 
                                 else:
                                     st.error("Profile not found for this user. Please register your profile.")
                             else:
                                 st.error(f"Login Failed: Please try again. Error: {auth_res.get('error')}")
+
+
                 
                 # LINK TO TOGGLE RESET VIEW ONLY INSIDE THE LOGIN TAB
                 if st.button("Forgot Password?", key="forgot_pass_link_btn"):

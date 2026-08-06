@@ -6,6 +6,7 @@ from services.lms_service import (
     get_student_lesson_progress,
 )
 
+
 def render():
     """Renders the comprehensive, linear classroom guide for the student's active lesson."""
     from services.profile_service import get_student_profile

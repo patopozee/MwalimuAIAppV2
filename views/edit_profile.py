@@ -6,7 +6,6 @@ from google.cloud.firestore_v1.base_query import FieldFilter
 db = firestore.client()
 
 
-
 def render():  
     st.markdown("---")
     if st.button("⬅ Back to Main Chat Dashboard", use_container_width=True):
