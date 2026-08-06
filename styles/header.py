@@ -220,161 +220,101 @@ def load():
         padding-top:82px !important;
     }}
 
-    /* ===========================================================
-   MOBILE (Phones & Small Tablets)
+   /* ===========================================================
+    MOBILE (Phones & Small Tablets ONLY)
     =========================================================== */
-
     @media (max-width: 768px){{
 
        .mw-header{{
+            position: fixed !important;
+            top: 10px !important;
+            left: 10px !important;
+            right: 10px !important;
+            width: auto !important;
+            height: auto !important;
+            display: flex !important;
+            flex-direction: column !important;
+            align-items: stretch !important;
+            gap: 8px !important;
+            padding: 8px !important;
+            background: rgba(17, 24, 39, 0.95) !important;
+            backdrop-filter: blur(8px) !important;
+            border: 1px solid #2E394D !important;
+            border-radius: 16px !important;
+            box-sizing: border-box !important;
+            z-index: 99999 !important;
+            transition: none !important;
+        }}
 
-        position:fixed;
-
-        top:10px;
-
-        left:0;
-
-        width:0;
-
-        height:72px;
-
-        display:flex;
-
-        justify-content:space-between;
-
-        align-items:center;
-
-        gap:14px;
-
-        padding:0;                 /* <-- remove padding */
-
-        box-sizing:border-box;
-
-        z-index:99999;
-
-        transition:
-            left .25s ease,
-            width .25s ease;
-    }}
         /* Brand */
-
         .mw-brand-card{{
-
-            width:100%;
-
-            height:auto;
-
-            padding:10px 14px;
-
+            width: 100% !important;
+            height: 46px !important;
+            padding: 0 12px !important;
+            background: transparent !important;
+            border: none !important;
         }}
 
         .mw-logo{{
-
-            width:32px;
-
-            height:32px;
-
+            width: 28px !important;
+            height: 28px !important;
         }}
 
         .mw-title{{
-
-            font-size:16px;
-
+            font-size: 13px !important;
         }}
 
         .mw-subtitle{{
-
-            font-size:10px;
-
+            font-size: 8px !important;
         }}
 
-        /* Subject card */
-
+        /* Subject card - hidden on mobile for clean layout */
         .mw-context-card{{
-
-            width:100%;
-
-            justify-content:center;
-
-            flex-wrap:wrap;
-
-            height:auto;
-
-            padding:10px;
-
-            gap:6px;
-
-            font-size:11px;
-
+            display: none !important;
         }}
 
         /* Right section */
-
         .mw-right{{
-
-            width:100%;
-
-            justify-content:space-between;
-
-            gap:8px;
-
+            width: 100% !important;
+            display: flex !important;
+            justify-content: space-between !important;
+            align-items: center !important;
+            gap: 6px !important;
         }}
 
         .mw-icon{{
-
-            width:38px;
-
-            height:38px;
-
-            font-size:15px;
-
+            width: 36px !important;
+            height: 36px !important;
+            font-size: 13px !important;
         }}
 
         .mw-plan{{
-
-            padding:6px 10px;
-
-            font-size:10px;
-
+            padding: 5px 10px !important;
+            font-size: 10px !important;
         }}
 
         .mw-profile{{
-
-            flex:1;
-
-            justify-content:center;
-
-            height:44px;
-
-            padding:0 10px;
-
+            height: 36px !important;
+            padding: 0 8px !important;
+            gap: 6px !important;
         }}
 
         .mw-avatar{{
-
-            width:28px;
-
-            height:28px;
-
-            font-size:12px;
-
+            width: 26px !important;
+            height: 26px !important;
+            font-size: 10px !important;
         }}
 
         .mw-name{{
-
-            font-size:12px;
-
+            font-size: 11px !important;
         }}
 
         /* Push Streamlit page down enough */
-
         div[data-testid="stMainBlockContainer"]{{
-
-            padding-top:180px !important;
-
+            padding-top: 140px !important;
         }}
-
     }}
+
 
     </style>
     """,
