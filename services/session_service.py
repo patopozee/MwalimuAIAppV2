@@ -177,6 +177,14 @@ def destroy_session() -> None:
     except Exception:
         pass
 
+    # 1. Completely clear local execution state arrays
     st.session_state.clear()
+    
+    # 2. Hardcode authentication parameters off
     st.session_state.user_authenticated = False
     st.session_state.session_checked = True
+    
+    # 3. ✅ FORCE COMPLETE APP-LEVEL REDRAW LIFECYCLE
+    # This acts as an immediate reset break that drops the interface onto the login landing page!
+    st.rerun()
+

@@ -740,12 +740,7 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
     #=============================================
     #THEME LOAD===================================
     #=============================================
-    
-    load_theme()
-    from styles.sidebar import load as load_sidebar_style
-    load_sidebar_style()
-    from styles.sidebar import load_style
-    load_style()
+
 
     # ======================================================
     # CREATE PAGES
@@ -858,18 +853,10 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
         "Edit Profile": edit_profile_page
     }
 
-    # 1. Pull down the restored workspace text identifier string out of Firebase
     saved_workspace_target = st.session_state.get("current_page", "Main Chat")
-
-    # 2. Extract the matching native page object component reference
     default_starting_page = route_mapper.get(saved_workspace_target, chat_page)
-
-    # 3. Set the target page directly into Streamlit's internal tracking state 
-    # This programmatically instructs the layout engine which view config to mount first.
     st.session_state["st_navigation_page_link"] = default_starting_page
 
-    # 4. Pass ONLY your array list and hidden flags down to the function argument block
-    # Removing the dynamic parameter argument completely bypasses and clears the Pylance call warning!
     router = st.navigation(
         [
             chat_page,
@@ -884,57 +871,25 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
         position="hidden"
     )
     
-   
+    # 1. Render the top header bar component
     render_header()
-    render_sidebar()
-
     
-
+    # 2. ✅ FIX: Move sidebar theme styling inside this authentication check!
+    # This prevents any sidebar styles from leaking into and triggering the landing page wrapper layout
+    if st.session_state.get("user_authenticated", False):
+        load_theme()
+        from styles.sidebar import load as load_sidebar_style
+        load_sidebar_style()
+        from styles.sidebar import load_style
+        load_style()
         
+        import components.sidebar as sidebar
+        sidebar.render()
 
-    # Create an elegant, compact intro container matching your app theme
-    
-
-    # DISPLAY ACTIVE CBC TARGET TRACKER BOX AT TOP OF PAGE
-    # if name:
-    #     st.markdown(
-    #         f"""
-    #         <div style="
-    #             background-color: #101726; 
-    #             border-left: 5px solid #2473F2; 
-    #             padding: 16px 20px; 
-    #             border-radius: 12px; 
-    #             margin-bottom: 25px;
-    #             border-top: 1px solid rgba(36, 115, 242, 0.08);
-    #             border-right: 1px solid rgba(36, 115, 242, 0.08);
-    #             border-bottom: 1px solid rgba(36, 115, 242, 0.08);
-    #             box-shadow: 0 4px 14px rgba(0, 0, 0, 0.15);
-    #         ">
-    #             <div style="margin-bottom: 6px; line-height: 1.4;">
-    #                 <span style="color: #2473F2; font-weight: 700; font-size: 14px; letter-spacing: 0.3px;">🎯 Active Curriculum Targeting:</span>
-    #                 <span style="color: #E2E8F0; font-size: 14px; font-weight: 500; margin-left: 4px;">
-    #                     Grade: {grade} &bull; Subject: {subject} &bull; Topic: {topic} &bull; Sub-topic: {sub_topic}
-    #                 </span>
-    #             </div>
-    #             <div style="line-height: 1.4;">
-    #                 <span style="color: #94A3B8; font-weight: 600; font-size: 13.5px;">Target Learning Outcome:</span>
-    #                 <span style="color: #F1F5F9; font-size: 13.5px; font-weight: 400; margin-left: 4px;">{learning_outcome}</span>
-    #             </div>
-    #         </div>
-    #         """,
-    #         unsafe_allow_html=True
-    #     )
-
-    
-
-    # ====================================================================
-    # RUN THE NAVIGATIONAL ROUTER
-    # ====================================================================
+    # 3. RUN THE NAVIGATIONAL ROUTER
     router.run()
 
-
-    
-       
+     
    
 #===========================
 #=== LANDING PAGE ========

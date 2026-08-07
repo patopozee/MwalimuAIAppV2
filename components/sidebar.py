@@ -12,10 +12,11 @@ from components.logout import render as render_logout
 from components.metrics_dashboard import render as render_metrics_dashboard
 
 
-
 def render():
-    
-    
+    # ✅ FIX: Guard clause to instantly stop rendering if the user is unauthenticated
+    if not st.session_state.get("user_authenticated", False):
+        return
+
     render_navigation()
     render_profile()
     render_learning_context()
