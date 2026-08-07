@@ -13,7 +13,6 @@ def render_admin_dashboard():
     # 🔙 Return Navigation Trigger Hook
     if st.button("⬅ Return to Student Dashboard", type="secondary"):
         st.switch_page(st.session_state.ROUTE_CHAT)
-        st.rerun()
         
     st.title("⚙️ Mwalimu AI - Admin Knowledge Base Manager")
     st.write("Upload reference textbooks, keys, or papers. The AI will strictly prioritize these when tutoring students.")

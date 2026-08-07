@@ -1,4 +1,5 @@
 import streamlit as st
+from services.navigation_service import navigate_to
 
 
 def render_quick_actions():
@@ -10,13 +11,19 @@ def render_quick_actions():
         key="voice_btn",
         use_container_width=True,
     ):
-        st.switch_page(st.session_state.ROUTE_VOICE)
+        navigate_to(
+            st.session_state.ROUTE_VOICE,
+            "Voice Tutor",
+            "voice",
+        )
 
     if st.sidebar.button(
-        "📚 Learning Dashboard\n,View lessons & certificates",
+        "📚 Learning Dashboard\nView lessons & certificates",
         key="learning_btn",
         use_container_width=True,
     ):
-        st.switch_page(st.session_state.ROUTE_LEARNING)
-
-    
+        navigate_to(
+            st.session_state.ROUTE_LEARNING,
+            "Learning Dashboard",
+            "learning",
+        )

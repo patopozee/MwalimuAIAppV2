@@ -108,6 +108,8 @@ from config import CBC  # Dynamic CBC repository dictionary
 # INITIALIZATION & TRANSPORT ENVIRONMENT SETTING
 load_dotenv()
 
+load_dotenv()
+
 current_host = st.context.headers.get("host", "")
 
 if "localhost" in current_host or "127.0.0.1" in current_host:
@@ -118,67 +120,127 @@ else:
     if "OAUTHLIB_INSECURE_TRANSPORT" in os.environ:
         del os.environ["OAUTHLIB_INSECURE_TRANSPORT"]
 
-# Execute local database validation setup on runtime startup block
 create_tables()
 
-from services.session_service import validate_session
+
+# ============================================================
+# RESTORE USER SESSION + WORKSPACE
+# ============================================================
+
+from services.session_service import validate_session, update_session
 
 if "session_checked" not in st.session_state:
     st.session_state.session_checked = False
+
 
 if (
     not st.session_state.get("user_authenticated", False)
     and not st.session_state.session_checked
 ):
-    session = validate_session()
-    if session:
-        uid = session["uid"]
-        profile = get_student_data(uid)
-        if profile:
-            st.session_state.user_authenticated = True
-            st.session_state.uid = uid
-            st.session_state.user_email = profile["email"]
-            st.session_state.student_name = profile["name"]
-            st.session_state.grade = profile["grade"]
-            st.session_state.age = int(profile["age"])
-            st.session_state.user_profile = profile
-            
-            # Restore true workspace parameters from Firebase BEFORE any defaults overwrite them
-            workspace = session.get("workspace", {})
-            st.session_state.current_page = workspace.get("current_page", "Main Chat")
-            st.session_state.active_view = workspace.get("active_view", "main")
-            
+
+    session_data = validate_session()
+
+    if session_data:
+
+        uid = session_data.get("uid")
+
+        if uid:
+
+            profile = get_student_data(uid)
+
+            if profile:
+
+                # --------------------------------------------
+                # RESTORE USER IDENTITY
+                # --------------------------------------------
+
+                st.session_state.user_authenticated = True
+
+                st.session_state.uid = uid
+
+                st.session_state.user_email = profile.get(
+                    "email",
+                    session_data.get("email", "")
+                )
+
+                st.session_state.student_name = profile.get(
+                    "name",
+                    "Student"
+                )
+
+                st.session_state.grade = profile.get(
+                    "grade",
+                    "Grade 1"
+                )
+
+                st.session_state.age = int(
+                    profile.get("age", 10)
+                )
+
+                st.session_state.user_profile = profile
+                # --------------------------------------------
+                # RESTORE WORKSPACE
+                # --------------------------------------------
+
+                workspace = session_data.get("workspace") or {}
+
+                st.session_state.current_page = workspace.get("current_page","Main Chat")
+
+                st.session_state.active_view = workspace.get("active_view", "main")
+
+                st.session_state.selected_subject = workspace.get("selected_subject")
+                st.session_state.selected_topic = workspace.get("selected_topic")
+                st.session_state.selected_generator = workspace.get("selected_generator")
+                st.session_state.lesson_id = workspace.get("lesson_id")
+                # --------------------------------------------
+                # SESSION WAS SUCCESSFULLY RESTORED
+                # --------------------------------------------
+
+                st.session_state.session_checked = True
+
+            else:
+                st.session_state.session_checked = True
+        else:
             st.session_state.session_checked = True
-            st.rerun()
-            
-    st.session_state.session_checked = True
-# --- INITIALIZE STATE WORKSPACE PARAMS (WITH PERFORMANCE PROFILE STORAGE CACHE) ---
-if "user_authenticated" not in st.session_state: st.session_state.user_authenticated = False
-if "current_page" not in st.session_state: st.session_state.current_page = "Main Chat"
-if st.session_state.user_authenticated:
-    update_session()
-if "quiz_raw_score" not in st.session_state: st.session_state.quiz_raw_score = 0
-if "quiz_score" not in st.session_state: st.session_state.quiz_score = 0
-if "quiz_submitted" not in st.session_state: st.session_state.quiz_submitted = False
-if "quiz" not in st.session_state: st.session_state.quiz = None
-if "study_plan" not in st.session_state: st.session_state.study_plan = None
-if "flashcards" not in st.session_state: st.session_state.flashcards = []
-if "lesson_content" not in st.session_state: st.session_state.lesson_content = None
-if "student_name" not in st.session_state: st.session_state.student_name = ""
-# 🎯 SPEED FIX: Initialize a specific localized memory caching slot for Firestore profile row responses
-if "user_profile" not in st.session_state: st.session_state.user_profile = None
-if "ask_mwalimu_history" not in st.session_state: 
+    else:
+        st.session_state.session_checked = True
+
+
+# ============================================================
+# DEFAULT SESSION STATE
+# ============================================================
+if "user_authenticated" not in st.session_state:
+    st.session_state.user_authenticated = False
+if "current_page" not in st.session_state:
+    st.session_state.current_page = "Main Chat"
+if "active_view" not in st.session_state:
+    st.session_state.active_view = "main"
+if "quiz_raw_score" not in st.session_state:
+    st.session_state.quiz_raw_score = 0
+if "quiz_score" not in st.session_state:
+    st.session_state.quiz_score = 0
+if "quiz_submitted" not in st.session_state:
+    st.session_state.quiz_submitted = False
+if "quiz" not in st.session_state:
+    st.session_state.quiz = None
+if "study_plan" not in st.session_state:
+    st.session_state.study_plan = None
+if "flashcards" not in st.session_state:
+    st.session_state.flashcards = []
+if "lesson_content" not in st.session_state:
+    st.session_state.lesson_content = None
+if "student_name" not in st.session_state:
+    st.session_state.student_name = ""
+if "user_profile" not in st.session_state:
+    st.session_state.user_profile = None
+if "ask_mwalimu_history" not in st.session_state:
     st.session_state.ask_mwalimu_history = []
-if "voice_chat_history" not in st.session_state: 
+if "voice_chat_history" not in st.session_state:
     st.session_state.voice_chat_history = []
 if "new_message" not in st.session_state:
     st.session_state.new_message = False
-
-
 if "active_view" not in st.session_state:
     st.session_state.active_view = "main"
-if st.session_state.user_authenticated:
-    update_session()
 
 # 🎯 SPEED FIX: Initialize a specific localized memory caching slot for Firestore profile row responses
 if "new_message" not in st.session_state:st.session_state.new_message = False
@@ -838,7 +900,23 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
     st.session_state.ROUTE_ADMIN = admin_page
     st.session_state.ROUTE_LESSON = lesson_page
     st.session_state.ROUTE_EDIT_PROFILE = edit_profile_page
+    def navigate_to(page, page_name, active_view="main"):
+        """
+        Intentional user navigation.
 
+        Update the in-memory workspace first, persist it to Firebase,
+        then navigate to the requested Streamlit page.
+        """
+        st.session_state.current_page = page_name
+        st.session_state.active_view = active_view
+
+        try:
+            from services.session_service import update_session
+            update_session()
+        except Exception as e:
+            print(f"Navigation workspace save failed: {e}")
+
+        st.switch_page(page)
     # ======================================================
     # STREAMLIT MULTI-PAGE DESERIALIZATION ROUTER (FIXED)
     # ======================================================
@@ -853,10 +931,6 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
         "Edit Profile": edit_profile_page
     }
 
-    saved_workspace_target = st.session_state.get("current_page", "Main Chat")
-    default_starting_page = route_mapper.get(saved_workspace_target, chat_page)
-    st.session_state["st_navigation_page_link"] = default_starting_page
-
     router = st.navigation(
         [
             chat_page,
@@ -870,6 +944,14 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
         ],
         position="hidden"
     )
+
+    saved_page = st.session_state.get("current_page", "Main Chat")
+    target_page = route_mapper.get(saved_page, chat_page)
+
+    if st.session_state.user_authenticated:
+        if router.url_path != target_page.url_path:
+            st.switch_page(target_page)
+
     
     # 1. Render the top header bar component
     render_header()
@@ -901,7 +983,33 @@ else:
     import json
     import streamlit as st
     from PIL import Image
+    st.markdown(
+        """
+        <style>
+            section[data-testid="stSidebar"] {
+                display: none !important;
+            }
 
+            [data-testid="stSidebarCollapseButton"],
+            [data-testid="collapsedControl"] {
+                display: none !important;
+            }
+
+            [data-testid="stAppViewContainer"] {
+                margin-left: 0 !important;
+            }
+
+            [data-testid="stMain"] {
+                margin-left: 0 !important;
+            }
+
+            [data-testid="stMainBlockContainer"] {
+                max-width: 100% !important;
+            }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
     # Initialize image logo data assets cleanly
     try:
         with open("assets/logo211.png", "rb") as image_file:
@@ -1054,24 +1162,55 @@ else:
     # # 3. VIEW SWITCHER DISPATCH ENGINE HOOKS
     # ====================================================================
     if st.session_state.show_auth:
-        st.markdown("""
-        <style>
-        [data-testid="stMainBlockContainer"]{
-            max-width:960px;
-            margin:auto;
-            padding-top:2rem;
-            padding-bottom:5rem;
-        }
-        div[data-testid="stVerticalBlock"] > div:has(div[data-testid="stForm"]) {
-            max-width:900px;
-            margin:auto;
-        }
-        </style>
-        """, unsafe_allow_html=True)
-        
+
+        # ============================================================
+        # AUTH PAGE
+        # ============================================================
+
+        st.markdown(
+            """
+            <style>
+
+            /* Hide authenticated sidebar */
+            section[data-testid="stSidebar"] {
+                display: none !important;
+            }
+
+            [data-testid="stSidebarCollapseButton"],
+            [data-testid="collapsedControl"] {
+                display: none !important;
+            }
+
+            /* Center authentication content */
+            [data-testid="stMainBlockContainer"] {
+                max-width: 960px !important;
+                margin-left: auto !important;
+                margin-right: auto !important;
+                padding-top: 2rem !important;
+                padding-bottom: 5rem !important;
+            }
+
+            /* Keep the actual login/signup forms narrower */
+            div[data-testid="stVerticalBlock"] > div:has(div[data-testid="stForm"]) {
+                max-width: 900px !important;
+                margin-left: auto !important;
+                margin-right: auto !important;
+            }
+
+            </style>
+            """,
+            unsafe_allow_html=True
+        )
+
         st.markdown("## Join Mwalimu AI Workspace 🎓")
-        st.write("Access your specialized CBC study streams, interactive revision sets, and live audio tutors instantly.")
+
+        st.write(
+            "Access your specialized CBC study streams, interactive revision sets, "
+            "and live audio tutors instantly."
+        )
+
         st.write("---")
+
         render_auth_portal() # Launches your existing Firebase authentication portal forms cleanly
 
     else:
