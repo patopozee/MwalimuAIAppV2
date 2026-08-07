@@ -41,14 +41,13 @@ def _verify_token(signed_value: str) -> str | None:
         
         if hmac.compare_digest(expected_signature, received_signature):
             return token
-    except Exception as e:
-        print(f"[DEBUG] _verify_token crypto mismatch or error: {e}")
+    except Exception:
+        pass
     return None
 
 def get_token_from_browser() -> str | None:
     """Reads raw cookies scoped ONLY to the current active user context."""
     try:
-        # ✅ FIX: Initialize controller inside the function scope so it isolates this specific user
         user_controller = CookieController()
         raw_cookie = user_controller.get(COOKIE_NAME)
         if raw_cookie:
@@ -56,11 +55,10 @@ def get_token_from_browser() -> str | None:
             verified = _verify_token(clean_cookie)
             if verified:
                 return verified
-    except Exception as e:
-        print(f"[DEBUG] Isolated Cookie Controller lookup error: {e}")
+    except Exception:
+        pass
 
     try:
-        # Fallback to Streamlit's context cookies (natively isolated per user)
         if hasattr(st, "context") and hasattr(st.context, "cookies"):
             raw_cookie = st.context.cookies.get(COOKIE_NAME)
             if raw_cookie:
@@ -68,8 +66,8 @@ def get_token_from_browser() -> str | None:
                 verified = _verify_token(clean_cookie)
                 if verified:
                     return verified
-    except Exception as e:
-        print(f"[DEBUG] st.context.cookies layer exception: {e}")
+    except Exception:
+        pass
         
     return None
 
@@ -79,10 +77,8 @@ def get_token_from_browser() -> str | None:
 
 def create_session(uid: str, email: str) -> str:
     """Generates a unique workspace session for an individual user browser."""
-    # This generates a completely unique 64-character token for EVERY login event
     session_id = secrets.token_urlsafe(64)
 
-    # Save to Firebase mapped only to this unique session ID
     db.collection(SESSION_COLLECTION).document(session_id).set({
         "uid": uid,
         "email": email,
@@ -97,7 +93,6 @@ def create_session(uid: str, email: str) -> str:
     st.session_state.session_id = session_id
     cookie = _sign_token(session_id)
 
-    # ✅ FIX: Initialize controller locally so it writes ONLY to this individual user's browser
     user_controller = CookieController()
     user_controller.set(
         COOKIE_NAME, 
@@ -105,7 +100,6 @@ def create_session(uid: str, email: str) -> str:
         max_age=2592000, 
         path="/"
     )
-    print(f"[DEBUG] Created isolated session for user {email}.")
     return session_id
 
 def validate_session() -> dict | None:
@@ -168,15 +162,21 @@ def destroy_session() -> None:
     if session_id:
         try:
             db.collection(SESSION_COLLECTION).document(session_id).delete()
-        except Exception as e:
-            print(f"[DEBUG] Failed cleaning database row session: {e}")
+        except Exception:
+            pass
 
-    # ✅ FIX: Initialize controller locally so it clears ONLY this specific user's browser cookie
-    user_controller = CookieController()
-    user_controller.remove(COOKIE_NAME, path="/")
+    try:
+        user_controller = CookieController()
+        if hasattr(user_controller, "_CookieController__cookies"):
+            user_controller.remove(COOKIE_NAME, path="/")
+        else:
+            try:
+                user_controller.remove(COOKIE_NAME, path="/")
+            except KeyError:
+                pass
+    except Exception:
+        pass
 
-    # Wipes local browser session state variables for this session thread
     st.session_state.clear()
-
     st.session_state.user_authenticated = False
     st.session_state.session_checked = True
