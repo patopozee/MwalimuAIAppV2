@@ -4,206 +4,156 @@ import hmac
 import json
 import secrets
 from datetime import datetime, timedelta, timezone
+import urllib.parse
 
 import streamlit as st
+from streamlit_cookies_controller import CookieController
 from services.firebase_init import db
 
+# Configuration
 SESSION_COLLECTION = "sessions"
 COOKIE_NAME = "mwalimu_session"
-
-COOKIE_SECRET = st.secrets.get(
-    "cookie_secret",
-    "fallback_local_secret_key_2026"
-).encode()
+COOKIE_SECRET = st.secrets.get("cookie_secret", "fallback_local_secret_key_2026").encode()
 
 
 # =====================================================
-# Cookie helpers
+# Cookie Cryptography Helpers
 # =====================================================
 
 def _sign_token(token: str) -> str:
-    signature = hmac.new(
-        COOKIE_SECRET,
-        token.encode(),
-        hashlib.sha256
-    ).digest()
-
+    """Signs and encodes the token into a single verifiable base64 string."""
+    signature = hmac.new(COOKIE_SECRET, token.encode(), hashlib.sha256).digest()
+    
     payload = {
         "token": base64.urlsafe_b64encode(token.encode()).decode(),
         "signature": base64.urlsafe_b64encode(signature).decode()
     }
+    return base64.urlsafe_b64encode(json.dumps(payload).encode()).decode()
 
-    return base64.urlsafe_b64encode(
-        json.dumps(payload).encode()
-    ).decode()
-
-
-def _verify_token(value: str):
+def _verify_token(signed_value: str) -> str | None:
+    """Decodes the signed cookie value and verifies its signature integrity."""
     try:
-        payload = json.loads(
-            base64.urlsafe_b64decode(value.encode()).decode()
-        )
-
-        token = base64.urlsafe_b64decode(
-            payload["token"].encode()
-        ).decode()
-
-        received = base64.urlsafe_b64decode(
-            payload["signature"].encode()
-        )
-
-        expected = hmac.new(
-            COOKIE_SECRET,
-            token.encode(),
-            hashlib.sha256
-        ).digest()
-
-        if hmac.compare_digest(received, expected):
+        decoded_payload = json.loads(base64.urlsafe_b64decode(signed_value.encode()).decode())
+        token = base64.urlsafe_b64decode(decoded_payload["token"].encode()).decode()
+        received_signature = base64.urlsafe_b64decode(decoded_payload["signature"].encode())
+        
+        expected_signature = hmac.new(COOKIE_SECRET, token.encode(), hashlib.sha256).digest()
+        
+        if hmac.compare_digest(expected_signature, received_signature):
             return token
-
-    except Exception:
-        pass
-
+    except Exception as e:
+        print(f"[DEBUG] _verify_token crypto mismatch or error: {e}")
     return None
 
+def get_token_from_browser() -> str | None:
+    """Reads raw cookies scoped ONLY to the current active user context."""
+    try:
+        # ✅ FIX: Initialize controller inside the function scope so it isolates this specific user
+        user_controller = CookieController()
+        raw_cookie = user_controller.get(COOKIE_NAME)
+        if raw_cookie:
+            clean_cookie = urllib.parse.unquote(str(raw_cookie)).strip('"')
+            verified = _verify_token(clean_cookie)
+            if verified:
+                return verified
+    except Exception as e:
+        print(f"[DEBUG] Isolated Cookie Controller lookup error: {e}")
 
-def get_token_from_browser():
-
-    headers = st.context.headers
-    cookie_header = headers.get("Cookie", "")
-
-    cookies = {}
-
-    for item in cookie_header.split(";"):
-        if "=" in item:
-            k, v = item.split("=", 1)
-            cookies[k.strip()] = v.strip()
-
-    raw = cookies.get(COOKIE_NAME)
-
-    if not raw:
-        return None
-
-    return _verify_token(raw)
-
+    try:
+        # Fallback to Streamlit's context cookies (natively isolated per user)
+        if hasattr(st, "context") and hasattr(st.context, "cookies"):
+            raw_cookie = st.context.cookies.get(COOKIE_NAME)
+            if raw_cookie:
+                clean_cookie = urllib.parse.unquote(raw_cookie).strip('"')
+                verified = _verify_token(clean_cookie)
+                if verified:
+                    return verified
+    except Exception as e:
+        print(f"[DEBUG] st.context.cookies layer exception: {e}")
+        
+    return None
 
 # =====================================================
-# Session manager
+# State & Database Session Managers
 # =====================================================
 
-def create_session(uid: str, email: str):
-
+def create_session(uid: str, email: str) -> str:
+    """Generates a unique workspace session for an individual user browser."""
+    # This generates a completely unique 64-character token for EVERY login event
     session_id = secrets.token_urlsafe(64)
 
+    # Save to Firebase mapped only to this unique session ID
     db.collection(SESSION_COLLECTION).document(session_id).set({
-
         "uid": uid,
         "email": email,
-
         "workspace": {
             "current_page": "Main Chat",
             "active_view": "main"
         },
-
         "created_at": datetime.now(timezone.utc),
-
-        "expires": datetime.now(timezone.utc)
-        + timedelta(days=30)
-
+        "expires": datetime.now(timezone.utc) + timedelta(days=30)
     })
 
     st.session_state.session_id = session_id
-
     cookie = _sign_token(session_id)
 
-    st.html(f"""
-    <script>
-    document.cookie =
-    "{COOKIE_NAME}={cookie};
-    path=/;
-    max-age=2592000;
-    SameSite=Lax";
-    </script>
-    """)
-
+    # ✅ FIX: Initialize controller locally so it writes ONLY to this individual user's browser
+    user_controller = CookieController()
+    user_controller.set(
+        COOKIE_NAME, 
+        cookie, 
+        max_age=2592000, 
+        path="/"
+    )
+    print(f"[DEBUG] Created isolated session for user {email}.")
     return session_id
 
-
-def validate_session():
-
+def validate_session() -> dict | None:
+    """Validates the current unique user session."""
     session_id = get_token_from_browser()
 
     if not session_id:
         return None
 
-    doc = db.collection(
-        SESSION_COLLECTION
-    ).document(session_id).get()
+    doc = db.collection(SESSION_COLLECTION).document(session_id).get()
 
     if not doc.exists:
         return None
 
     data = doc.to_dict()
-
     if not data:
         return None
 
     expires = data.get("expires")
-
     if expires is None:
         return None
 
     if expires.tzinfo is None:
-        expires = expires.replace(
-            tzinfo=timezone.utc
-        )
+        expires = expires.replace(tzinfo=timezone.utc)
 
     if datetime.now(timezone.utc) > expires:
-
         try:
-            db.collection(
-                SESSION_COLLECTION
-            ).document(session_id).delete()
+            db.collection(SESSION_COLLECTION).document(session_id).delete()
         except Exception:
             pass
-
         return None
 
     st.session_state.session_id = session_id
-
     return data
 
-
-def update_session():
-
+def update_session() -> None:
+    """Saves app UI selections for this specific user session down to Firebase."""
     session_id = st.session_state.get("session_id")
-
     if not session_id:
         return
 
     workspace = {
-        "current_page": st.session_state.get(
-            "current_page",
-            "Main Chat"
-        ),
-        "active_view": st.session_state.get(
-            "active_view",
-            "main"
-        ),
-
-        # Future additions
-        "selected_subject": st.session_state.get(
-            "selected_subject"
-        ),
-        "selected_topic": st.session_state.get(
-            "selected_topic"
-        ),
-        "selected_generator": st.session_state.get(
-            "selected_generator"
-        ),
-        "lesson_id": st.session_state.get(
-            "lesson_id"
-        ),
+        "current_page": st.session_state.get("current_page", "Main Chat"),
+        "active_view": st.session_state.get("active_view", "main"),
+        "selected_subject": st.session_state.get("selected_subject"),
+        "selected_topic": st.session_state.get("selected_topic"),
+        "selected_generator": st.session_state.get("selected_generator"),
+        "lesson_id": st.session_state.get("lesson_id"),
     }
 
     db.collection(SESSION_COLLECTION).document(session_id).update({
@@ -211,30 +161,22 @@ def update_session():
         "last_seen": datetime.now(timezone.utc)
     })
 
-
-def destroy_session():
-
+def destroy_session() -> None:
+    """Wipes active trace records ONLY for the user clicking log out."""
     session_id = st.session_state.get("session_id")
 
     if session_id:
         try:
             db.collection(SESSION_COLLECTION).document(session_id).delete()
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"[DEBUG] Failed cleaning database row session: {e}")
 
-    # Remove browser cookie
-    st.html(f"""
-    <script>
-        document.cookie =
-        "{COOKIE_NAME}=;
-        path=/;
-        expires=Thu, 01 Jan 1970 00:00:00 GMT";
-    </script>
-    """)
+    # ✅ FIX: Initialize controller locally so it clears ONLY this specific user's browser cookie
+    user_controller = CookieController()
+    user_controller.remove(COOKIE_NAME, path="/")
 
-    # Completely clear Streamlit session
+    # Wipes local browser session state variables for this session thread
     st.session_state.clear()
 
-    # Recreate default values needed after logout
     st.session_state.user_authenticated = False
-    st.session_state.session_checked = False
+    st.session_state.session_checked = True

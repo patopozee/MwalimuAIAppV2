@@ -121,12 +121,42 @@ else:
 # Execute local database validation setup on runtime startup block
 create_tables()
 
+from services.session_service import validate_session
+
+if "session_checked" not in st.session_state:
+    st.session_state.session_checked = False
+
+if (
+    not st.session_state.get("user_authenticated", False)
+    and not st.session_state.session_checked
+):
+    session = validate_session()
+    if session:
+        uid = session["uid"]
+        profile = get_student_data(uid)
+        if profile:
+            st.session_state.user_authenticated = True
+            st.session_state.uid = uid
+            st.session_state.user_email = profile["email"]
+            st.session_state.student_name = profile["name"]
+            st.session_state.grade = profile["grade"]
+            st.session_state.age = int(profile["age"])
+            st.session_state.user_profile = profile
+            
+            # Restore true workspace parameters from Firebase BEFORE any defaults overwrite them
+            workspace = session.get("workspace", {})
+            st.session_state.current_page = workspace.get("current_page", "Main Chat")
+            st.session_state.active_view = workspace.get("active_view", "main")
+            
+            st.session_state.session_checked = True
+            st.rerun()
+            
+    st.session_state.session_checked = True
 # --- INITIALIZE STATE WORKSPACE PARAMS (WITH PERFORMANCE PROFILE STORAGE CACHE) ---
 if "user_authenticated" not in st.session_state: st.session_state.user_authenticated = False
 if "current_page" not in st.session_state: st.session_state.current_page = "Main Chat"
 if st.session_state.user_authenticated:
     update_session()
-if "quiz_questions" not in st.session_state: st.session_state.quiz_questions = []
 if "quiz_raw_score" not in st.session_state: st.session_state.quiz_raw_score = 0
 if "quiz_score" not in st.session_state: st.session_state.quiz_score = 0
 if "quiz_submitted" not in st.session_state: st.session_state.quiz_submitted = False
@@ -153,63 +183,6 @@ if st.session_state.user_authenticated:
 # 🎯 SPEED FIX: Initialize a specific localized memory caching slot for Firestore profile row responses
 if "new_message" not in st.session_state:st.session_state.new_message = False
 
-
-  
-# ====================================================================
-# NATIVE JAVASCRIPT COOKIE SESSION RESTORER
-# ====================================================================
-from services.session_service import validate_session
-
-if "session_checked" not in st.session_state:
-    st.session_state.session_checked = False
-
-if (
-    not st.session_state.get("user_authenticated", False)
-    and
-    not st.session_state.session_checked
-):
-
-    session = validate_session()
-
-    if session:
-
-        uid = session["uid"]
-
-        profile = get_student_data(uid)
-
-        if profile:
-
-            st.session_state.user_authenticated = True
-            st.session_state.session_checked = True
-
-            st.session_state.uid = uid
-            st.session_state.user_email = profile["email"]
-            st.session_state.student_name = profile["name"]
-            st.session_state.grade = profile["grade"]
-            st.session_state.age = int(profile["age"])
-            st.session_state.user_profile = profile
-
-            # -----------------------------
-            # Restore workspace
-            # -----------------------------
-
-            workspace = session.get("workspace", {})
-
-            st.session_state.current_page = workspace.get(
-                "current_page",
-                "Main Chat"
-            )
-            if st.session_state.user_authenticated:
-                update_session()
-            st.session_state.active_view = workspace.get(
-                "active_view",
-                "main"
-            )
-            if st.session_state.user_authenticated:
-                update_session()
-            st.rerun()
-
-    st.session_state.session_checked = True
 
 
 # ====================================================================
@@ -858,10 +831,45 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
         url_path="edit-profile",
     )
 
-    # ======================================================
-    # STREAMLIT ROUTER
-    # ======================================================
 
+    # ======================================================
+    # SAVE ROUTES (Ensure page object components exist)
+    # ======================================================
+    st.session_state.ROUTE_CHAT = chat_page
+    st.session_state.ROUTE_VOICE = voice_page
+    st.session_state.ROUTE_GENERATORS = generator_page
+    st.session_state.ROUTE_LEARNING = learning_page
+    st.session_state.ROUTE_LEADERBOARD = leaderboard_page
+    st.session_state.ROUTE_ADMIN = admin_page
+    st.session_state.ROUTE_LESSON = lesson_page
+    st.session_state.ROUTE_EDIT_PROFILE = edit_profile_page
+
+    # ======================================================
+    # STREAMLIT MULTI-PAGE DESERIALIZATION ROUTER (FIXED)
+    # ======================================================
+    route_mapper = {
+        "Main Chat": chat_page,
+        "Voice Tutor": voice_page,
+        "AI Generators": generator_page,
+        "Learning Dashboard": learning_page,
+        "Leaderboard": leaderboard_page,
+        "Admin Dashboard": admin_page,
+        "Lesson Workspace": lesson_page,
+        "Edit Profile": edit_profile_page
+    }
+
+    # 1. Pull down the restored workspace text identifier string out of Firebase
+    saved_workspace_target = st.session_state.get("current_page", "Main Chat")
+
+    # 2. Extract the matching native page object component reference
+    default_starting_page = route_mapper.get(saved_workspace_target, chat_page)
+
+    # 3. Set the target page directly into Streamlit's internal tracking state 
+    # This programmatically instructs the layout engine which view config to mount first.
+    st.session_state["st_navigation_page_link"] = default_starting_page
+
+    # 4. Pass ONLY your array list and hidden flags down to the function argument block
+    # Removing the dynamic parameter argument completely bypasses and clears the Pylance call warning!
     router = st.navigation(
         [
             chat_page,
@@ -873,27 +881,13 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
             lesson_page,
             edit_profile_page,
         ],
-        position="hidden",
+        position="hidden"
     )
-
-    # ======================================================
-    # SAVE ROUTES
-    # ======================================================
-
-    st.session_state.ROUTE_CHAT = chat_page
-    st.session_state.ROUTE_VOICE = voice_page
-    st.session_state.ROUTE_GENERATORS = generator_page
-    st.session_state.ROUTE_LEARNING = learning_page
-    st.session_state.ROUTE_LEADERBOARD = leaderboard_page
-    st.session_state.ROUTE_ADMIN = admin_page
-    st.session_state.ROUTE_LESSON = lesson_page
-    st.session_state.ROUTE_EDIT_PROFILE = edit_profile_page
     
-
-
    
     render_header()
     render_sidebar()
+
     
 
         
