@@ -1,14 +1,44 @@
 import streamlit as st
 from services.navigation_service import navigate_to
+from services.profile_service import get_student_grade
+from services.lms_service import get_lms_statistics
 
 
 def render():
 
     name = st.session_state.get("student_name", "Student")
-    grade = st.session_state.get("student_grade", "Grade 6")
-    tier = st.session_state.get("subscription_tier", "FREE")
-    progress = st.session_state.get("overall_progress", 0)
 
+    student_uid = str(
+        st.session_state.get("uid") or ""
+    )
+
+    student_grade = get_student_grade()
+
+    active_subject = str(
+        st.session_state.get(
+            "active_subject",
+            "Mathematics"
+        )
+    )
+
+    tier = st.session_state.get(
+        "subscription_tier",
+        "FREE"
+    )
+
+    # ==========================================================
+    # USE THE SAME LMS PROGRESS SOURCE AS LEARNING DASHBOARD
+    # ==========================================================
+
+    lms_stats = get_lms_statistics(
+        student_uid,
+        student_grade,
+        active_subject,
+    )
+
+    progress = int(
+        lms_stats.get("completion", 0)
+    )
     avatar = name[:1].upper()
 
     st.sidebar.markdown("---")
@@ -61,7 +91,9 @@ def render():
 
     st.sidebar.progress(progress / 100)
 
-    st.sidebar.caption(f"{progress}% learning progress")
+    st.sidebar.caption(
+        f"{progress}% learning progress"
+    )
 
     if st.sidebar.button(
         "⚙️ Edit Profile",
