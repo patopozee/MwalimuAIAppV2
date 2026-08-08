@@ -9,7 +9,7 @@ def load():
     section[data-testid="stSidebar"] {
         background: #1A1D24 !important;
         z-index: 999995 !important;
-        transition: transform 0.3s ease, margin-left 0.3s ease, left 0.3s ease !important;
+        transition: transform 0.3s ease, margin-left 0.3s ease !important;
     }
 
     .sidebar-section-title {
@@ -38,10 +38,8 @@ def load():
 
 
 def load_style():
-    is_open = st.session_state.get("sidebar_open", True)
-    
-    # Desktop positioning vs Mobile off-screen force (-100vw ensures 100% off-screen hiding)
-    sidebar_left = "0px" if is_open else "-100vw"
+    # Detect position states
+    sidebar_left = "0px" if st.session_state.get("sidebar_open", True) else "-340px"
 
     st.markdown(
         f"""
@@ -58,25 +56,9 @@ def load_style():
             width: 320px !important;
         }}
         
-        /* Desktop specific limit to prevent full viewport shift */
-        @media (min-width: 769px) {{
-            section[data-testid="stSidebar"] {{
-                left: {'0px' if is_open else '-340px'} !important;
-            }}
-        }}
-
-        /* Force complete hide on mobile screens when closed */
-        @media (max-width: 768px) {{
-            section[data-testid="stSidebar"][aria-expanded="false"],
-            section[data-testid="stSidebar"] {{
-                left: {sidebar_left} !important;
-                max-width: 85vw !important; /* Prevents sidebar from taking 100% device width on small phones */
-            }}
-        }}
-        
-        /* Adjust core workspace bounds */
+        /* Adjust core workspace bounds to flex dynamically alongside the side drawer layer */
         [data-testid="stApp"] {{
-            margin-left: 0px !important;
+            margin-left: {'0px' if not st.session_state.get('sidebar_open', True) else '0px'} !important;
         }}
         </style>
         """,
