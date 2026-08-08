@@ -1,18 +1,20 @@
 import streamlit as st
-from services.session_service import update_session
 
 
 def navigate_to(page, page_name, active_view="main"):
+    """
+    Intentional in-app navigation.
 
-    # Update local workspace
+    Persist the destination page, then navigate to it.
+    """
+
     st.session_state.current_page = page_name
     st.session_state.active_view = active_view
 
-    # Persist destination to Firebase
     try:
+        from services.session_service import update_session
         update_session()
     except Exception as e:
         print(f"Navigation workspace save failed: {e}")
 
-    # Navigate
     st.switch_page(page)

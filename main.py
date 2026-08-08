@@ -900,23 +900,6 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
     st.session_state.ROUTE_ADMIN = admin_page
     st.session_state.ROUTE_LESSON = lesson_page
     st.session_state.ROUTE_EDIT_PROFILE = edit_profile_page
-    def navigate_to(page, page_name, active_view="main"):
-        """
-        Intentional user navigation.
-
-        Update the in-memory workspace first, persist it to Firebase,
-        then navigate to the requested Streamlit page.
-        """
-        st.session_state.current_page = page_name
-        st.session_state.active_view = active_view
-
-        try:
-            from services.session_service import update_session
-            update_session()
-        except Exception as e:
-            print(f"Navigation workspace save failed: {e}")
-
-        st.switch_page(page)
     # ======================================================
     # STREAMLIT MULTI-PAGE DESERIALIZATION ROUTER (FIXED)
     # ======================================================
@@ -945,12 +928,31 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
         position="hidden"
     )
 
-    saved_page = st.session_state.get("current_page", "Main Chat")
-    target_page = route_mapper.get(saved_page, chat_page)
+    # ======================================================
+    # RESTORE SAVED WORKSPACE — ONCE PER SESSION
+    # ======================================================
 
     if st.session_state.user_authenticated:
-        if router.url_path != target_page.url_path:
-            st.switch_page(target_page)
+
+        if not st.session_state.get("workspace_restored", False):
+
+            saved_page = st.session_state.get(
+                "current_page",
+                "Main Chat",
+            )
+
+            target_page = route_mapper.get(
+                saved_page,
+                chat_page,
+            )
+
+            # Mark restored BEFORE switching.
+            # This prevents the next rerun from forcing
+            # the same Firebase page again.
+            st.session_state.workspace_restored = True
+
+            if router.url_path != target_page.url_path:
+                st.switch_page(target_page)
 
     
     # 1. Render the top header bar component

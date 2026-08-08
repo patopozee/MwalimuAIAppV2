@@ -1,10 +1,7 @@
 import streamlit as st
 from services.ai import generate_lesson, ask_mwalimu
-from services.lms_service import (
-    complete_student_lesson,
-    load_course_structure,
-    get_student_lesson_progress,
-)
+from services.navigation_service import navigate_to
+
 
 
 def render():
@@ -70,7 +67,11 @@ def render():
         st.markdown(f"<p style='color: #9CA3AF; font-size: 15px; margin-bottom: 16px;'>{subject} &mdash; Grade {grade} | Focus Framework Unit</p>", unsafe_allow_html=True)
         
         if st.button("⬅ Exit to Main Dashboard", type="secondary"):
-            st.switch_page(st.session_state.ROUTE_LEARNING)
+            navigate_to(
+                st.session_state.ROUTE_LEARNING,
+                "Learning Dashboard",
+                "learning",
+            )
 
     with col_header_right:
         # Beautifully structured interactive milestone box card wrapper

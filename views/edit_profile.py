@@ -1,6 +1,7 @@
 import streamlit as st
 from firebase_admin import firestore
 from google.cloud.firestore_v1.base_query import FieldFilter
+from services.navigation_service import navigate_to
 
 
 db = firestore.client()
@@ -8,8 +9,12 @@ db = firestore.client()
 
 def render():  
     st.markdown("---")
-    if st.button("⬅ Back to Main Chat Dashboard", use_container_width=True):
-        st.switch_page(st.session_state.ROUTE_CHAT)
+    if st.button( "⬅ Back to Main Chat Dashboard",use_container_width=True, ):
+        navigate_to(
+            st.session_state.ROUTE_CHAT,
+            "Main Chat",
+            "main",
+        )
         
     st.subheader("⚙ Edit Student Profile")
     st.write("Keep your academic milestones up to date. Changing your profile details or baseline grade helps Mwalimu AI adjust the difficulty of quizzes and voice tasks automatically.")

@@ -1,6 +1,7 @@
 import streamlit as st
 import sqlite3
 from services.database import DATABASE_NAME, get_grade_leaderboard
+from services.navigation_service import navigate_to
 
 def get_single_student_progress_metrics(student_id_or_uid):
     """Fetches a detailed curriculum progress ledger specifically for the logged-in student profile."""
@@ -74,7 +75,11 @@ def render_student_leaderboard_page():
         # If they haven't submitted a quiz yet, give them a helpful hint with a shortcut button
         st.info("🎯 You haven't recorded any lesson progress metrics yet! Open your dashboard workspace to start your first assignment unit.")
         if st.button("🚀 Jump into Active Lesson Notes", type="primary", width="stretch"):
-            st.switch_page(st.session_state.ROUTE_LEARNING)
+            navigate_to(
+                st.session_state.ROUTE_LEARNING,
+                "Learning Dashboard",
+                "learning",
+            )
     else:
         gradebook_list = []
         for record in personal_records:

@@ -1,4 +1,5 @@
 import streamlit as st
+from services.navigation_service import navigate_to
 
 
 def render():
@@ -68,4 +69,8 @@ def render():
         key="profile_btn",
         use_container_width=True,
     ):
-        st.switch_page(st.session_state.ROUTE_EDIT_PROFILE)
+        navigate_to(
+            st.session_state.ROUTE_EDIT_PROFILE,
+            "Edit Profile",
+            "edit-profile",
+        )
