@@ -18,7 +18,7 @@ from services.session_service import update_session
 # Hide Streamlit loading messages, footer, and hamburger menu
 st.set_page_config(
     page_title="Mwalimu AI App",
-    page_icon="assets/logo112.png",
+    page_icon="assets/favicon.png",
     layout="wide",
     initial_sidebar_state="expanded"
 )
