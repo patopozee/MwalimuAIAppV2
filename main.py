@@ -33,23 +33,11 @@ st.markdown("""
 """, unsafe_allow_html=True)
 # 2. --- HIDE MENUS, FOOTERS, AND DEV GLASSES ---
 # 2. --- HIDE MENUS, FOOTERS, RUNNING MAN, AND ACTION BARS ---
-hide_branding = """
-    <style>
-    /* Force the sidebar collapse/expand button to stay visible */
-    [data-testid="collapsedControl"], [data-testid="stSidebarCollapseButton"] {
-        display: block !important;
-        visibility: visible !important;
-    }
 
-    /* Hide Streamlit header */
-    header {
-        visibility: visible !important;
-    }   
 
-    </style>
-    """
 
-st.markdown(hide_branding, unsafe_allow_html=True)
+
+
 
 
 
@@ -91,12 +79,6 @@ from components.learning_context import render as render_learning_context
 # --- DATABASE ENGINE CACHE WRAPPERS (IMPORTS REMAIN THE SAME) ---
 from services.database import (
     create_tables,
-    save_activity,
-    get_student_stats,
-    get_student_quiz_history,   
-    get_student_learning_analysis,
-    get_ask_mwalimu_history,  
-    clear_student_chat_history,
     get_student_data #  ADD THIS LINE HERE
 )
 

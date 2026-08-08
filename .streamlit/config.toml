@@ -2,25 +2,19 @@
 headless = true
 enableCORS = true            # 🌟 FIXED: Keep active to enforce safe domain access
 enableXsrfProtection = true 
-enableStaticServing = true # 🌟 FIXED: Keeps cross-site cookie defense fully operational
+enableStaticServing = true  # 🌟 FIXED: Keeps cross-site cookie defense fully operational
 maxMessageSize = 50
-
 
 [client]
 # Disables massive development tracking overhead strings, speeding up browser render paint times.
 showErrorDetails = false
+toolbarMode = "minimal"
 
 [runner]
 # 🚀 MODERN REPLACEMENT ENGINES:
 # Disables magic parsing to reduce CPU overhead and accelerate layout calculations.
 magicEnabled = false
 
-
 [browser]
 gatherUsageStats = false
-
-
-
-
-
 
