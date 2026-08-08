@@ -31,15 +31,6 @@ st.markdown("""
         and track your academic milestones—all in one seamless hub.">
     </head>
 """, unsafe_allow_html=True)
-# 2. --- HIDE MENUS, FOOTERS, AND DEV GLASSES ---
-# 2. --- HIDE MENUS, FOOTERS, RUNNING MAN, AND ACTION BARS ---
-
-
-
-
-
-
-
 
 # -----------------------------------
 # AUTO LOGIN FROM COOKIE
@@ -790,8 +781,14 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
     # CREATE PAGES
     # ======================================================
 
+    from components.loaders import render_with_loader
+
+    # ======================================================
+    # PAGE DEFINITIONS WITH LOADER WRAPPERS
+    # ======================================================
+
     def render_main_chat():
-        render_main_chat_view()
+        render_with_loader(render_main_chat_view, "Main Chat")
 
     chat_page = st.Page(
         render_main_chat,
@@ -801,7 +798,7 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
     )
 
     def render_voice_tutor():
-        render_voice_view()
+        render_with_loader(render_voice_view, "Voice Tutor")
 
     voice_page = st.Page(
         render_voice_tutor,
@@ -811,7 +808,7 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
     )
 
     def render_generators():
-        render_generators_view()
+        render_with_loader(render_generators_view, "AI Generators")
 
     generator_page = st.Page(
         render_generators,
@@ -821,7 +818,7 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
     )
 
     def render_learning_dashboard():
-        render_learning_dashboard_view()
+        render_with_loader(render_learning_dashboard_view, "Learning Dashboard")
 
     learning_page = st.Page(
         render_learning_dashboard,
@@ -831,7 +828,7 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
     )
 
     def render_leaderboard():
-        render_leaderboard_view()
+        render_with_loader(render_leaderboard_view, "Leaderboard")
 
     leaderboard_page = st.Page(
         render_leaderboard,
@@ -841,7 +838,7 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
     )
 
     def render_admin():
-        render_admin_view()
+        render_with_loader(render_admin_view, "Admin Dashboard")
 
     admin_page = st.Page(
         render_admin,
@@ -851,7 +848,7 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
     )
 
     def render_lesson_workspace():
-        render_lesson_workspace_view()
+        render_with_loader(render_lesson_workspace_view, "Lesson Workspace")
 
     lesson_page = st.Page(
         render_lesson_workspace,
@@ -861,7 +858,7 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
     )
 
     def render_edit_profile():
-        render_edit_profile_view()
+        render_with_loader(render_edit_profile_view, "Edit Profile")
 
     edit_profile_page = st.Page(
         render_edit_profile,

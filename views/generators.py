@@ -2,21 +2,35 @@ import streamlit as st
 import re
 import json
 import ast
-from services.upgrade_modal import upgrade_modal
-from services.tier_guard import verify_tier_allowance
-from services.ai import ask_mwalimu, generate_quiz, generate_study_plan, generate_flashcards, generate_lesson
-from services.db_service import MwalimuDBService
-from services.upgrade_modal import upgrade_modal
-from services.quiz_evaluator import evaluate_quiz_submission
-from services.database import (
-    save_activity,
-    get_student_stats,
-    get_next_difficulty,
-    get_student_data  #  ADD THIS LINE HERE
-)
+from components.loaders import show_page_loader
+
 
 def render(): 
-    # 🚀 FIX: Pull the authoritative active profile dictionary from the sidebar state store
+    # 1. INSTANT UI FEEDBACK: Mount loader slot immediately on screen
+    loader_slot = st.empty()
+    with loader_slot.container():
+        show_page_loader("Initializing Mwalimu Generators Hub...")
+
+    # 2. LAZY IMPORTS: Load heavy AI services and DB utilities inside render()
+    from services.upgrade_modal import upgrade_modal
+    from services.tier_guard import verify_tier_allowance
+    from services.ai import (
+        ask_mwalimu, 
+        generate_quiz, 
+        generate_study_plan, 
+        generate_flashcards, 
+        generate_lesson
+    )
+    from services.db_service import MwalimuDBService
+    from services.quiz_evaluator import evaluate_quiz_submission
+    from services.database import (
+        save_activity,
+        get_student_stats,
+        get_next_difficulty,
+        get_student_data
+    )
+
+    # 3. CONTEXT RESOLUTION & SESSION STATE DATA PREPARATION
     if "active_student_profile" in st.session_state:
         student = st.session_state.active_student_profile
     else:
@@ -38,7 +52,10 @@ def render():
     sub_topic = student.get("sub_topic", "")
     learning_outcome = student.get("learning_outcome", "")
 
+    # 4. CLEAR LOADER: Remove loader slot right before painting hub UI
+    loader_slot.empty()
 
+    # 5. RENDER GENERATORS HUB UI
     st.markdown("---")
     st.subheader("🎯 Mwalimu AI Learning Generators Hub")
     st.write(f"Active Context: **{student['subject']}** ➡️ **{student['topic']}** ({student['language']})")

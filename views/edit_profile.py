@@ -1,15 +1,32 @@
 import streamlit as st
-from firebase_admin import firestore
-from google.cloud.firestore_v1.base_query import FieldFilter
-from services.navigation_service import navigate_to
+from components.loaders import show_page_loader
 
 
-db = firestore.client()
+def render():
+    # 1. INSTANT UI FEEDBACK: Mount loader slot immediately onto screen
+    loader_slot = st.empty()
+    with loader_slot.container():
+        show_page_loader("Fetching profile settings...")
 
+    # 2. LAZY IMPORTS: Import heavy dependencies after loader is rendered
+    from firebase_admin import firestore
+    from google.cloud.firestore_v1.base_query import FieldFilter
+    from services.navigation_service import navigate_to
 
-def render():  
+    # 3. DATABASE CLIENT & I/O FETCHING
+    db = firestore.client()
+    current_uid = st.session_state.get("uid") or st.session_state.get("user_email")
+    user_doc_ref = db.collection("users").document(str(current_uid))
+    active_profile = user_doc_ref.get().to_dict() or {}
+
+    # 4. CLEAR LOADER: Remove loader slot right before painting the view UI
+    loader_slot.empty()
+
+    # ====================================================================
+    # RENDER PROFILE UI COMPONENTS
+    # ====================================================================
     st.markdown("---")
-    if st.button( "⬅ Back to Main Chat Dashboard",use_container_width=True, ):
+    if st.button("⬅ Back to Main Chat Dashboard", use_container_width=True):
         navigate_to(
             st.session_state.ROUTE_CHAT,
             "Main Chat",
@@ -23,16 +40,13 @@ def render():
     grade = st.session_state.get("grade", "")
     age = st.session_state.get("age", "")
     student = st.session_state.get("student_name", "")
-    # 1. Fetch active data parameters cleanly
-    current_uid = st.session_state.get("uid") or st.session_state.get("user_email")
-    user_doc_ref = db.collection("users").document(str(current_uid))
-    active_profile = user_doc_ref.get().to_dict() or {}
-    
+
     if active_profile:
         with st.container(border=True):
-            # 2. Keep Email locked (Read-Only), but allow Student Name to be modified                               
+            # Keep Email locked (Read-Only), but allow Student Name to be modified                               
             input_name = st.text_input("Student Name", value=active_profile.get("name", st.session_state.get("student_name", "Student")))
             st.text_input("Registered Email Address", value=active_profile.get("email", st.session_state.get("user_email", "")), disabled=True)                
+            
             # Type Guard: Coerce the output parameter explicitly into a guaranteed string layout
             new_name = str(input_name) if input_name is not None else ""
             
@@ -40,8 +54,7 @@ def render():
             if not new_name.strip():
                 st.error("Student Name cannot be left blank.")
 
-            
-            # 3. Allow Grade and Age to change
+            # Allow Grade and Age to change
             grades_list = [f"Grade {i}" for i in range(1, 13)]
             saved_grade = active_profile.get("grade", "Grade 1")
             

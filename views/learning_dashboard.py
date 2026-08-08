@@ -1,35 +1,44 @@
 import streamlit as st
-from services.upgrade_modal import upgrade_modal
-from services.profile_service import (get_student_profile, 
-                                      get_student_grade)
-    
-from services.lms_service import (
-    get_lms_statistics,
-    get_lms_learning_analysis,
-    get_lms_quiz_history,
-)
+from components.loaders import show_page_loader
 
 
 def render():
-    student_uid = str(st.session_state.get("uid") or "")
-    student_grade = get_student_grade()
-    active_subject = str(st.session_state.get("active_subject", "Mathematics"))
-    lms_stats = get_lms_statistics(
-        student_uid,
-        student_grade,
-        active_subject
-    )
+    # 1. INSTANT UI FEEDBACK: Mount loader slot onto screen immediately
+    loader_slot = st.empty()
+    with loader_slot.container():
+        show_page_loader("Loading your learning metrics & course progress...")
+
+    # 2. LAZY IMPORTS: Load heavy service dependencies after loader appears
+    from services.upgrade_modal import upgrade_modal
+    from services.profile_service import get_student_profile, get_student_grade
     from services.lms_service import (
+        get_lms_statistics,
+        get_lms_learning_analysis,
+        get_lms_quiz_history,
         get_current_active_lesson,
         load_course_structure,
         get_student_lesson_progress,
     )
 
-    #=========
-    # # 🏫 LMS CORE INTEGRATION: TODAY'S LEARNING & CONTINUE LEARNING GATE
-    # # ====================================================================               
-    
+    # 3. DATABASE CALLS: Fetch statistics & profiles while loader is visible
+    student_uid = str(st.session_state.get("uid") or "")
+    student_grade = get_student_grade()
+    active_subject = str(st.session_state.get("active_subject", "Mathematics"))
+
+    lms_stats = get_lms_statistics(
+        student_uid,
+        student_grade,
+        active_subject
+    )
     student_profile_dict = get_student_profile()
+
+    # 4. CLEAR LOADER: Remove spinner slot right before rendering dashboard UI
+    loader_slot.empty()
+
+    # ====================================================================               
+    # 🏫 LMS CORE INTEGRATION: TODAY'S LEARNING & CONTINUE LEARNING GATE
+    # ====================================================================
+    # Rest of your dashboard UI code continues below...
     # 1. Unpack subscription details
     student_profile_dict = st.session_state.get("user_profile", {})    
     subscription_tree = student_profile_dict.get('subscription', {}) if isinstance(student_profile_dict.get('subscription'), dict) else {}

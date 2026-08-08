@@ -4,6 +4,7 @@ from services.ai import ask_mwalimu
 from services.vision_service import MwalimuVisionService
 from services.db_service import MwalimuDBService
 from services.upgrade_modal import upgrade_modal
+from components.loaders import show_page_loader
 
 from services.database import (
     
@@ -27,17 +28,32 @@ def render():
                 👋 Welcome to Mwalimu AI – Your Adaptive Learning Partner
             </h3>
             <p style="color: #94A3B8; font-size: 14px; line-height: 1.5; margin-bottom: 15px;">
-                Start by setting up your student profile in the sidebar. Explore your interactive learning hubs below:
+                Start by setting up your student profile in the sidebar, Choose the subject and Explore Different Features in Navigation hubs:
             </p>
             <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px;">
-                <div style="color: #E2E8F0; font-size: 13.5px;">💬 <b>Main Chat & Voice:</b> Ask questions or talk to a live voice tutor.</div>
+                <div style="color: #E2E8F0; font-size: 13.5px;">💬 <b>Main Chat & Voice Tutor:</b> Ask questions or talk to a live voice tutor.</div>
                 <div style="color: #E2E8F0; font-size: 13.5px;">⚡ <b>AI Generators:</b> Create custom study flashcards and revisions.</div>
-                <div style="color: #E2E8F0; font-size: 13.5px;">🏫 <b>LMS Dashboard:</b> Complete structured lessons to earn certificates.</div>
+                <div style="color: #E2E8F0; font-size: 13.5px;">🏫 <b>Learning Dashboard:</b> Complete structured lessons to earn certificates.</div>
                 <div style="color: #E2E8F0; font-size: 13.5px;">🏆 <b>Leaderboard:</b> Challenge yourself with quizzes and rank nationally.</div>
             </div>
         </div>
         """, unsafe_allow_html=True)
+    #======================================================
+    loader_slot = st.empty()
+    
+    # 2. Display loader while loading database records
+    with loader_slot.container():
+        show_page_loader("Loading your chat history...")
 
+    # 3. Perform database calls / state initialization
+    uid = str(st.session_state.get("uid", ""))
+    conversation_subject = st.session_state.get("active_subject", "General Studies")
+    
+    if "ask_mwalimu_history" not in st.session_state or st.session_state.get("refetch_history"):
+        st.session_state.ask_mwalimu_history = get_ask_mwalimu_history(uid, conversation_subject)
+
+    # 4. Clear the loader slot once data is loaded!
+    loader_slot.empty()
     # =====================================================
     # CHAT WITH MWALIMU SECTION
     # =====================================================
@@ -276,6 +292,7 @@ def render():
                 </script>
             """)
 
+            
             # 7. CREATE EMPTY ASSISTANT CHAT CONTAINER BUBBLE ROW
             st.markdown(f"""
             <div id="{next_scroll_target_id}" style="display: flex; justify-content: flex-start; align-items: center; gap: 10px; margin-bottom: 12px; width: 100%; scroll-margin-top: 80px;">
@@ -290,10 +307,52 @@ def render():
             
             # Dedicated Streamlit placeholder layer window block
             assistant_placeholder = st.empty()
-                    # 🚀 ADD THIS TO REBUILD THE EXPECTED DICTIONARY PAYLOAD:
-                    # 🚀 FIX: Change "name" to "student_name" so services/ai.py can parse it
+
+            # 🎨 INJECT CHATGPT-STYLE ANIMATED LOADING INDICATOR BEFORE STREAM STARTS
+            assistant_placeholder.markdown("""
+            <style>
+                @keyframes pulseDots {
+                    0%, 100% { opacity: 0.2; transform: scale(0.8); }
+                    50% { opacity: 1; transform: scale(1.1); }
+                }
+                .mwalimu-loading-container {
+                    display: flex;
+                    align-items: center;
+                    gap: 6px;
+                    padding: 8px 12px;
+                    background-color: #1A2234;
+                    border: 1px solid rgba(255, 75, 75, 0.2);
+                    border-radius: 12px;
+                    width: fit-content;
+                    margin-bottom: 12px;
+                }
+                .mwalimu-loading-text {
+                    color: #94A3B8;
+                    font-size: 13px;
+                    font-weight: 500;
+                    font-family: sans-serif;
+                }
+                .mwalimu-dot {
+                    width: 6px;
+                    height: 6px;
+                    background-color: #FF4B4B;
+                    border-radius: 50%;
+                    display: inline-block;
+                    animation: pulseDots 1.4s infinite ease-in-out both;
+                }
+                .mwalimu-dot:nth-child(1) { animation-delay: -0.32s; }
+                .mwalimu-dot:nth-child(2) { animation-delay: -0.16s; }
+            </style>
+            <div class="mwalimu-loading-container">
+                <span class="mwalimu-loading-text">Mwalimu is thinking</span>
+                <span class="mwalimu-dot"></span>
+                <span class="mwalimu-dot"></span>
+                <span class="mwalimu-dot"></span>
+            </div>
+            """, unsafe_allow_html=True)
+
             student_profile_payload = {
-                "student_name": st.session_state.get("student_name", "Student"), # 👈 UPDATED KEY
+                "student_name": st.session_state.get("student_name", "Student"),
                 "grade": st.session_state.get("grade", "Grade 6"),
                 "age": int(st.session_state.get("age", 12)) if st.session_state.get("age") else 12,
                 "preferred_language": st.session_state.get("language", "English"),
@@ -303,31 +362,26 @@ def render():
                 "learning_outcome": st.session_state.get("active_learning_outcome", "")
             }
 
-
             # 8. FIRE DYNAMIC CHUNK GENERATION AND STREAM INTO PLACEHOLDER
-                    # 🛠️ UPDATE your ask_mwalimu call parameters to look like this:
             response_stream = ask_mwalimu(
                 question=user_question,
-                student=ai_student_context, # 👈 Route the synchronized profile metadata block here
+                student=ai_student_context,
                 messages=st.session_state.ask_mwalimu_history[:-1],
                 attachment=attachment_payload
             )
 
-                            
-            # ====================================================                               
+            # ====================================================                             
             # 8. SAFE CHUNK GENERATION & DEFENSIVE STREAMING LOOP
             # ====================================================
             assistant_text = ""
-            full_response_text = ""
-            placeholder_element = st.empty()
             
             try:
                 for chunk in response_stream:
                     if isinstance(chunk, str):
-                        # Catch raw string injection issues early
                         if "error" in chunk.lower() or "injected" in chunk.lower():
                             continue
                         assistant_text += chunk
+                        # 🔄 The first streamed chunk instantly replaces the loading dots
                         assistant_placeholder.markdown(assistant_text)
                         continue
                         
@@ -338,12 +392,12 @@ def render():
                                 delta_content = getattr(choice_item.delta, 'content', None)
                                 
                                 if delta_content is not None:
-                                    # 🎯 FIX: Intercept the OpenRouter SSE Error Injection early!
                                     if '"error":' in str(delta_content) or 'openai-error' in str(delta_content).lower():
                                         print(f"[Mwalimu Stream Intercept] Caught injected OpenRouter SSE gateway error chunk.")
                                         continue
                                         
                                     assistant_text += str(delta_content)
+                                    # 🔄 The first streamed chunk instantly replaces the loading dots
                                     assistant_placeholder.markdown(assistant_text)
                         except (IndexError, AttributeError, KeyError):
                             continue

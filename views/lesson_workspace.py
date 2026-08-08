@@ -1,10 +1,9 @@
 import streamlit as st
-from services.ai import generate_lesson, ask_mwalimu
-from services.navigation_service import navigate_to
-
 
 
 def render():
+    from services.ai import generate_lesson, ask_mwalimu
+    from services.navigation_service import navigate_to
     """Renders the comprehensive, linear classroom guide for the student's active lesson."""
     from services.profile_service import get_student_profile
     student_profile = get_student_profile()

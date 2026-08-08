@@ -1,6 +1,6 @@
 import streamlit as st
 from services.upgrade_modal import upgrade_modal
-from voice_page import render_voice_tutor_page
+
 import os
 from services.database import (
     
@@ -10,7 +10,7 @@ from services.database import (
 
 def render():   
     st.markdown("---")
-        
+    
     # 🚀 FIX: Read directly from session_state so it fetches the live data instantly!
     live_student_name = st.session_state.get("student_name", "").strip()
     
@@ -80,6 +80,7 @@ def render():
 
                     except Exception:
                         st.session_state.voice_chat_history = []
+                from voice_page import render_voice_tutor_page
                 # Pass this localized client directly to your voice tutor engine
                 render_voice_tutor_page(local_voice_client)
             else:
