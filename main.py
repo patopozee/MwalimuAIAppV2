@@ -89,7 +89,7 @@ if "localhost" in current_host or "127.0.0.1" in current_host:
     REDIRECT_URI = "http://localhost:8501"
     os.environ["OAUTHLIB_INSECURE_TRANSPORT"] = "1"
 else:
-    REDIRECT_URI = "https://mwalimuaiapp2-1095526444919.africa-south1.run.app"
+    REDIRECT_URI = "https://mwalimuaiapp.com"
     if "OAUTHLIB_INSECURE_TRANSPORT" in os.environ:
         del os.environ["OAUTHLIB_INSECURE_TRANSPORT"]
 
