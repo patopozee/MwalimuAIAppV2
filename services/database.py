@@ -407,7 +407,7 @@ def get_student_learning_analysis(student_uid: str, grade: str, age: int):
     else: current_level = "Hard"
     return {"weak_topics": weak_topics, "strong_topics": strong_topics, "current_level": current_level}
 
-@st.cache_data(ttl=5)
+@st.cache_data(ttl=5, show_spinner=False)
 def get_ask_mwalimu_history(student_uid, subject):
     conn = sqlite3.connect(DATABASE_NAME)
     conn.row_factory = sqlite3.Row
@@ -452,7 +452,7 @@ def get_ask_mwalimu_history(student_uid, subject):
         history.append(msg_node)
     return history
 
-@st.cache_data(ttl=5)
+@st.cache_data(ttl=5, show_spinner=False)
 def get_voice_chat_history(student_uid, subject):
     """Pulls voice histories for the authenticated student and selected subject."""
 
