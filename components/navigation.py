@@ -6,11 +6,11 @@ def render():
 
     # Map out display titles to their corresponding target properties
     links = [
-        {"title": "Main Chat", "route": st.session_state.ROUTE_CHAT, "view": "main"},
-        {"title": "Voice Tutor", "route": st.session_state.ROUTE_VOICE, "view": "voice"},
-        {"title": "AI Generators", "route": st.session_state.ROUTE_GENERATORS, "view": "generators"},
-        {"title": "Learning Dashboard", "route": st.session_state.ROUTE_LEARNING, "view": "learning"},
-        {"title": "Leaderboard", "route": st.session_state.ROUTE_LEADERBOARD, "view": "leaderboard"}
+        {"title": "🏠 Main Chat", "route": st.session_state.ROUTE_CHAT, "view": "main"},
+        {"title": "🎙️ Voice Tutor", "route": st.session_state.ROUTE_VOICE, "view": "voice"},
+        {"title": "⚡ AI Generators", "route": st.session_state.ROUTE_GENERATORS, "view": "generators"},
+        {"title": "📚 Learning Dashboard", "route": st.session_state.ROUTE_LEARNING, "view": "learning"},
+        {"title": "🏆 Leaderboard", "route": st.session_state.ROUTE_LEADERBOARD, "view": "leaderboard"}
     ]
 
     # Generate isolated tracking elements
@@ -23,8 +23,8 @@ def render():
         
         # Render clean, highly responsive navigation choices
         if st.sidebar.button(
-            label=f"{link['route'].title}", 
-            key=f"nav_btn_{link['title']}", 
+            label=link["title"], 
+            key=f"nav_btn_{link['view']}", 
             use_container_width=True,
             type=btn_type
         ):

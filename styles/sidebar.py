@@ -31,6 +31,13 @@ def load():
     section[data-testid="stSidebar"] a[aria-current="page"] {
         background: #2563eb33 !important; border-left: 4px solid #3b82f6 !important; color: white !important;
     }
+    section[data-testid="stSidebar"] button,
+    section[data-testid="stSidebar"] button p {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", sans-serif !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: flex-start !important;
+    }
     </style>
     """,
         unsafe_allow_html=True,
