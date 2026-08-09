@@ -307,24 +307,29 @@ if "code" in st.query_params and not st.session_state.get("user_authenticated", 
             )
 
             # Hydrate session state completely
+            # --- FIX LUNCHTIME LOOP RACE CONDITION ---
+            # 1. Hydrate the user state flags fully
             st.session_state.user_authenticated = True
-            st.session_state.session_checked = True
-
+            st.session_state.session_checked = True  # Explicitly enforce this flag BEFORE rerun
             st.session_state.uid = profile["uid"]
             st.session_state.user_email = profile["email"]
             st.session_state.student_name = profile["name"]
             st.session_state.grade = profile.get("grade", "Grade 1")
             st.session_state.age = int(profile.get("age", 10))
             st.session_state.user_profile = profile
-
             st.session_state.current_page = "Main Chat"
             st.session_state.active_view = "main"
 
+            # 2. Persist the state update 
             update_session()
-            
-            # MOVE CLEAR AND RERUN HERE (Once user hydration is entirely completed)
-            st.query_params.clear()
+
+            # 3. ONLY pop the authorization code out of the URL, do not call .clear()
+            if "code" in st.query_params:
+                del st.query_params["code"]
+
+            # 4. Give the app state a brief moment to register, then clean refresh
             st.rerun()
+
 
         else:
             error_desc = token_response.get("error_description", token_response.get("error", "Unknown Token Error"))
