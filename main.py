@@ -98,20 +98,19 @@ load_dotenv()
 
 
 # 1. Get the current host (handles custom domains or Cloud Run URLs)
-current_host = st.context.headers.get("host", "")
-forwarded_host = st.context.headers.get("x-forwarded-host", "")
+def resolve_redirect_uri():
+    headers = st.context.headers if hasattr(st, "context") else {}
+    host = headers.get("x-forwarded-host") or headers.get("host") or ""
 
-is_local = any(h in current_host or h in forwarded_host for h in ["localhost", "127.0.0.1"])
+    if "localhost" in host or "127.0.0.1" in host:
+        os.environ["OAUTHLIB_INSECURE_TRANSPORT"] = "1"
+        return "http://localhost:8501"
+    elif "mwalimuaiapp2" in host:
+        return "https://mwalimuaiapp2-1095526444919.africa-south1.run.app"
+    else:
+        return "https://app.mwalimuaiapp.com"
 
-if is_local:
-    # Matches URIs 7 in your Google Console
-    REDIRECT_URI = "http://localhost:8501"
-    os.environ["OAUTHLIB_INSECURE_TRANSPORT"] = "1"
-else:
-    # FIX: Points to your custom domain with a trailing slash to match the config above
-    REDIRECT_URI = "https://app.mwalimuaiapp.com"
-    if "OAUTHLIB_INSECURE_TRANSPORT" in os.environ:
-        del os.environ["OAUTHLIB_INSECURE_TRANSPORT"]
+REDIRECT_URI = resolve_redirect_uri()
 
 # Use this REDIRECT_URI for both the authorization step AND the token exchange step!
 
@@ -244,18 +243,14 @@ if "new_message" not in st.session_state:st.session_state.new_message = False
 # ====================================================================
 # STEP 2: TOP-LEVEL GOOGLE OAUTH INTERCEPTOR (FIXED ENDPOINTS)
 # ====================================================================
-# ====================================================================
-# 🚀 STEP 2: TOP-LEVEL GOOGLE OAUTH INTERCEPTOR (RACE-CONDITION PROOF)
-# ====================================================================
 if "code" in st.query_params and not st.session_state.get("user_authenticated", False):
-    # 1. Grab code safely WITHOUT clearing the params yet
     auth_code = st.query_params["code"]
     
     try:
         cid = st.secrets["google_oauth"]["client_id"]
         csecret = st.secrets["google_oauth"]["client_secret"]
         
-        # 2. Synchronous Token Exchange Request
+        # Synchronous Token Exchange Request
         response = requests.post(
             "https://oauth2.googleapis.com/token",
             data={
@@ -306,10 +301,8 @@ if "code" in st.query_params and not st.session_state.get("user_authenticated", 
             )
 
             # Hydrate session state completely
-            # --- FIX LUNCHTIME LOOP RACE CONDITION ---
-            # 1. Hydrate the user state flags fully
             st.session_state.user_authenticated = True
-            st.session_state.session_checked = True  # Explicitly enforce this flag BEFORE rerun
+            st.session_state.session_checked = True
             st.session_state.uid = profile["uid"]
             st.session_state.user_email = profile["email"]
             st.session_state.student_name = profile["name"]
@@ -319,16 +312,15 @@ if "code" in st.query_params and not st.session_state.get("user_authenticated", 
             st.session_state.current_page = "Main Chat"
             st.session_state.active_view = "main"
 
-            # 2. Persist the state update 
+            # Persist the state update
             update_session()
 
-            # 3. ONLY pop the authorization code out of the URL, do not call .clear()
+            # Remove authorization code from URL
             if "code" in st.query_params:
                 del st.query_params["code"]
 
-            # 4. Give the app state a brief moment to register, then clean refresh
+            # Trigger immediate UI refresh
             st.rerun()
-
 
         else:
             error_desc = token_response.get("error_description", token_response.get("error", "Unknown Token Error"))
