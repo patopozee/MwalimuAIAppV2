@@ -101,8 +101,9 @@ current_host = st.context.headers.get("host", "")
 if "localhost" in current_host or "127.0.0.1" in current_host:
     REDIRECT_URI = "http://localhost:8501"
 else:
-    # This automatically matches whatever live domain you are currently on
-    REDIRECT_URI = f"https://{current_host}"
+    # HARDCODE YOUR CLEAN DOMAIN WITH A TRAILING SLASH 
+    # This prevents reverse proxies or cloud load balancers from changing the string
+    REDIRECT_URI = "https://app.mwalimuaiapp.com"
 
 
 create_tables()
