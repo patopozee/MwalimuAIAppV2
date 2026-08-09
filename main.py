@@ -82,7 +82,12 @@ from services.database import (
     get_student_data #  ADD THIS LINE HERE
 )
 
+import streamlit as st
+import requests
+from streamlit_cookies_controller import CookieController
 
+# Initialize this at the very top level so it registers with the browser immediately
+cookies_controller = CookieController() 
 
 from config import CBC  # Dynamic CBC repository dictionary
 
@@ -95,11 +100,10 @@ current_host = st.context.headers.get("host", "")
 
 if "localhost" in current_host or "127.0.0.1" in current_host:
     REDIRECT_URI = "http://localhost:8501"
-    os.environ["OAUTHLIB_INSECURE_TRANSPORT"] = "1"
 else:
-    REDIRECT_URI = "https://app.mwalimuaiapp.com"
-    if "OAUTHLIB_INSECURE_TRANSPORT" in os.environ:
-        del os.environ["OAUTHLIB_INSECURE_TRANSPORT"]
+    # This automatically matches whatever live domain you are currently on
+    REDIRECT_URI = f"https://{current_host}"
+
 
 create_tables()
 
@@ -227,17 +231,21 @@ if "active_view" not in st.session_state:
 if "new_message" not in st.session_state:st.session_state.new_message = False
 
 
-
 # ====================================================================
-# 🚀 STEP 2: TOP-LEVEL GOOGLE OAUTH INTERCEPTOR (FIXED FOR PERSISTENCE)
+# STEP 2: TOP-LEVEL GOOGLE OAUTH INTERCEPTOR (FIXED ENDPOINTS)
 # ====================================================================
-if "code" in st.query_params and not st.session_state.user_authenticated:
+# ====================================================================
+# 🚀 STEP 2: TOP-LEVEL GOOGLE OAUTH INTERCEPTOR (RACE-CONDITION PROOF)
+# ====================================================================
+if "code" in st.query_params and not st.session_state.get("user_authenticated", False):
+    # 1. Grab code safely WITHOUT clearing the params yet
     auth_code = st.query_params["code"]
-  
+    
     try:
         cid = st.secrets["google_oauth"]["client_id"]
         csecret = st.secrets["google_oauth"]["client_secret"]
         
+        # 2. Synchronous Token Exchange Request
         response = requests.post(
             "https://oauth2.googleapis.com/token",
             data={
@@ -247,61 +255,74 @@ if "code" in st.query_params and not st.session_state.user_authenticated:
                 "redirect_uri": REDIRECT_URI,
                 "grant_type": "authorization_code",
             },
+            headers={"Content-Type": "application/x-www-form-urlencoded"},
+            timeout=10
         )
         
-        if response.status_code == 200:
-            token_response = response.json()
+        token_response = response.json()
+
+        if response.status_code == 200 and "access_token" in token_response:
+            user_info = requests.get(
+                "https://www.googleapis.com/oauth2/v2/userinfo",
+                headers={"Authorization": f"Bearer {token_response['access_token']}"},
+                timeout=10
+            ).json()
             
-            if "access_token" in token_response:
-                user_info = requests.get(
-                    "https://www.googleapis.com/oauth2/v2/userinfo",
-                    headers={"Authorization": f"Bearer {token_response['access_token']}"},
-                ).json()
-                
-                email_val = user_info.get("email", "").strip().lower()
-                name_val = user_info.get("name", "Student").strip().title()
-                
-                try:
-                    firebase_user = auth.get_user_by_email(email_val)
-                    firebase_uid = firebase_user.uid
-                except auth.UserNotFoundError:
-                    firebase_user = auth.create_user(
-                        email=email_val,
-                        display_name=name_val
-                    )
-                    firebase_uid = firebase_user.uid
-                    
-                profile = get_or_create_user_profile(
-                    firebase_uid,
-                    email_val,
-                    name_val
+            email_val = user_info.get("email", "").strip().lower()
+            name_val = user_info.get("name", "Student").strip().title()
+            
+            # Firebase user lookup / sync
+            try:
+                firebase_user = auth.get_user_by_email(email_val)
+                firebase_uid = firebase_user.uid
+            except auth.UserNotFoundError:
+                firebase_user = auth.create_user(
+                    email=email_val,
+                    display_name=name_val
                 )
+                firebase_uid = firebase_user.uid
+                
+            # Firestore Profile
+            profile = get_or_create_user_profile(
+                firebase_uid,
+                email_val,
+                name_val
+            )
 
-                create_session(profile["uid"], profile["email"])
-        
-        
-                st.session_state.user_authenticated = True
-                st.session_state.session_checked = True
+            # Create persistent session cookie
+            create_session(
+                profile["uid"],
+                profile["email"]
+            )
 
-                st.session_state.uid = profile["uid"]
-                st.session_state.user_email = profile["email"]
-                st.session_state.student_name = profile["name"]
-                st.session_state.grade = profile["grade"]
-                st.session_state.age = int(profile["age"])
-                st.session_state.user_profile = profile
+            # Hydrate session state completely
+            st.session_state.user_authenticated = True
+            st.session_state.session_checked = True
 
-                st.session_state.current_page = "Main Chat"
-                st.session_state.active_view = "main"
-                if st.session_state.user_authenticated:
-                    update_session()
-                    st.query_params.clear()
+            st.session_state.uid = profile["uid"]
+            st.session_state.user_email = profile["email"]
+            st.session_state.student_name = profile["name"]
+            st.session_state.grade = profile.get("grade", "Grade 1")
+            st.session_state.age = int(profile.get("age", 10))
+            st.session_state.user_profile = profile
 
-                st.success("Authenticated successfully! Loading your workspace...")
-                st.button("Proceed to Dashboard", on_click=st.rerun) # Secure fallback
-                st.rerun() 
+            st.session_state.current_page = "Main Chat"
+            st.session_state.active_view = "main"
+
+            update_session()
+            
+            # MOVE CLEAR AND RERUN HERE (Once user hydration is entirely completed)
+            st.query_params.clear()
+            st.rerun()
+
+        else:
+            error_desc = token_response.get("error_description", token_response.get("error", "Unknown Token Error"))
+            st.error(f"Google OAuth Token Exchange Failed ({response.status_code}): {error_desc}")
 
     except Exception as e:
         st.error(f"Authentication background sync failed: {str(e)}")
+
+
 
 
 
