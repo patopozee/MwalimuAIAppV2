@@ -96,20 +96,25 @@ from config import CBC  # Dynamic CBC repository dictionary
 load_dotenv()
 
 
+
+# 1. Get the current host (handles custom domains or Cloud Run URLs)
 current_host = st.context.headers.get("host", "")
 forwarded_host = st.context.headers.get("x-forwarded-host", "")
 
 is_local = any(h in current_host or h in forwarded_host for h in ["localhost", "127.0.0.1"])
 
 if is_local:
+    # Matches URIs 7 in your Google Console
     REDIRECT_URI = "http://localhost:8501"
     os.environ["OAUTHLIB_INSECURE_TRANSPORT"] = "1"
 else:
-    # 💥 ALWAYS INCLUDE TRAILING SLASH IN PRODUCTION
-    REDIRECT_URI = "https://mwalimuaiapp2-1095526444919.africa-south1.run.app"
+    # FIX: Points to your custom domain with a trailing slash to match the config above
+    REDIRECT_URI = "https://mwalimuaiapp.com"
     if "OAUTHLIB_INSECURE_TRANSPORT" in os.environ:
         del os.environ["OAUTHLIB_INSECURE_TRANSPORT"]
 
+
+# Use this REDIRECT_URI for both the authorization step AND the token exchange step!
 
 create_tables()
 
@@ -266,14 +271,6 @@ if "code" in st.query_params and not st.session_state.get("user_authenticated", 
         )
         
         token_response = response.json()
-        print("[GOOGLE OAUTH] ========================================")
-        print("[GOOGLE OAUTH] TOKEN EXCHANGE RESPONSE")
-        print("[GOOGLE OAUTH] Status:", response.status_code)
-        print("[GOOGLE OAUTH] Response:", response.text)
-        print("[GOOGLE OAUTH] Redirect URI used:", repr(REDIRECT_URI))
-        print("[GOOGLE OAUTH] Host:", current_host)
-        print("[GOOGLE OAUTH] Forwarded host:", forwarded_host)
-        print("[GOOGLE OAUTH] ========================================")
 
         if response.status_code == 200 and "access_token" in token_response:
             user_info = requests.get(
