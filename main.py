@@ -97,13 +97,18 @@ load_dotenv()
 
 
 current_host = st.context.headers.get("host", "")
+forwarded_host = st.context.headers.get("x-forwarded-host", "")
 
-if "localhost" in current_host or "127.0.0.1" in current_host:
+is_local = any(h in current_host or h in forwarded_host for h in ["localhost", "127.0.0.1"])
+
+if is_local:
     REDIRECT_URI = "http://localhost:8501"
+    os.environ["OAUTHLIB_INSECURE_TRANSPORT"] = "1"
 else:
-    # HARDCODE YOUR CLEAN DOMAIN WITH A TRAILING SLASH 
-    # This prevents reverse proxies or cloud load balancers from changing the string
-    REDIRECT_URI = "https://app.mwalimuaiapp.com"
+    # 💥 ALWAYS INCLUDE TRAILING SLASH IN PRODUCTION
+    REDIRECT_URI = "https://app.mwalimuaiapp.com/"
+    if "OAUTHLIB_INSECURE_TRANSPORT" in os.environ:
+        del os.environ["OAUTHLIB_INSECURE_TRANSPORT"]
 
 
 create_tables()
