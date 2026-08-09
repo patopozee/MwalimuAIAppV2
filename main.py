@@ -90,7 +90,6 @@ from config import CBC  # Dynamic CBC repository dictionary
 # INITIALIZATION & TRANSPORT ENVIRONMENT SETTING
 load_dotenv()
 
-load_dotenv()
 
 current_host = st.context.headers.get("host", "")
 
@@ -278,11 +277,9 @@ if "code" in st.query_params and not st.session_state.user_authenticated:
                     name_val
                 )
 
-                create_session(
-                    profile["uid"],
-                    profile["email"]
-                )
-
+                create_session(profile["uid"], profile["email"])
+        
+        
                 st.session_state.user_authenticated = True
                 st.session_state.session_checked = True
 
@@ -297,9 +294,11 @@ if "code" in st.query_params and not st.session_state.user_authenticated:
                 st.session_state.active_view = "main"
                 if st.session_state.user_authenticated:
                     update_session()
-                st.query_params.clear()
+                    st.query_params.clear()
 
-                st.rerun()
+                st.success("Authenticated successfully! Loading your workspace...")
+                st.button("Proceed to Dashboard", on_click=st.rerun) # Secure fallback
+                st.rerun() 
 
     except Exception as e:
         st.error(f"Authentication background sync failed: {str(e)}")
@@ -379,12 +378,9 @@ def render_auth_portal(context="auth"):
                                 db_profile = get_student_data(uid)
 
                                 if db_profile:
-
-                                    # Create one browser session
                                     create_session(uid, db_profile["email"])
-
-                                    # Hydrate Streamlit state
                                     st.session_state.user_authenticated = True
+
                                     st.session_state.session_checked = True
 
                                     st.session_state.uid = uid
@@ -400,6 +396,8 @@ def render_auth_portal(context="auth"):
                                     st.session_state.active_view = "main"
                                     if st.session_state.user_authenticated:
                                         update_session()
+                                        
+                                    st.success("Login successful! Redirecting...")
                                     st.rerun()
 
                                 else:

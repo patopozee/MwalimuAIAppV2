@@ -48,17 +48,7 @@ def _verify_token(signed_value: str) -> str | None:
 
 def get_token_from_browser() -> str | None:
     """Reads raw cookies scoped ONLY to the current active user context."""
-    try:
-        user_controller = CookieController()
-        raw_cookie = user_controller.get(COOKIE_NAME)
-        if raw_cookie:
-            clean_cookie = urllib.parse.unquote(str(raw_cookie)).strip('"')
-            verified = _verify_token(clean_cookie)
-            if verified:
-                return verified
-    except Exception:
-        pass
-
+    # 1. ALWAYS check native st.context first (instant, headers-based, no frame lag)
     try:
         if hasattr(st, "context") and hasattr(st.context, "cookies"):
             raw_cookie = st.context.cookies.get(COOKIE_NAME)
@@ -69,8 +59,20 @@ def get_token_from_browser() -> str | None:
                     return verified
     except Exception:
         pass
-        
+
+    # 2. Fallback to component controller if header check is unavailable
+    try:
+        user_controller = CookieController()
+        raw_cookie = user_controller.get(COOKIE_NAME)
+        if raw_cookie:
+            clean_cookie = urllib.parse.unquote(str(raw_cookie)).strip('"')
+            verified = _verify_token(clean_cookie)
+            if verified:
+                return verified
+    except Exception:
+        pass
     return None
+
 
 # =====================================================
 # State & Database Session Managers
