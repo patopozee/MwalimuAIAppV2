@@ -105,7 +105,7 @@ is_local = any(h in current_host or h in forwarded_host for h in ["localhost", "
 
 if is_local:
     # Matches URIs 7 in your Google Console
-    REDIRECT_URI = "http://localhost:8501/"
+    REDIRECT_URI = "http://localhost:8501"
     os.environ["OAUTHLIB_INSECURE_TRANSPORT"] = "1"
 else:
     # FIX: Points to your custom domain with a trailing slash to match the config above
