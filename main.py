@@ -266,6 +266,14 @@ if "code" in st.query_params and not st.session_state.get("user_authenticated", 
         )
         
         token_response = response.json()
+        print("[GOOGLE OAUTH] ========================================")
+        print("[GOOGLE OAUTH] TOKEN EXCHANGE RESPONSE")
+        print("[GOOGLE OAUTH] Status:", response.status_code)
+        print("[GOOGLE OAUTH] Response:", response.text)
+        print("[GOOGLE OAUTH] Redirect URI used:", repr(REDIRECT_URI))
+        print("[GOOGLE OAUTH] Host:", current_host)
+        print("[GOOGLE OAUTH] Forwarded host:", forwarded_host)
+        print("[GOOGLE OAUTH] ========================================")
 
         if response.status_code == 200 and "access_token" in token_response:
             user_info = requests.get(
