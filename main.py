@@ -1,5 +1,6 @@
 import base64
 import os
+import urllib.parse
 import json
 import requests
 import streamlit as st
@@ -98,7 +99,7 @@ load_dotenv()
 
 
 # 1. Get the current host (handles custom domains or Cloud Run URLs)
-def resolve_redirect_uri():
+def get_current_redirect_uri() -> str:
     headers = st.context.headers if hasattr(st, "context") else {}
     host = headers.get("x-forwarded-host") or headers.get("host") or ""
 
@@ -110,8 +111,7 @@ def resolve_redirect_uri():
     else:
         return "https://app.mwalimuaiapp.com"
 
-REDIRECT_URI = resolve_redirect_uri()
-
+REDIRECT_URI = get_current_redirect_uri()
 # Use this REDIRECT_URI for both the authorization step AND the token exchange step!
 
 create_tables()
@@ -240,94 +240,7 @@ if "active_view" not in st.session_state:
 if "new_message" not in st.session_state:st.session_state.new_message = False
 
 
-# ====================================================================
-# STEP 2: TOP-LEVEL GOOGLE OAUTH INTERCEPTOR (FIXED ENDPOINTS)
-# ====================================================================
-if "code" in st.query_params and not st.session_state.get("user_authenticated", False):
-    auth_code = st.query_params["code"]
-    
-    try:
-        cid = st.secrets["google_oauth"]["client_id"]
-        csecret = st.secrets["google_oauth"]["client_secret"]
-        
-        # Synchronous Token Exchange Request
-        response = requests.post(
-            "https://oauth2.googleapis.com/token",
-            data={
-                "code": auth_code,
-                "client_id": cid,
-                "client_secret": csecret,
-                "redirect_uri": REDIRECT_URI,
-                "grant_type": "authorization_code",
-            },
-            headers={"Content-Type": "application/x-www-form-urlencoded"},
-            timeout=10
-        )
-        
-        token_response = response.json()
 
-        if response.status_code == 200 and "access_token" in token_response:
-            user_info = requests.get(
-                "https://www.googleapis.com/oauth2/v2/userinfo",
-                headers={"Authorization": f"Bearer {token_response['access_token']}"},
-                timeout=10
-            ).json()
-            
-            email_val = user_info.get("email", "").strip().lower()
-            name_val = user_info.get("name", "Student").strip().title()
-            
-            # Firebase user lookup / sync
-            try:
-                firebase_user = auth.get_user_by_email(email_val)
-                firebase_uid = firebase_user.uid
-            except auth.UserNotFoundError:
-                firebase_user = auth.create_user(
-                    email=email_val,
-                    display_name=name_val
-                )
-                firebase_uid = firebase_user.uid
-                
-            # Firestore Profile
-            profile = get_or_create_user_profile(
-                firebase_uid,
-                email_val,
-                name_val
-            )
-
-            # Create persistent session cookie
-            create_session(
-                profile["uid"],
-                profile["email"]
-            )
-
-            # Hydrate session state completely
-            st.session_state.user_authenticated = True
-            st.session_state.session_checked = True
-            st.session_state.uid = profile["uid"]
-            st.session_state.user_email = profile["email"]
-            st.session_state.student_name = profile["name"]
-            st.session_state.grade = profile.get("grade", "Grade 1")
-            st.session_state.age = int(profile.get("age", 10))
-            st.session_state.user_profile = profile
-            st.session_state.current_page = "Main Chat"
-            st.session_state.active_view = "main"
-
-            # Persist the state update
-            update_session()
-
-            # Remove authorization code from URL
-            if "code" in st.query_params:
-                del st.query_params["code"]
-
-            # Trigger immediate UI refresh
-            st.rerun()
-
-        else:
-            st.error(f"Google OAuth Token Exchange Failed ({response.status_code}): {token_response}")
-            st.info(f"Target REDIRECT_URI sent in POST: `{REDIRECT_URI}`")
-
-    except Exception as e:
-        st.error(f"Authentication background sync failed: {str(e)}")
 
 
 
@@ -527,6 +440,8 @@ def render_auth_portal(context="auth"):
     # ----------------------------------------------------
     # TAB 3: OAUTH GOOGLE AUTHENTICATION GATED ROUTE
     # ----------------------------------------------------
+  
+
     with tab_google:
         with st.container(border=True):
             st.write("Fast access via Google:")
@@ -534,19 +449,19 @@ def render_auth_portal(context="auth"):
             google_agree = st.checkbox("I agree to terms and conditions", key="google_agree")
             st.markdown("<div style='margin-bottom: 10px;'></div>", unsafe_allow_html=True)
             
-            auth_url = (
-                "https://accounts.google.com/o/oauth2/v2/auth"
-                f"?client_id={st.secrets['google_oauth']['client_id']}"
-                "&response_type=code"
-                "&scope=openid%20email%20profile"
-                f"&redirect_uri={REDIRECT_URI}"
-                "&access_type=offline"
-                "&prompt=select_account"
-            )
+            # Build query string cleanly with urllib.parse to guarantee correct URL encoding
+            params = {
+                "client_id": st.secrets["google_oauth"]["client_id"],
+                "redirect_uri": REDIRECT_URI,  # Uses exact resolved REDIRECT_URI
+                "response_type": "code",
+                "scope": "openid email profile",
+                "access_type": "offline",
+                "prompt": "select_account",
+            }
             
-
-                
-                # 4. Conditional Secure Intercept Gateway Controller UI Layer
+            auth_url = f"https://accounts.google.com/o/oauth2/v2/auth?{urllib.parse.urlencode(params)}"
+            
+            # 4. Conditional Secure Intercept Gateway Controller UI Layer
             if google_agree:
                 google_logo_b64 = get_base64_image("assets/google.png")
                 st.markdown(f"""
@@ -571,9 +486,8 @@ def render_auth_portal(context="auth"):
                 </a>
                 """, unsafe_allow_html=True)
 
-
             else:
-                st.markdown(f"""
+                st.markdown("""
                 <div style="
                     display: flex;
                     align-items: center;
@@ -595,7 +509,89 @@ def render_auth_portal(context="auth"):
                 </div>
                 """, unsafe_allow_html=True)
                 st.info("🔒 Please check the agreement box above to activate Google Sign-In.")
-           
+
+# ====================================================================
+# STEP 2: TOP-LEVEL GOOGLE OAUTH INTERCEPTOR (FIXED ENDPOINTS)
+# ====================================================================
+
+if "processed_codes" not in st.session_state:
+    st.session_state.processed_codes = set()
+
+if "code" in st.query_params and not st.session_state.get("user_authenticated", False):
+    auth_code = st.query_params["code"]
+
+    # Stop duplicate execution if Streamlit reruns mid-flight
+    if auth_code not in st.session_state.processed_codes:
+        st.session_state.processed_codes.add(auth_code)
+
+        try:
+            cid = st.secrets["google_oauth"]["client_id"]
+            csecret = st.secrets["google_oauth"]["client_secret"]
+
+            # Synchronous POST to Google
+            response = requests.post(
+                "https://oauth2.googleapis.com/token",
+                data={
+                    "code": auth_code,
+                    "client_id": cid,
+                    "client_secret": csecret,
+                    "redirect_uri": REDIRECT_URI,
+                    "grant_type": "authorization_code",
+                },
+                headers={"Content-Type": "application/x-www-form-urlencoded"},
+                timeout=10,
+            )
+
+            token_response = response.json()
+
+            if response.status_code == 200 and "access_token" in token_response:
+                user_info = requests.get(
+                    "https://www.googleapis.com/oauth2/v2/userinfo",
+                    headers={"Authorization": f"Bearer {token_response['access_token']}"},
+                    timeout=10,
+                ).json()
+
+                email_val = user_info.get("email", "").strip().lower()
+                name_val = user_info.get("name", "Student").strip().title()
+
+                # Firebase account lookup / sync
+                try:
+                    firebase_user = auth.get_user_by_email(email_val)
+                    firebase_uid = firebase_user.uid
+                except auth.UserNotFoundError:
+                    firebase_user = auth.create_user(email=email_val, display_name=name_val)
+                    firebase_uid = firebase_user.uid
+
+                # Firestore Profile lookup / sync
+                profile = get_or_create_user_profile(firebase_uid, email_val, name_val)
+
+                # Persist session
+                create_session(profile["uid"], profile["email"])
+
+                # Hydrate session state
+                st.session_state.user_authenticated = True
+                st.session_state.session_checked = True
+                st.session_state.uid = profile["uid"]
+                st.session_state.user_email = profile["email"]
+                st.session_state.student_name = profile["name"]
+                st.session_state.grade = profile.get("grade", "Grade 1")
+                st.session_state.age = int(profile.get("age", 10))
+                st.session_state.user_profile = profile
+                st.session_state.current_page = "Main Chat"
+                st.session_state.active_view = "main"
+
+                update_session()
+
+                # Clear query parameters
+                st.query_params.clear()
+                st.rerun()
+
+            else:
+                st.error(f"Google OAuth Token Exchange Failed ({response.status_code}): {token_response}")
+                st.info(f"Target REDIRECT_URI sent in POST: `{REDIRECT_URI}`")
+
+        except Exception as e:
+            st.error(f"Authentication background sync failed: {str(e)}")         
 
 
 
