@@ -375,16 +375,26 @@ def render_auth_portal(context="auth"):
 # ====================================================================
 # STEP 2: TOP-LEVEL GOOGLE OAUTH INTERCEPTOR
 # ===================================================================
-# ============================================================
-# GOOGLE OAUTH CALLBACK
-# ============================================================
+# ====================================================================
+# STEP 2: GOOGLE OAUTH CALLBACK / TOKEN EXCHANGE
+# ====================================================================
 
 auth_code = st.query_params.get("code")
 
-# Initialize OAuth guard
+# ------------------------------------------------------------
+# INITIALIZE OAUTH GUARD
+# ------------------------------------------------------------
+
 if "oauth_code_in_progress" not in st.session_state:
     st.session_state.oauth_code_in_progress = None
 
+if "oauth_authenticated" not in st.session_state:
+    st.session_state.oauth_authenticated = False
+
+
+# ------------------------------------------------------------
+# PROCESS GOOGLE CALLBACK
+# ------------------------------------------------------------
 
 if (
     auth_code
@@ -393,52 +403,55 @@ if (
 ):
 
     # --------------------------------------------------------
-    # PREVENT THIS EXACT AUTHORIZATION CODE FROM BEING
-    # EXCHANGED MORE THAN ONCE DURING STREAMLIT RERUNS
+    # PREVENT THE SAME GOOGLE CODE FROM BEING EXCHANGED TWICE
     # --------------------------------------------------------
 
-    if st.session_state.oauth_code_in_progress == auth_code:
+    if st.session_state.get("oauth_code_in_progress") == auth_code:
         st.stop()
 
-    # Mark this code as being processed BEFORE contacting Google
+    # Mark this exact code BEFORE contacting Google.
     st.session_state.oauth_code_in_progress = auth_code
 
     try:
 
-        # ====================================================
+        # ----------------------------------------------------
         # GOOGLE CREDENTIALS
-        # ====================================================
+        # ----------------------------------------------------
 
         cid = st.secrets["google_oauth"]["client_id"]
         csecret = st.secrets["google_oauth"]["client_secret"]
 
         redirect_uri = resolve_redirect_uri()
 
-        # ====================================================
+        # ----------------------------------------------------
         # DEBUG
-        # ====================================================
+        # ----------------------------------------------------
 
         st.write("### GOOGLE OAUTH CALLBACK")
 
-        try:
-            headers = dict(st.context.headers)
-        except Exception:
-            headers = {}
-
-        st.write("Host:", headers.get("host"))
-        st.write("Forwarded Host:", headers.get("x-forwarded-host"))
-        st.write("Redirect URI:", redirect_uri)
-        st.write("Authorization code received:", bool(auth_code))
         st.write(
-            "Authorization code preview:",
-            auth_code[:15] + "..." if auth_code else "NONE"
+            "Host:",
+            st.context.headers.get("host")
         )
 
-        # ====================================================
-        # TOKEN EXCHANGE
-        #
-        # THIS MUST HAPPEN ONLY ONCE
-        # ====================================================
+        st.write(
+            "Redirect URI:",
+            redirect_uri
+        )
+
+        st.write(
+            "Authorization code received:",
+            bool(auth_code)
+        )
+
+        st.write(
+            "Authorization code preview:",
+            auth_code[:15] + "..."
+        )
+
+        # ----------------------------------------------------
+        # SINGLE TOKEN EXCHANGE
+        # ----------------------------------------------------
 
         response = requests.post(
             "https://oauth2.googleapis.com/token",
@@ -457,51 +470,58 @@ if (
 
         token_response = response.json()
 
-        # ====================================================
+        # ----------------------------------------------------
         # TOKEN EXCHANGE FAILED
-        # ====================================================
+        # ----------------------------------------------------
 
         if response.status_code != 200:
 
             st.error("🚨 GOOGLE TOKEN EXCHANGE FAILED")
 
-            st.write("HTTP status:", response.status_code)
-            st.json(token_response)
-
-            st.write("Redirect URI:", redirect_uri)
-            st.write("Host:", headers.get("host"))
             st.write(
-                "Authorization code preview:",
-                auth_code[:15] + "..."
+                "HTTP status:",
+                response.status_code
             )
 
-            # IMPORTANT:
-            # Do NOT retry this authorization code.
+            st.json(token_response)
+
+            st.write(
+                "Redirect URI:",
+                redirect_uri
+            )
+
+            st.write(
+                "Host:",
+                st.context.headers.get("host")
+            )
+
+            # Do NOT attempt the code again.
             st.session_state.oauth_code_in_progress = None
+
+            # Remove the dead OAuth code from the URL.
+            st.query_params.clear()
 
             st.stop()
 
-        # ====================================================
-        # SUCCESSFUL TOKEN EXCHANGE
-        # ====================================================
+        # ----------------------------------------------------
+        # TOKEN SUCCESS
+        # ----------------------------------------------------
 
         access_token = token_response.get("access_token")
 
         if not access_token:
-            st.error("Google returned no access token.")
+
+            st.error(
+                "Google returned no access token."
+            )
+
             st.session_state.oauth_code_in_progress = None
+            st.query_params.clear()
             st.stop()
 
-        # ====================================================
-        # NOW THAT THE CODE HAS BEEN SUCCESSFULLY EXCHANGED,
-        # REMOVE IT FROM THE URL
-        # ====================================================
-
-        st.query_params.clear()
-
-        # ====================================================
+        # ----------------------------------------------------
         # GET GOOGLE USER
-        # ====================================================
+        # ----------------------------------------------------
 
         user_response = requests.get(
             "https://www.googleapis.com/oauth2/v2/userinfo",
@@ -513,43 +533,49 @@ if (
 
         if user_response.status_code != 200:
 
-            st.error("Google userinfo request failed.")
+            st.error(
+                "Google userinfo request failed."
+            )
 
-            try:
-                st.json(user_response.json())
-            except Exception:
-                st.write(user_response.text)
+            st.json(user_response.json())
 
             st.session_state.oauth_code_in_progress = None
+            st.query_params.clear()
+
             st.stop()
 
         user_info = user_response.json()
 
-        # ====================================================
+        # ----------------------------------------------------
         # GOOGLE USER DATA
-        # ====================================================
+        # ----------------------------------------------------
 
-        email_val = user_info.get(
-            "email",
-            ""
-        ).strip().lower()
+        email_val = (
+            user_info.get("email", "")
+            .strip()
+            .lower()
+        )
 
-        name_val = user_info.get(
-            "name",
-            "Student"
-        ).strip().title()
+        name_val = (
+            user_info.get("name", "Student")
+            .strip()
+            .title()
+        )
 
         if not email_val:
+
             st.error(
                 "Google did not return an email address."
             )
 
             st.session_state.oauth_code_in_progress = None
+            st.query_params.clear()
+
             st.stop()
 
-        # ====================================================
+        # ----------------------------------------------------
         # FIREBASE USER
-        # ====================================================
+        # ----------------------------------------------------
 
         try:
 
@@ -568,9 +594,9 @@ if (
 
             firebase_uid = firebase_user.uid
 
-        # ====================================================
+        # ----------------------------------------------------
         # FIRESTORE PROFILE
-        # ====================================================
+        # ----------------------------------------------------
 
         profile = get_or_create_user_profile(
             firebase_uid,
@@ -585,28 +611,36 @@ if (
             )
 
             st.session_state.oauth_code_in_progress = None
+            st.query_params.clear()
+
             st.stop()
 
-        # ====================================================
+        # ----------------------------------------------------
         # CREATE APPLICATION SESSION
-        # ====================================================
+        # ----------------------------------------------------
 
         create_session(
             firebase_uid,
             email_val
         )
 
-        # ====================================================
-        # APPLICATION SESSION STATE
-        # ====================================================
+        # ----------------------------------------------------
+        # STREAMLIT SESSION STATE
+        # ----------------------------------------------------
 
         st.session_state.user_authenticated = True
-        st.session_state.session_checked = True
         st.session_state.oauth_authenticated = True
+        st.session_state.session_checked = True
 
         st.session_state.uid = firebase_uid
-        st.session_state.user_email = profile["email"]
-        st.session_state.student_name = profile["name"]
+
+        st.session_state.user_email = profile[
+            "email"
+        ]
+
+        st.session_state.student_name = profile[
+            "name"
+        ]
 
         st.session_state.grade = profile.get(
             "grade",
@@ -614,7 +648,10 @@ if (
         )
 
         st.session_state.age = int(
-            profile.get("age", 12)
+            profile.get(
+                "age",
+                12
+            )
         )
 
         st.session_state.user_profile = profile
@@ -622,32 +659,35 @@ if (
         st.session_state.current_page = "Main Chat"
         st.session_state.active_view = "main"
 
-        # ====================================================
+        # ----------------------------------------------------
         # UPDATE APPLICATION SESSION
-        # ====================================================
+        # ----------------------------------------------------
 
         update_session()
 
-        # ====================================================
+        # ----------------------------------------------------
+        # REMOVE GOOGLE CODE FROM URL
+        # ----------------------------------------------------
+
+        st.query_params.clear()
+
+        # ----------------------------------------------------
+        # CLEAR OAUTH PROCESSING GUARD
+        # ----------------------------------------------------
+
+        st.session_state.oauth_code_in_progress = None
+
+        # ----------------------------------------------------
         # SUCCESS
-        # ====================================================
+        # ----------------------------------------------------
 
         st.success(
             f"🎉 Welcome, {st.session_state.student_name}!"
         )
 
-        # ====================================================
-        # CLEAR THE GUARD
-        #
-        # The URL is already clean, and the user is now
-        # authenticated. The next rerun should enter the app.
-        # ====================================================
-
-        st.session_state.oauth_code_in_progress = None
-
-        # ====================================================
-        # ENTER AUTHENTICATED APPLICATION
-        # ====================================================
+        # ----------------------------------------------------
+        # ENTER APPLICATION
+        # ----------------------------------------------------
 
         st.rerun()
 
@@ -655,12 +695,15 @@ if (
 
         st.session_state.oauth_code_in_progress = None
 
+        st.query_params.clear()
+
         st.error(
             f"Google authentication failed: {str(e)}"
         )
 
         st.exception(e)
 
+        st.stop()
 
 # ==============================================================================
 # ROUTER ENGINE
