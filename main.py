@@ -64,7 +64,13 @@ from services.session_service import validate_session, create_session, update_se
 from streamlit_cookies_controller import CookieController
 from config import CBC
 
-cookies_controller = CookieController()
+# ONLY initialize and run cookie mechanics if we are NOT in the middle of a Google OAuth callback!
+is_oauth_callback = "code" in st.query_params
+
+if not is_oauth_callback:
+    cookies_controller = CookieController()
+else:
+    cookies_controller = None
 load_dotenv()
 
 # Dynamic Redirect URI Resolution
@@ -89,39 +95,42 @@ create_tables()
 # ============================================================
 # RESTORE USER SESSION + WORKSPACE
 # ============================================================
+# RESTORE USER SESSION + WORKSPACE
+# ============================================================
 if "session_checked" not in st.session_state:
     st.session_state.session_checked = False
 
-if not st.session_state.get("user_authenticated", False) and not st.session_state.session_checked:
-    session_data = validate_session()
-    if session_data:
-        uid = session_data.get("uid")
-        if uid:
-            profile = get_student_data(uid)
-            if profile:
-                st.session_state.user_authenticated = True
-                st.session_state.uid = uid
-                st.session_state.user_email = profile.get("email", session_data.get("email", ""))
-                st.session_state.student_name = profile.get("name", "Student")
-                st.session_state.grade = profile.get("grade", "Grade 1")
-                st.session_state.age = int(profile.get("age", 10))
-                st.session_state.user_profile = profile
-
-                workspace = session_data.get("workspace") or {}
-                st.session_state.current_page = workspace.get("current_page", "Main Chat")
-                st.session_state.active_view = workspace.get("active_view", "main")
-                st.session_state.selected_subject = workspace.get("selected_subject")
-                st.session_state.selected_topic = workspace.get("selected_topic")
-                st.session_state.selected_generator = workspace.get("selected_generator")
-                st.session_state.lesson_id = workspace.get("lesson_id")
-
-                st.session_state.session_checked = True
+# ONLY attempt to read session cookies if we aren't handling an incoming Google User
+if cookies_controller is not None:
+    if not st.session_state.get("user_authenticated", False) and not st.session_state.session_checked:
+        session_data = validate_session()
+        
+        if session_data:
+            uid = session_data.get("uid")
+            if uid:
+                profile = get_student_data(uid)
+                if profile:
+                    st.session_state.user_authenticated = True
+                    st.session_state.uid = uid
+                    st.session_state.user_email = profile.get("email", session_data.get("email", ""))
+                    st.session_state.student_name = profile.get("name", "Student")
+                    st.session_state.grade = profile.get("grade", "Grade 1")
+                    st.session_state.age = int(profile.get("age", 10))
+                    st.session_state.user_profile = profile
+                    workspace = session_data.get("workspace") or {}
+                    st.session_state.current_page = workspace.get("current_page", "Main Chat")
+                    st.session_state.active_view = workspace.get("active_view", "main")
+                    st.session_state.session_checked = True
+                else:
+                    st.session_state.session_checked = True
             else:
                 st.session_state.session_checked = True
         else:
             st.session_state.session_checked = True
-    else:
-        st.session_state.session_checked = True
+else:
+    # If it is an OAuth callback, don't let cookie restoration block the execution path
+    pass
+
 
 # ============================================================
 # DEFAULT SESSION STATE INITIALIZATIONS
