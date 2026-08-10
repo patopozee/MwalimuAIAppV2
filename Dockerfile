@@ -13,6 +13,11 @@ RUN SITE_PACKAGES=$(python -c "import site; print(site.getsitepackages()[0])") &
     sed -i 's|<title>Streamlit</title>|<title>Mwalimu AI App - Smart Educational Assistant</title><meta name="description" content="Mwalimu AI App provides advanced educational assistance, lesson planning, and smart study tools for teachers and students in Kenya.">|g' "$INDEX_HTML"
 # --- END SEO PATCH ---
 
+# Replace Streamlit favicon with Mwalimu favicon
+RUN SITE_PACKAGES=$(python -c "import site; print(site.getsitepackages()[0])") && \
+cp /app/assets/favicon.png \
+    "$SITE_PACKAGES/streamlit/static/favicon.png"
+
 EXPOSE 8080
 
 CMD mkdir -p /app/.streamlit && \
