@@ -122,7 +122,12 @@ if not st.session_state.get("user_authenticated", False) and not st.session_stat
             st.session_state.session_checked = True
     else:
         st.session_state.session_checked = True
+        
+if "oauth_code_in_progress" not in st.session_state:
+    st.session_state.oauth_code_in_progress = None
 
+if "oauth_authenticated" not in st.session_state:
+    st.session_state.oauth_authenticated = False
 # ============================================================
 # DEFAULT SESSION STATE INITIALIZATIONS
 # ============================================================
@@ -355,111 +360,226 @@ def render_auth_portal(context="auth"):
 # ====================================================================
 # STEP 2: TOP-LEVEL GOOGLE OAUTH INTERCEPTOR
 # ====================================================================
-if "code" in st.query_params and not st.session_state.get("user_authenticated", False):
-    auth_code = st.query_params["code"]
-    current_redirect = resolve_redirect_uri()
-    
+# ============================================================
+# GOOGLE OAUTH CALLBACK
+# ============================================================
+
+auth_code = st.query_params.get("code")
+
+if (
+    auth_code
+    and not st.session_state.get("user_authenticated", False)
+    and not st.session_state.get("oauth_authenticated", False)
+):
+
+    # --------------------------------------------------------
+    # PROTECT THIS STREAMLIT SESSION FROM REPROCESSING
+    # --------------------------------------------------------
+
+    if st.session_state.oauth_code_in_progress == auth_code:
+        st.stop()
+
+    st.session_state.oauth_code_in_progress = auth_code
+
+    # --------------------------------------------------------
+    # CAPTURE THE CODE, THEN REMOVE OAUTH PARAMETERS
+    # --------------------------------------------------------
+
+    st.query_params.clear()
+
     try:
+
         cid = st.secrets["google_oauth"]["client_id"]
         csecret = st.secrets["google_oauth"]["client_secret"]
 
-        # DEBUG — BEFORE TOKEN EXCHANGE
-        st.write("========== GOOGLE TOKEN EXCHANGE ==========")
-        st.write("Client ID:", cid)
-        st.write("Redirect URI:", REDIRECT_URI)
-        st.write("Current host:", st.context.headers.get("host"))
-        st.write(
-            "Forwarded host:",
-            st.context.headers.get("x-forwarded-host")
-        )
-        st.write(
-            "Authorization code preview:",
-            auth_code[:15] + "..." if auth_code else "NONE"
-        )
-        st.write("============================================")
-        
+        redirect_uri = resolve_redirect_uri()
+
+        # ----------------------------------------------------
+        # DEBUG
+        # ----------------------------------------------------
+
+        st.write("### GOOGLE OAUTH CALLBACK")
+        st.write("Host:", st.context.headers.get("host"))
+        st.write("Redirect URI:", redirect_uri)
+        st.write("Authorization code received:", bool(auth_code))
+        st.write("Authorization code preview:", auth_code[:15] + "...")
+
+        # ----------------------------------------------------
+        # TOKEN EXCHANGE
+        # ----------------------------------------------------
+
         response = requests.post(
             "https://oauth2.googleapis.com/token",
             data={
                 "code": auth_code,
                 "client_id": cid,
                 "client_secret": csecret,
-                "redirect_uri": current_redirect,
+                "redirect_uri": redirect_uri,
                 "grant_type": "authorization_code",
             },
-            headers={"Content-Type": "application/x-www-form-urlencoded"},
-            timeout=10
+            headers={
+                "Content-Type": "application/x-www-form-urlencoded"
+            },
+            timeout=10,
         )
-        
+
         token_response = response.json()
 
-        if response.status_code == 200 and "access_token" in token_response:
-            user_info = requests.get(
-                "https://www.googleapis.com/oauth2/v2/userinfo",
-                headers={"Authorization": f"Bearer {token_response['access_token']}"},
-                timeout=10
-            ).json()
-            
-            email_val = user_info.get("email", "").strip().lower()
-            name_val = user_info.get("name", "Student").strip().title()
-            
-            try:
-                firebase_user = auth.get_user_by_email(email_val)
-                firebase_uid = firebase_user.uid
-            except auth.UserNotFoundError:
-                firebase_user = auth.create_user(email=email_val, display_name=name_val)
-                firebase_uid = firebase_user.uid
-                
-            profile = get_or_create_user_profile(firebase_uid, email_val, name_val)
-            create_session(profile["uid"], profile["email"])
+        # ----------------------------------------------------
+        # TOKEN EXCHANGE FAILED
+        # ----------------------------------------------------
 
-            st.session_state.user_authenticated = True
-            st.session_state.session_checked = True
-            st.session_state.uid = profile["uid"]
-            st.session_state.user_email = profile["email"]
-            st.session_state.student_name = profile["name"]
-            st.session_state.grade = profile.get("grade", "Grade 1")
-            st.session_state.age = int(profile.get("age", 10))
-            st.session_state.user_profile = profile
-            st.session_state.current_page = "Main Chat"
-            st.session_state.active_view = "main"
+        if response.status_code != 200:
 
-            update_session()
-
-            if "code" in st.query_params:
-                del st.query_params["code"]
-
-            st.rerun()
-        else:
             st.error("🚨 GOOGLE TOKEN EXCHANGE FAILED")
 
-            st.write("### OAuth Debug Information")
+            st.write("HTTP status:", response.status_code)
+            st.json(token_response)
 
-            st.write("**HTTP status:**", response.status_code)
-            st.write("**Google response:**", token_response)
+            st.write("Redirect URI:", redirect_uri)
+            st.write("Host:", st.context.headers.get("host"))
 
-            st.write("**Authorization code received:**", bool(auth_code))
-            st.write("**Authorization code preview:**", auth_code[:15] + "..." if auth_code else "NONE")
+            # IMPORTANT:
+            # Do NOT rerun here.
+            # Do NOT try the same authorization code again.
 
-            st.write("**Redirect URI sent to Google:**", REDIRECT_URI)
+            st.session_state.oauth_code_in_progress = None
+            st.stop()
 
-            st.write("**Current host:**", st.context.headers.get("host"))
-            st.write(
-                "**X-Forwarded-Host:**",
-                st.context.headers.get("x-forwarded-host")
+        # ----------------------------------------------------
+        # SUCCESS
+        # ----------------------------------------------------
+
+        access_token = token_response.get("access_token")
+
+        if not access_token:
+            st.error("Google returned no access token.")
+            st.stop()
+
+        # ----------------------------------------------------
+        # GET GOOGLE USER
+        # ----------------------------------------------------
+
+        user_response = requests.get(
+            "https://www.googleapis.com/oauth2/v2/userinfo",
+            headers={
+                "Authorization": f"Bearer {access_token}"
+            },
+            timeout=10,
+        )
+
+        if user_response.status_code != 200:
+            st.error("Google userinfo request failed.")
+            st.json(user_response.json())
+            st.stop()
+
+        user_info = user_response.json()
+
+        email_val = user_info.get("email", "").strip().lower()
+        name_val = user_info.get(
+            "name",
+            "Student"
+        ).strip().title()
+
+        if not email_val:
+            st.error("Google did not return an email address.")
+            st.stop()
+
+        # ----------------------------------------------------
+        # FIREBASE USER
+        # ----------------------------------------------------
+
+        try:
+
+            firebase_user = auth.get_user_by_email(email_val)
+            firebase_uid = firebase_user.uid
+
+        except auth.UserNotFoundError:
+
+            firebase_user = auth.create_user(
+                email=email_val,
+                display_name=name_val
             )
-            st.write(
-                "**X-Forwarded-Proto:**",
-                st.context.headers.get("x-forwarded-proto")
-            )
 
-            st.write(
-                "**Query parameters:**",
-                dict(st.query_params)
-            )
+            firebase_uid = firebase_user.uid
+
+        # ----------------------------------------------------
+        # FIRESTORE PROFILE
+        # ----------------------------------------------------
+
+        profile = get_or_create_user_profile(
+            firebase_uid,
+            email_val,
+            name_val
+        )
+
+        if not profile:
+            st.error("Could not load/create user profile.")
+            st.stop()
+
+        # ----------------------------------------------------
+        # APPLICATION SESSION
+        # ----------------------------------------------------
+
+        create_session(
+            firebase_uid,
+            email_val
+        )
+
+        # ----------------------------------------------------
+        # STREAMLIT SESSION STATE
+        # ----------------------------------------------------
+
+        st.session_state.user_authenticated = True
+        st.session_state.session_checked = True
+        st.session_state.oauth_authenticated = True
+
+        st.session_state.uid = firebase_uid
+        st.session_state.user_email = profile["email"]
+        st.session_state.student_name = profile["name"]
+
+        st.session_state.grade = profile.get(
+            "grade",
+            "Grade 6"
+        )
+
+        st.session_state.age = int(
+            profile.get("age", 12)
+        )
+
+        st.session_state.user_profile = profile
+
+        st.session_state.current_page = "Main Chat"
+        st.session_state.active_view = "main"
+
+        # ----------------------------------------------------
+        # UPDATE APPLICATION SESSION
+        # ----------------------------------------------------
+
+        update_session()
+
+        # ----------------------------------------------------
+        # SUCCESS
+        # ----------------------------------------------------
+
+        st.success(
+            f"🎉 Welcome, {st.session_state.student_name}!"
+        )
+
+        # OAuth parameters were already cleared above.
+        # Now rerun into the authenticated application.
+
+        st.rerun()
 
     except Exception as e:
-        st.error(f"Authentication background sync failed: {str(e)}")
+
+        st.session_state.oauth_code_in_progress = None
+
+        st.error(
+            f"Google authentication failed: {str(e)}"
+        )
+
+        st.exception(e)
 
 # ==============================================================================
 # ROUTER ENGINE
