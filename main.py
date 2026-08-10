@@ -766,22 +766,25 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
                 st.switch_page(target_page)
 
     
-    # 1. Render the top header bar component
-    render_header()
-    
-    # 2. ✅ FIX: Move sidebar theme styling inside this authentication check!
-    # This prevents any sidebar styles from leaking into and triggering the landing page wrapper layout
+
     if st.session_state.get("user_authenticated", False):
+
+        # Load ALL layout/CSS before rendering the header.
         load_theme()
+
         from styles.sidebar import load as load_sidebar_style
         load_sidebar_style()
+
         from styles.sidebar import load_style
         load_style()
-        
+
+        # Render sidebar before header so the header's layout
+        # calculation has the correct page structure available.
         import components.sidebar as sidebar
         sidebar.render()
 
-    # 3. RUN THE NAVIGATIONAL ROUTER
+
+    render_header()
     router.run()
 
 
