@@ -616,17 +616,93 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
     height=1, # Fixed: set to 1 pixel to satisfy Streamlit's validation while staying invisible
     )
 
+    #========================================================
+    # RENDER VIEWS
+    #========================================================
+    def render_main_chat():
+        render_main_chat_view()
 
-    # Navigation Setup
-    chat_page = st.Page(render_main_chat_view, title="Main Chat", icon="🏠", url_path="chat")
-    voice_page = st.Page(render_voice_view, title="Voice Tutor", icon="🎙️", url_path="voice")
-    generator_page = st.Page(render_generators_view, title="AI Generators", icon="⚡", url_path="generators")
-    learning_page = st.Page(render_learning_dashboard_view, title="Learning Dashboard", icon="📚", url_path="learning")
-    leaderboard_page = st.Page(render_leaderboard_view, title="Leaderboard", icon="🏆", url_path="leaderboard")
-    admin_page = st.Page(render_admin_view, title="Admin Dashboard", icon="👑", url_path="admin")
-    lesson_page = st.Page(render_lesson_workspace_view, title="Lesson Workspace", icon="📖", url_path="lesson")
-    edit_profile_page = st.Page(render_edit_profile_view, title="Edit Profile", icon="⚙️", url_path="edit-profile")
+    chat_page = st.Page(
+        render_main_chat,
+        title="Main Chat",
+        icon="🏠",
+        url_path="chat",
+    )
 
+    def render_voice_tutor():
+        render_voice_view()
+
+    voice_page = st.Page(
+        render_voice_tutor,
+        title="Voice Tutor",
+        icon="🎙️",
+        url_path="voice",
+    )
+
+    def render_generators():
+        render_generators_view()
+
+    generator_page = st.Page(
+        render_generators,
+        title="AI Generators",
+        icon="⚡",
+        url_path="generators",
+    )
+
+    def render_learning_dashboard():
+        render_learning_dashboard_view()
+
+    learning_page = st.Page(
+        render_learning_dashboard,
+        title="Learning Dashboard",
+        icon="📚",
+        url_path="learning",
+    )
+
+    def render_leaderboard():
+        render_leaderboard_view()
+
+    leaderboard_page = st.Page(
+        render_leaderboard,
+        title="Leaderboard",
+        icon="🏆",
+        url_path="leaderboard",
+    )
+
+    def render_admin():
+        render_admin_view()
+
+    admin_page = st.Page(
+        render_admin,
+        title="Admin Dashboard",
+        icon="👑",
+        url_path="admin",
+    )
+
+    def render_lesson_workspace():
+        render_lesson_workspace_view()
+
+    lesson_page = st.Page(
+        render_lesson_workspace,
+        title="Lesson Workspace",
+        icon="📖",
+        url_path="lesson",
+    )
+
+    def render_edit_profile():
+        render_edit_profile_view()
+
+    edit_profile_page = st.Page(
+        render_edit_profile,
+        title="Edit Profile",
+        icon="⚙️",
+        url_path="edit-profile",
+    )
+
+
+    # ======================================================
+    # SAVE ROUTES (Ensure page object components exist)
+    # ======================================================
     st.session_state.ROUTE_CHAT = chat_page
     st.session_state.ROUTE_VOICE = voice_page
     st.session_state.ROUTE_GENERATORS = generator_page
@@ -635,6 +711,9 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
     st.session_state.ROUTE_ADMIN = admin_page
     st.session_state.ROUTE_LESSON = lesson_page
     st.session_state.ROUTE_EDIT_PROFILE = edit_profile_page
+    # ======================================================
+    # STREAMLIT MULTI-PAGE DESERIALIZATION ROUTER (FIXED)
+    # ======================================================
     route_mapper = {
         "Main Chat": chat_page,
         "Voice Tutor": voice_page,
@@ -647,22 +726,64 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
     }
 
     router = st.navigation(
-        [chat_page, voice_page, generator_page, learning_page, leaderboard_page, admin_page, lesson_page, edit_profile_page],
+        [
+            chat_page,
+            voice_page,
+            generator_page,
+            learning_page,
+            leaderboard_page,
+            admin_page,
+            lesson_page,
+            edit_profile_page,
+        ],
         position="hidden"
     )
 
-    if st.session_state.user_authenticated and not st.session_state.get("workspace_restored", False):
-        saved_page = st.session_state.get("current_page", "Main Chat")
-        target_page = route_mapper.get(saved_page, chat_page)
-        st.session_state.workspace_restored = True
-        if router.url_path != target_page.url_path:
-            st.switch_page(target_page)
+    # ======================================================
+    # RESTORE SAVED WORKSPACE — ONCE PER SESSION
+    # ======================================================
 
+    if st.session_state.user_authenticated:
+
+        if not st.session_state.get("workspace_restored", False):
+
+            saved_page = st.session_state.get(
+                "current_page",
+                "Main Chat",
+            )
+
+            target_page = route_mapper.get(
+                saved_page,
+                chat_page,
+            )
+
+            # Mark restored BEFORE switching.
+            # This prevents the next rerun from forcing
+            # the same Firebase page again.
+            st.session_state.workspace_restored = True
+
+            if router.url_path != target_page.url_path:
+                st.switch_page(target_page)
+
+    
+    # 1. Render the top header bar component
     render_header()
-    load_theme()
-    load_sidebar_style()
-    render_sidebar()
+    
+    # 2. ✅ FIX: Move sidebar theme styling inside this authentication check!
+    # This prevents any sidebar styles from leaking into and triggering the landing page wrapper layout
+    if st.session_state.get("user_authenticated", False):
+        load_theme()
+        from styles.sidebar import load as load_sidebar_style
+        load_sidebar_style()
+        from styles.sidebar import load_style
+        load_style()
+        
+        import components.sidebar as sidebar
+        sidebar.render()
+
+    # 3. RUN THE NAVIGATIONAL ROUTER
     router.run()
+
 
      
    
