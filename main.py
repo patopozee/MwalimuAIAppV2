@@ -323,8 +323,8 @@ if "code" in st.query_params and not st.session_state.get("user_authenticated", 
             st.rerun()
 
         else:
-            error_desc = token_response.get("error_description", token_response.get("error", "Unknown Token Error"))
-            st.error(f"Google OAuth Token Exchange Failed ({response.status_code}): {error_desc}")
+            st.error(f"Google OAuth Token Exchange Failed ({response.status_code}): {token_response}")
+            st.info(f"Target REDIRECT_URI sent in POST: `{REDIRECT_URI}`")
 
     except Exception as e:
         st.error(f"Authentication background sync failed: {str(e)}")
