@@ -1,22 +1,16 @@
 import base64
 import os
-import urllib.parse
 import json
 import requests
 import streamlit as st
+import streamlit.components.v1 as components
 from PIL import Image
 from dotenv import load_dotenv
 import firebase_admin
-from firebase_admin import credentials, firestore
-from firebase_admin import auth
+from firebase_admin import credentials, firestore, auth
 from datetime import datetime
 
-from services.session_service import create_session
-from services.session_service import update_session
-
-
-
-# Hide Streamlit loading messages, footer, and hamburger menu
+# Streamlit Page Setup
 st.set_page_config(
     page_title="Mwalimu AI App",
     page_icon="assets/favicon.png",
@@ -32,21 +26,10 @@ st.markdown("""
         and track your academic milestones—all in one seamless hub.">
     </head>
 """, unsafe_allow_html=True)
-# 2. --- HIDE MENUS, FOOTERS, AND DEV GLASSES ---
-# 2. --- HIDE MENUS, FOOTERS, RUNNING MAN, AND ACTION BARS ---
-
-
-
-
-
-
-
 
 # -----------------------------------
-# AUTO LOGIN FROM COOKIE
+# FIREBASE & DATABASE INITIALIZATION
 # -----------------------------------
-
-# 1. Initialize Firebase Admin SDK (Only if it hasn't been initialized yet)
 if not firebase_admin._apps:
     try:
         secret_json = json.loads(st.secrets["Firebase"]["service_account_json"])
@@ -55,10 +38,9 @@ if not firebase_admin._apps:
     except Exception as e:
         st.error(f"Failed to initialize Firebase credentials: {e}")
 
-# 2. Define 'db' globally for Firestore connection reuse
 db = firestore.client()
 
-# --- SERVICES & BACKEND IMPORTS ---
+# Services & Module Imports
 from services.auth_service import MwalimuAuthService
 from services.db_service import MwalimuDBService
 from services.legal_text import TERMS_AND_CONDITIONS
@@ -77,30 +59,20 @@ from components.header import render as render_header
 from styles.sidebar import load as load_sidebar_style
 from components.sidebar import render as render_sidebar
 from components.learning_context import render as render_learning_context
-# --- DATABASE ENGINE CACHE WRAPPERS (IMPORTS REMAIN THE SAME) ---
-from services.database import (
-    create_tables,
-    get_student_data #  ADD THIS LINE HERE
-)
-
-import streamlit as st
-import requests
+from services.database import create_tables, get_student_data
+from services.session_service import validate_session, create_session, update_session
 from streamlit_cookies_controller import CookieController
+from config import CBC
 
-# Initialize this at the very top level so it registers with the browser immediately
-cookies_controller = CookieController() 
-
-from config import CBC  # Dynamic CBC repository dictionary
-
-
-# INITIALIZATION & TRANSPORT ENVIRONMENT SETTING
+cookies_controller = CookieController()
 load_dotenv()
 
-
-
-# 1. Get the current host (handles custom domains or Cloud Run URLs)
-def get_current_redirect_uri() -> str:
-    headers = st.context.headers if hasattr(st, "context") else {}
+# Dynamic Redirect URI Resolution
+def resolve_redirect_uri():
+    headers = {}
+    if hasattr(st, "context") and hasattr(st.context, "headers"):
+        headers = st.context.headers or {}
+    
     host = headers.get("x-forwarded-host") or headers.get("host") or ""
 
     if "localhost" in host or "127.0.0.1" in host:
@@ -111,87 +83,39 @@ def get_current_redirect_uri() -> str:
     else:
         return "https://app.mwalimuaiapp.com"
 
-REDIRECT_URI = get_current_redirect_uri()
-# Use this REDIRECT_URI for both the authorization step AND the token exchange step!
-
+REDIRECT_URI = resolve_redirect_uri()
 create_tables()
-
 
 # ============================================================
 # RESTORE USER SESSION + WORKSPACE
 # ============================================================
-
-from services.session_service import validate_session, update_session
-
 if "session_checked" not in st.session_state:
     st.session_state.session_checked = False
 
-
-if (
-    not st.session_state.get("user_authenticated", False)
-    and not st.session_state.session_checked
-):
-
+if not st.session_state.get("user_authenticated", False) and not st.session_state.session_checked:
     session_data = validate_session()
-
     if session_data:
-
         uid = session_data.get("uid")
-
         if uid:
-
             profile = get_student_data(uid)
-
             if profile:
-
-                # --------------------------------------------
-                # RESTORE USER IDENTITY
-                # --------------------------------------------
-
                 st.session_state.user_authenticated = True
-
                 st.session_state.uid = uid
-
-                st.session_state.user_email = profile.get(
-                    "email",
-                    session_data.get("email", "")
-                )
-
-                st.session_state.student_name = profile.get(
-                    "name",
-                    "Student"
-                )
-
-                st.session_state.grade = profile.get(
-                    "grade",
-                    "Grade 1"
-                )
-
-                st.session_state.age = int(
-                    profile.get("age", 10)
-                )
-
+                st.session_state.user_email = profile.get("email", session_data.get("email", ""))
+                st.session_state.student_name = profile.get("name", "Student")
+                st.session_state.grade = profile.get("grade", "Grade 1")
+                st.session_state.age = int(profile.get("age", 10))
                 st.session_state.user_profile = profile
-                # --------------------------------------------
-                # RESTORE WORKSPACE
-                # --------------------------------------------
 
                 workspace = session_data.get("workspace") or {}
-
-                st.session_state.current_page = workspace.get("current_page","Main Chat")
-
+                st.session_state.current_page = workspace.get("current_page", "Main Chat")
                 st.session_state.active_view = workspace.get("active_view", "main")
-
                 st.session_state.selected_subject = workspace.get("selected_subject")
                 st.session_state.selected_topic = workspace.get("selected_topic")
                 st.session_state.selected_generator = workspace.get("selected_generator")
                 st.session_state.lesson_id = workspace.get("lesson_id")
-                # --------------------------------------------
-                # SESSION WAS SUCCESSFULLY RESTORED
-                # --------------------------------------------
 
                 st.session_state.session_checked = True
-
             else:
                 st.session_state.session_checked = True
         else:
@@ -199,111 +123,146 @@ if (
     else:
         st.session_state.session_checked = True
 
-
 # ============================================================
-# DEFAULT SESSION STATE
+# DEFAULT SESSION STATE INITIALIZATIONS
 # ============================================================
-if "user_authenticated" not in st.session_state:
-    st.session_state.user_authenticated = False
-if "current_page" not in st.session_state:
-    st.session_state.current_page = "Main Chat"
-if "active_view" not in st.session_state:
-    st.session_state.active_view = "main"
-if "quiz_raw_score" not in st.session_state:
-    st.session_state.quiz_raw_score = 0
-if "quiz_score" not in st.session_state:
-    st.session_state.quiz_score = 0
-if "quiz_submitted" not in st.session_state:
-    st.session_state.quiz_submitted = False
-if "quiz" not in st.session_state:
-    st.session_state.quiz = None
-if "study_plan" not in st.session_state:
-    st.session_state.study_plan = None
-if "flashcards" not in st.session_state:
-    st.session_state.flashcards = []
-if "lesson_content" not in st.session_state:
-    st.session_state.lesson_content = None
-if "student_name" not in st.session_state:
-    st.session_state.student_name = ""
-if "user_profile" not in st.session_state:
-    st.session_state.user_profile = None
-if "ask_mwalimu_history" not in st.session_state:
-    st.session_state.ask_mwalimu_history = []
-if "voice_chat_history" not in st.session_state:
-    st.session_state.voice_chat_history = []
-if "new_message" not in st.session_state:
-    st.session_state.new_message = False
-if "active_view" not in st.session_state:
-    st.session_state.active_view = "main"
+default_states = {
+    "user_authenticated": False,
+    "current_page": "Main Chat",
+    "active_view": "main",
+    "quiz_raw_score": 0,
+    "quiz_score": 0,
+    "quiz_submitted": False,
+    "quiz": None,
+    "study_plan": None,
+    "flashcards": [],
+    "lesson_content": None,
+    "student_name": "",
+    "user_profile": None,
+    "ask_mwalimu_history": [],
+    "voice_chat_history": [],
+    "new_message": False
+}
 
-# 🎯 SPEED FIX: Initialize a specific localized memory caching slot for Firestore profile row responses
-if "new_message" not in st.session_state:st.session_state.new_message = False
+for key, val in default_states.items():
+    if key not in st.session_state:
+        st.session_state[key] = val
 
-
-
-
-
-
-
-
-
-    # ADD THE CSS BLOCK HERE (Right after page config)
-st.html(f"""
-    <style>
-    @media (min-width: 768px) {{
-    [data-testid="stHeader"], header {{ background-color: transparent !important; height: 3.5rem !important; }}
-    [data-testid="stAppViewMainObj"], .stMain, [data-testid="stMain"] {{ margin-top: -4.4rem !important; padding-top: 0rem !important; }}
-    [data-testid="stMainBlockContainer"], [data-testid="stAppViewBlockContainer"], .block-container {{ padding-top: 1.5rem !important; margin-top: 0rem !important; }}
-    }}
-    @media (max-width: 1000px) {{
-    [data-testid="stHeader"], header {{ background-color: transparent !important; height: 3.5rem !important; }}
-    [data-testid="stAppViewMainObj"], .stMain, [data-testid="stMain"] {{ margin-top: 0rem !important; padding-top: 0.5rem !important; }}
-    }}
-    [data-testid="stMainBlockContainer"], [data-testid="stAppViewBlockContainer"], .block-container {{ padding-top: 1rem !important; }}
-    [data-testid="stHeader"] button {{ background-color: rgba(255, 255, 255, 0.1) !important; border-radius: 4px !important; z-index: 999999 !important; }}
-    [data-testid="stSidebarUserContent"] {{ padding-top: 0rem !important; margin-top: 0rem !important; }}
+# ====================================================================
+# STEP 2: TOP-LEVEL GOOGLE OAUTH INTERCEPTOR
+# ====================================================================
+if "code" in st.query_params and not st.session_state.get("user_authenticated", False):
+    auth_code = st.query_params["code"]
+    current_redirect = resolve_redirect_uri()
     
-    div.stButton > button {{
+    try:
+        cid = st.secrets["google_oauth"]["client_id"]
+        csecret = st.secrets["google_oauth"]["client_secret"]
+        
+        response = requests.post(
+            "https://oauth2.googleapis.com/token",
+            data={
+                "code": auth_code,
+                "client_id": cid,
+                "client_secret": csecret,
+                "redirect_uri": current_redirect,
+                "grant_type": "authorization_code",
+            },
+            headers={"Content-Type": "application/x-www-form-urlencoded"},
+            timeout=10
+        )
+        
+        token_response = response.json()
+
+        if response.status_code == 200 and "access_token" in token_response:
+            user_info = requests.get(
+                "https://www.googleapis.com/oauth2/v2/userinfo",
+                headers={"Authorization": f"Bearer {token_response['access_token']}"},
+                timeout=10
+            ).json()
+            
+            email_val = user_info.get("email", "").strip().lower()
+            name_val = user_info.get("name", "Student").strip().title()
+            
+            try:
+                firebase_user = auth.get_user_by_email(email_val)
+                firebase_uid = firebase_user.uid
+            except auth.UserNotFoundError:
+                firebase_user = auth.create_user(email=email_val, display_name=name_val)
+                firebase_uid = firebase_user.uid
+                
+            profile = get_or_create_user_profile(firebase_uid, email_val, name_val)
+            create_session(profile["uid"], profile["email"])
+
+            st.session_state.user_authenticated = True
+            st.session_state.session_checked = True
+            st.session_state.uid = profile["uid"]
+            st.session_state.user_email = profile["email"]
+            st.session_state.student_name = profile["name"]
+            st.session_state.grade = profile.get("grade", "Grade 1")
+            st.session_state.age = int(profile.get("age", 10))
+            st.session_state.user_profile = profile
+            st.session_state.current_page = "Main Chat"
+            st.session_state.active_view = "main"
+
+            update_session()
+
+            if "code" in st.query_params:
+                del st.query_params["code"]
+
+            st.rerun()
+        else:
+            error_desc = token_response.get("error_description", token_response.get("error", "Unknown Token Error"))
+            st.error(f"Google OAuth Token Exchange Failed ({response.status_code}): {error_desc}")
+
+    except Exception as e:
+        st.error(f"Authentication background sync failed: {str(e)}")
+
+# Add UI Styling
+st.html("""
+    <style>
+    @media (min-width: 768px) {
+    [data-testid="stHeader"], header { background-color: transparent !important; height: 3.5rem !important; }
+    [data-testid="stAppViewMainObj"], .stMain, [data-testid="stMain"] { margin-top: -4.4rem !important; padding-top: 0rem !important; }
+    [data-testid="stMainBlockContainer"], [data-testid="stAppViewBlockContainer"], .block-container { padding-top: 1.5rem !important; margin-top: 0rem !important; }
+    }
+    @media (max-width: 1000px) {
+    [data-testid="stHeader"], header { background-color: transparent !important; height: 3.5rem !important; }
+    [data-testid="stAppViewMainObj"], .stMain, [data-testid="stMain"] { margin-top: 0rem !important; padding-top: 0.5rem !important; }
+    }
+    [data-testid="stMainBlockContainer"], [data-testid="stAppViewBlockContainer"], .block-container { padding-top: 1rem !important; }
+    [data-testid="stHeader"] button { background-color: rgba(255, 255, 255, 0.1) !important; border-radius: 4px !important; z-index: 999999 !important; }
+    [data-testid="stSidebarUserContent"] { padding-top: 0rem !important; margin-top: 0rem !important; }
+    
+    div.stButton > button {
     transition: all 0.2s ease-in-out !important;
-    }}
-    div.stButton > button:hover {{
+    }
+    div.stButton > button:hover {
     border-color: #1E3A8A !important;
     color: #1E3A8A !important;
     box-shadow: 0 2px 8px rgba(30, 58, 138, 0.1) !important;
-    }}
+    }
     </style>
     """)
 
-# --- HEADER AREA ---
-header_col1, header_col2 = st.columns([8, 1])
-
-# 1. DEFINE BASE64 PARSER UTILITY AT TOP-LEVEL
+# Helper Utilities
 def get_base64_image(image_path):
-    import os
-    import base64
     if os.path.exists(image_path):
         with open(image_path, "rb") as f:
             return base64.b64encode(f.read()).decode()
     return ""
 
 def render_auth_portal(context="auth"):
-    # If a user selected a tier, show them what they are signing up for
     if "selected_tier" in st.session_state:
         st.info(f"You are signing up for: **{st.session_state.selected_tier}**") 
         
-    # Track password reset sub-form display states
     if "show_reset_form" not in st.session_state:
         st.session_state.show_reset_form = False
 
-    # Initialize all 3 native authorization tabs up-front
     tab_login, tab_signup, tab_google = st.tabs(["🔑 Login", "✨ Sign Up", "🔵 Google"])
     
-    # ----------------------------------------------------
-    # TAB 1: LOGIN GATEWAY & RESTORED RESET MANAGEMENT
-    # ----------------------------------------------------
     with tab_login:
         with st.container(border=True):
-            # CONDITION A: Default Login Window View Layout
             if not st.session_state.get("show_reset_form", False):
                 email = st.text_input("Email", key="signin_email")
                 password = st.text_input("Password", type="password", key="signin_pass")
@@ -313,76 +272,51 @@ def render_auth_portal(context="auth"):
                         with st.spinner("Verifying credentials..."):
                             auth_res = MwalimuAuthService.login_user(email.strip(), password.strip())                    
                             if auth_res.get("success"):
-
                                 uid = str(auth_res["uid"])
-
                                 db_profile = get_student_data(uid)
-
                                 if db_profile:
                                     create_session(uid, db_profile["email"])
                                     st.session_state.user_authenticated = True
-
                                     st.session_state.session_checked = True
-
                                     st.session_state.uid = uid
                                     st.session_state.user_email = db_profile["email"]
                                     st.session_state.student_name = db_profile["name"]
                                     st.session_state.grade = db_profile["grade"]
                                     st.session_state.age = int(db_profile["age"])
                                     st.session_state.user_profile = db_profile
-
                                     st.session_state.current_page = "Main Chat"
-                                    if st.session_state.user_authenticated:
-                                        update_session()
                                     st.session_state.active_view = "main"
-                                    if st.session_state.user_authenticated:
-                                        update_session()
-                                        
+                                    update_session()
                                     st.success("Login successful! Redirecting...")
                                     st.rerun()
-
                                 else:
                                     st.error("Profile not found for this user. Please register your profile.")
                             else:
-                                st.error(f"Login Failed: Please try again. Error: {auth_res.get('error')}")
+                                st.error(f"Login Failed: {auth_res.get('error')}")
 
-
-                
-                # LINK TO TOGGLE RESET VIEW ONLY INSIDE THE LOGIN TAB
                 if st.button("Forgot Password?", key="forgot_pass_link_btn"):
                     st.session_state.show_reset_form = True
                     st.rerun()
-                    
-            # CONDITION B: PASSWORD RECOVERY SUB-FORM PIPELINE (STABLE VERSION)
             else:
                 st.markdown("### 🔄 Reset Password")
                 reset_email = st.text_input("Enter your registered email", key="pwd_reset_email_input")
-                
                 if st.button("Send Reset Link", use_container_width=True, key="execute_send_reset_link"):
                     if not reset_email.strip():
                         st.warning("Please enter your email.")
                     else:
                         with st.spinner("Sending email..."):
                             result = MwalimuAuthService.send_password_reset_email(reset_email.strip())
-                            
                             if result.get("success"):
-                                st.success("📩 **Reset link sent successfully!** Please check your email inbox or spam folder to complete your password change.")
+                                st.success("📩 **Reset link sent successfully!** Please check your email inbox.")
                             else:
-                                st.error("If the email is registered, you will receive a reset link shortly. Please check your inbox or spam folder.")
-                                print(f"Debug Reset Error: {result.get('error')}")
+                                st.error("If the email is registered, you will receive a reset link shortly.")
                 
-                # Back to log in option button serves as confirmation closer link
-                if st.button("⬅_ Return to Login Screen", use_container_width=True, key="back_to_login_from_reset"):
+                if st.button("⬅ Return to Login Screen", use_container_width=True, key="back_to_login_from_reset"):
                     st.session_state.show_reset_form = False
                     st.rerun()
 
-
-    # ----------------------------------------------------
-    # TAB 2: SIGNUP FUNNEL WITH LEGAL COMPLIANCE GATE
-    # ----------------------------------------------------
     with tab_signup:
         with st.container(border=True):
-            # --- STEP 1: INITIAL SIGNUP FORM ---
             if "pending_verification" not in st.session_state:
                 st.write("Register a new student account.")
                 reg_name = st.text_input("Student Full Name", key="reg_name")
@@ -393,7 +327,6 @@ def render_auth_portal(context="auth"):
                 with col_a:
                     reg_age = st.number_input("Age", min_value=5, max_value=25, value=12, key="reg_age")
                 reg_pass = st.text_input("Choose Secure Password", type="password", placeholder="At least 6 characters", key="reg_pass")
-                
                 reg_agree = st.checkbox("I agree to terms and conditions", key="reg_agree")
                 
                 if st.button("Register account", use_container_width=True):
@@ -406,7 +339,7 @@ def render_auth_portal(context="auth"):
                     elif not reg_agree:
                         st.error("🔒 You must agree to the terms and conditions before creating an account.")
                     else:
-                        with st.spinner("Creating your Mwalimu AI account..."):
+                        with st.spinner("Creating your account..."):
                             reg_res = MwalimuAuthService.register_user(
                                 email=reg_email.strip().lower(),
                                 password=reg_pass,
@@ -420,7 +353,6 @@ def render_auth_portal(context="auth"):
                                 st.rerun()
                             else:
                                 st.error(reg_res.get("error"))
-            # --- STEP 2: VERIFICATION INPUT ---
             else:
                 st.write(f"Enter the code sent to {st.session_state.pending_verification}")
                 entered_code = st.text_input("Verification Code", key="verification_code_entry_input")
@@ -433,216 +365,85 @@ def render_auth_portal(context="auth"):
                     if res.get("success"):
                         st.success("Account created! Please sign in via the Login tab.")
                         del st.session_state.pending_verification
-        
                     else:
                         st.error(res.get("error"))
-
-    # ----------------------------------------------------
-    # TAB 3: OAUTH GOOGLE AUTHENTICATION GATED ROUTE
-    # ----------------------------------------------------
-  
 
     with tab_google:
         with st.container(border=True):
             st.write("Fast access via Google:")
-            
             google_agree = st.checkbox("I agree to terms and conditions", key="google_agree")
-            st.markdown("<div style='margin-bottom: 10px;'></div>", unsafe_allow_html=True)
             
-            # Build query string cleanly with urllib.parse to guarantee correct URL encoding
-            params = {
-                "client_id": st.secrets["google_oauth"]["client_id"],
-                "redirect_uri": REDIRECT_URI,  # Uses exact resolved REDIRECT_URI
-                "response_type": "code",
-                "scope": "openid email profile",
-                "access_type": "offline",
-                "prompt": "select_account",
-            }
+            dynamic_redirect = resolve_redirect_uri()
+            auth_url = (
+                "https://accounts.google.com/o/oauth2/v2/auth"
+                f"?client_id={st.secrets['google_oauth']['client_id']}"
+                "&response_type=code"
+                "&scope=openid%20email%20profile"
+                f"&redirect_uri={dynamic_redirect}"
+                "&access_type=offline"
+                "&prompt=select_account"
+            )
             
-            auth_url = f"https://accounts.google.com/o/oauth2/v2/auth?{urllib.parse.urlencode(params)}"
-            
-            # 4. Conditional Secure Intercept Gateway Controller UI Layer
             if google_agree:
                 google_logo_b64 = get_base64_image("assets/google.png")
                 st.markdown(f"""
                 <a href="{auth_url}" target="_self" style="
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                    padding: 12px 20px;
-                    background-color: #ffffff;
-                    border: 1px solid #dadce0;
-                    border-radius: 8px;
-                    color: #3c4043;
-                    text-decoration: none;
-                    font-family: Arial, sans-serif;
-                    font-size: 16px;
-                    font-weight: 500;
-                    box-shadow: 0 1px 2px rgba(0,0,0,0.1);
-                    margin-bottom: 10px;
+                    display: flex; align-items: center; justify-content: center;
+                    padding: 12px 20px; background-color: #ffffff; border: 1px solid #dadce0;
+                    border-radius: 8px; color: #3c4043; text-decoration: none;
+                    font-family: Arial, sans-serif; font-size: 16px; font-weight: 500;
+                    box-shadow: 0 1px 2px rgba(0,0,0,0.1); margin-bottom: 10px;
                 ">
                     <img src="data:image/png;base64,{google_logo_b64}" style="width: 20px; margin-right: 10px;">
                     Continue with Google
                 </a>
                 """, unsafe_allow_html=True)
-
             else:
                 st.markdown("""
                 <div style="
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                    padding: 12px 20px;
-                    background-color: #f1f3f4;
-                    border: 1px solid #dadce0;
-                    border-radius: 8px;
-                    color: #9aa0a6;
-                    text-decoration: none;
-                    font-family: Arial, sans-serif;
-                    font-size: 16px;
-                    font-weight: 500;
-                    cursor: not-allowed;
-                    margin-bottom: 10px;
-                    opacity: 0.6;
+                    display: flex; align-items: center; justify-content: center;
+                    padding: 12px 20px; background-color: #f1f3f4; border: 1px solid #dadce0;
+                    border-radius: 8px; color: #9aa0a6; text-decoration: none;
+                    font-family: Arial, sans-serif; font-size: 16px; font-weight: 500;
+                    cursor: not-allowed; margin-bottom: 10px; opacity: 0.6;
                 ">
                     Continue with Google
                 </div>
                 """, unsafe_allow_html=True)
                 st.info("🔒 Please check the agreement box above to activate Google Sign-In.")
 
-# ====================================================================
-# STEP 2: TOP-LEVEL GOOGLE OAUTH INTERCEPTOR (FIXED ENDPOINTS)
-# ====================================================================
-
-if "processed_codes" not in st.session_state:
-    st.session_state.processed_codes = set()
-
-if "code" in st.query_params and not st.session_state.get("user_authenticated", False):
-    auth_code = st.query_params["code"]
-
-    # Stop duplicate execution if Streamlit reruns mid-flight
-    if auth_code not in st.session_state.processed_codes:
-        st.session_state.processed_codes.add(auth_code)
-
-        try:
-            cid = st.secrets["google_oauth"]["client_id"]
-            csecret = st.secrets["google_oauth"]["client_secret"]
-
-            # Synchronous POST to Google
-            response = requests.post(
-                "https://oauth2.googleapis.com/token",
-                data={
-                    "code": auth_code,
-                    "client_id": cid,
-                    "client_secret": csecret,
-                    "redirect_uri": REDIRECT_URI,
-                    "grant_type": "authorization_code",
-                },
-                headers={"Content-Type": "application/x-www-form-urlencoded"},
-                timeout=10,
-            )
-
-            token_response = response.json()
-
-            if response.status_code == 200 and "access_token" in token_response:
-                user_info = requests.get(
-                    "https://www.googleapis.com/oauth2/v2/userinfo",
-                    headers={"Authorization": f"Bearer {token_response['access_token']}"},
-                    timeout=10,
-                ).json()
-
-                email_val = user_info.get("email", "").strip().lower()
-                name_val = user_info.get("name", "Student").strip().title()
-
-                # Firebase account lookup / sync
-                try:
-                    firebase_user = auth.get_user_by_email(email_val)
-                    firebase_uid = firebase_user.uid
-                except auth.UserNotFoundError:
-                    firebase_user = auth.create_user(email=email_val, display_name=name_val)
-                    firebase_uid = firebase_user.uid
-
-                # Firestore Profile lookup / sync
-                profile = get_or_create_user_profile(firebase_uid, email_val, name_val)
-
-                # Persist session
-                create_session(profile["uid"], profile["email"])
-
-                # Hydrate session state
-                st.session_state.user_authenticated = True
-                st.session_state.session_checked = True
-                st.session_state.uid = profile["uid"]
-                st.session_state.user_email = profile["email"]
-                st.session_state.student_name = profile["name"]
-                st.session_state.grade = profile.get("grade", "Grade 1")
-                st.session_state.age = int(profile.get("age", 10))
-                st.session_state.user_profile = profile
-                st.session_state.current_page = "Main Chat"
-                st.session_state.active_view = "main"
-
-                update_session()
-
-                # Clear query parameters
-                st.query_params.clear()
-                st.rerun()
-
-            else:
-                st.error(f"Google OAuth Token Exchange Failed ({response.status_code}): {token_response}")
-                st.info(f"Target REDIRECT_URI sent in POST: `{REDIRECT_URI}`")
-
-        except Exception as e:
-            st.error(f"Authentication background sync failed: {str(e)}")         
-
-
-
 # ==============================================================================
-# ROUTE ROUTER ENGINE
+# ROUTER ENGINE
 # ==============================================================================
-
-# --- VIEW A: SECURE WORKSPACE DASHBOARD (Logged In State Only) ---
-
-# =====================================================================
-# --- LIVE PAYMENT CELEBRATION DISPATCHER (ADD THIS) ---
-# =====================================================================
 if st.session_state.user_authenticated and "user_email" in st.session_state:
-    # 1. Fetch live profile data cleanly from your optimized database.py cache layer
     current_profile_live = get_student_data(st.session_state.user_email)
     
     if current_profile_live and isinstance(current_profile_live, dict):
         live_sub = current_profile_live.get("subscription", {})
         live_tier = str(live_sub.get("tier", "Free")).strip()
         
-        # 2. Look for the last tracked tier configuration in local state variables
         if "last_known_tier" not in st.session_state:
             st.session_state.last_known_tier = live_tier
             
-        # 3. CRITICAL TRIGGER: If their tier changed from Free to an upgraded level!
         if st.session_state.last_known_tier.lower() == "free" and live_tier.lower() != "free":
-            # Update local track markers immediately to prevent looping
             st.session_state.last_known_tier = live_tier
             st.session_state.user_profile = current_profile_live
             st.session_state.grade = str(current_profile_live.get("grade", "Grade 6"))
             st.session_state.age = int(current_profile_live.get("age", 12))
             st.session_state.student_name = str(current_profile_live.get("name", "Student"))
             
-            # Reset all generational limits blocks instantly across tabs
             st.session_state.quiz_limit_reached = False
             st.session_state.flashcards_limit_reached = False
             st.session_state.study_plan_limit_reached = False
             st.session_state.chat_limit_reached = False
             
-            # 4. Fire a premium canvas canvas celebration visual effect layout onto screen!
             st.balloons()
             st.toast(f"🎉 Premium Power Unlocked! Welcome to {live_tier}!", icon="🚀")
             st.rerun()
             
-        # Update fallbacks tracking parameters if altered inside firestore console interfaces manually
         st.session_state.last_known_tier = live_tier
-
-    
-    
-   
-    #--- BASE64 SIDEBAR IMAGE INJECTOR
+    #===================================================
+    #===================================================
     try:
         with open("assets/logo211.png", "rb") as image_file:
             encoded_logo = base64.b64encode(image_file.read()).decode()
@@ -803,99 +604,16 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
     )
 
 
-    #=============================================
-    #THEME LOAD===================================
-    #=============================================
+    # Navigation Setup
+    chat_page = st.Page(render_main_chat_view, title="Main Chat", icon="🏠", url_path="chat")
+    voice_page = st.Page(render_voice_view, title="Voice Tutor", icon="🎙️", url_path="voice")
+    generator_page = st.Page(render_generators_view, title="AI Generators", icon="⚡", url_path="generators")
+    learning_page = st.Page(render_learning_dashboard_view, title="Learning Dashboard", icon="📚", url_path="learning")
+    leaderboard_page = st.Page(render_leaderboard_view, title="Leaderboard", icon="🏆", url_path="leaderboard")
+    admin_page = st.Page(render_admin_view, title="Admin Dashboard", icon="👑", url_path="admin")
+    lesson_page = st.Page(render_lesson_workspace_view, title="Lesson Workspace", icon="📖", url_path="lesson")
+    edit_profile_page = st.Page(render_edit_profile_view, title="Edit Profile", icon="⚙️", url_path="edit-profile")
 
-
-    # ======================================================
-    # CREATE PAGES
-    # ======================================================
-
-    def render_main_chat():
-        render_main_chat_view()
-
-    chat_page = st.Page(
-        render_main_chat,
-        title="Main Chat",
-        icon="🏠",
-        url_path="chat",
-    )
-
-    def render_voice_tutor():
-        render_voice_view()
-
-    voice_page = st.Page(
-        render_voice_tutor,
-        title="Voice Tutor",
-        icon="🎙️",
-        url_path="voice",
-    )
-
-    def render_generators():
-        render_generators_view()
-
-    generator_page = st.Page(
-        render_generators,
-        title="AI Generators",
-        icon="⚡",
-        url_path="generators",
-    )
-
-    def render_learning_dashboard():
-        render_learning_dashboard_view()
-
-    learning_page = st.Page(
-        render_learning_dashboard,
-        title="Learning Dashboard",
-        icon="📚",
-        url_path="learning",
-    )
-
-    def render_leaderboard():
-        render_leaderboard_view()
-
-    leaderboard_page = st.Page(
-        render_leaderboard,
-        title="Leaderboard",
-        icon="🏆",
-        url_path="leaderboard",
-    )
-
-    def render_admin():
-        render_admin_view()
-
-    admin_page = st.Page(
-        render_admin,
-        title="Admin Dashboard",
-        icon="👑",
-        url_path="admin",
-    )
-
-    def render_lesson_workspace():
-        render_lesson_workspace_view()
-
-    lesson_page = st.Page(
-        render_lesson_workspace,
-        title="Lesson Workspace",
-        icon="📖",
-        url_path="lesson",
-    )
-
-    def render_edit_profile():
-        render_edit_profile_view()
-
-    edit_profile_page = st.Page(
-        render_edit_profile,
-        title="Edit Profile",
-        icon="⚙️",
-        url_path="edit-profile",
-    )
-
-
-    # ======================================================
-    # SAVE ROUTES (Ensure page object components exist)
-    # ======================================================
     st.session_state.ROUTE_CHAT = chat_page
     st.session_state.ROUTE_VOICE = voice_page
     st.session_state.ROUTE_GENERATORS = generator_page
@@ -904,9 +622,6 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
     st.session_state.ROUTE_ADMIN = admin_page
     st.session_state.ROUTE_LESSON = lesson_page
     st.session_state.ROUTE_EDIT_PROFILE = edit_profile_page
-    # ======================================================
-    # STREAMLIT MULTI-PAGE DESERIALIZATION ROUTER (FIXED)
-    # ======================================================
     route_mapper = {
         "Main Chat": chat_page,
         "Voice Tutor": voice_page,
@@ -919,62 +634,21 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
     }
 
     router = st.navigation(
-        [
-            chat_page,
-            voice_page,
-            generator_page,
-            learning_page,
-            leaderboard_page,
-            admin_page,
-            lesson_page,
-            edit_profile_page,
-        ],
+        [chat_page, voice_page, generator_page, learning_page, leaderboard_page, admin_page, lesson_page, edit_profile_page],
         position="hidden"
     )
 
-    # ======================================================
-    # RESTORE SAVED WORKSPACE — ONCE PER SESSION
-    # ======================================================
+    if st.session_state.user_authenticated and not st.session_state.get("workspace_restored", False):
+        saved_page = st.session_state.get("current_page", "Main Chat")
+        target_page = route_mapper.get(saved_page, chat_page)
+        st.session_state.workspace_restored = True
+        if router.url_path != target_page.url_path:
+            st.switch_page(target_page)
 
-    if st.session_state.user_authenticated:
-
-        if not st.session_state.get("workspace_restored", False):
-
-            saved_page = st.session_state.get(
-                "current_page",
-                "Main Chat",
-            )
-
-            target_page = route_mapper.get(
-                saved_page,
-                chat_page,
-            )
-
-            # Mark restored BEFORE switching.
-            # This prevents the next rerun from forcing
-            # the same Firebase page again.
-            st.session_state.workspace_restored = True
-
-            if router.url_path != target_page.url_path:
-                st.switch_page(target_page)
-
-    
-    # 1. Render the top header bar component
     render_header()
-    
-    # 2. ✅ FIX: Move sidebar theme styling inside this authentication check!
-    # This prevents any sidebar styles from leaking into and triggering the landing page wrapper layout
-    if st.session_state.get("user_authenticated", False):
-        load_theme()
-        from styles.sidebar import load as load_sidebar_style
-        load_sidebar_style()
-        from styles.sidebar import load_style
-        load_style()
-        
-        import components.sidebar as sidebar
-        sidebar.render()
-
-    # 3. RUN THE NAVIGATIONAL ROUTER
+    load_theme()
+    load_sidebar_style()
+    render_sidebar()
     router.run()
 
      
