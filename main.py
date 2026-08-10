@@ -410,8 +410,32 @@ if "code" in st.query_params and not st.session_state.get("user_authenticated", 
 
             st.rerun()
         else:
-            error_desc = token_response.get("error_description", token_response.get("error", "Unknown Token Error"))
-            st.error(f"Google OAuth Token Exchange Failed ({response.status_code}): {error_desc}")
+            st.error("🚨 GOOGLE TOKEN EXCHANGE FAILED")
+
+            st.write("### OAuth Debug Information")
+
+            st.write("**HTTP status:**", response.status_code)
+            st.write("**Google response:**", token_response)
+
+            st.write("**Authorization code received:**", bool(auth_code))
+            st.write("**Authorization code preview:**", auth_code[:15] + "..." if auth_code else "NONE")
+
+            st.write("**Redirect URI sent to Google:**", REDIRECT_URI)
+
+            st.write("**Current host:**", st.context.headers.get("host"))
+            st.write(
+                "**X-Forwarded-Host:**",
+                st.context.headers.get("x-forwarded-host")
+            )
+            st.write(
+                "**X-Forwarded-Proto:**",
+                st.context.headers.get("x-forwarded-proto")
+            )
+
+            st.write(
+                "**Query parameters:**",
+                dict(st.query_params)
+            )
 
     except Exception as e:
         st.error(f"Authentication background sync failed: {str(e)}")
