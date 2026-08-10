@@ -94,6 +94,15 @@ if "session_checked" not in st.session_state:
 
 if not st.session_state.get("user_authenticated", False) and not st.session_state.session_checked:
     session_data = validate_session()
+    st.write("========== SESSION RESTORE DEBUG ==========")
+    st.write("Session data returned:", session_data)
+
+    try:
+        st.write("Current cookies:", dict(st.context.cookies))
+    except Exception as e:
+        st.write("Cookie inspection failed:", str(e))
+
+    st.write("==========================================")
     if session_data:
         uid = session_data.get("uid")
         if uid:
@@ -122,7 +131,7 @@ if not st.session_state.get("user_authenticated", False) and not st.session_stat
             st.session_state.session_checked = True
     else:
         st.session_state.session_checked = True
-        
+
 if "oauth_code_in_progress" not in st.session_state:
     st.session_state.oauth_code_in_progress = None
 
@@ -525,7 +534,16 @@ if (
             firebase_uid,
             email_val
         )
+        st.write("========== SESSION CREATED ==========")
+        st.write("Firebase UID:", firebase_uid)
+        st.write("Email:", email_val)
 
+        try:
+            st.write("Cookies after create_session:", dict(st.context.cookies))
+        except Exception as e:
+            st.write("Could not inspect cookies:", str(e))
+
+        st.write("=====================================")
         # ----------------------------------------------------
         # STREAMLIT SESSION STATE
         # ----------------------------------------------------
