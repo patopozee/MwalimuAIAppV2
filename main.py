@@ -308,6 +308,12 @@ def render_auth_portal(context="auth"):
             google_agree = st.checkbox("I agree to terms and conditions", key="google_agree")
             
             dynamic_redirect = resolve_redirect_uri()
+            st.write("========== GOOGLE LOGIN DEBUG ==========")
+            st.write("Client ID:", st.secrets["google_oauth"]["client_id"])
+            st.write("Redirect URI:", REDIRECT_URI)
+            st.write("Current host:", st.context.headers.get("host"))
+            st.write("Forwarded host:", st.context.headers.get("x-forwarded-host"))
+            st.write("========================================")
             auth_url = (
                 "https://accounts.google.com/o/oauth2/v2/auth"
                 f"?client_id={st.secrets['google_oauth']['client_id']}"
@@ -356,6 +362,21 @@ if "code" in st.query_params and not st.session_state.get("user_authenticated", 
     try:
         cid = st.secrets["google_oauth"]["client_id"]
         csecret = st.secrets["google_oauth"]["client_secret"]
+
+        # DEBUG — BEFORE TOKEN EXCHANGE
+        st.write("========== GOOGLE TOKEN EXCHANGE ==========")
+        st.write("Client ID:", cid)
+        st.write("Redirect URI:", REDIRECT_URI)
+        st.write("Current host:", st.context.headers.get("host"))
+        st.write(
+            "Forwarded host:",
+            st.context.headers.get("x-forwarded-host")
+        )
+        st.write(
+            "Authorization code preview:",
+            auth_code[:15] + "..." if auth_code else "NONE"
+        )
+        st.write("============================================")
         
         response = requests.post(
             "https://oauth2.googleapis.com/token",
