@@ -105,19 +105,6 @@ class MpesaPaymentService:
 
             if response.status_code == 200 and data.get("ResponseCode") == "0":
 
-                print("========== MPESA STK ACCEPTED ==========")
-                print("HTTP:", response.status_code)
-                print("Response:", data)
-                print("BusinessShortCode:", payload["BusinessShortCode"])
-                print("TransactionType:", payload["TransactionType"])
-                print("PartyA:", payload["PartyA"])
-                print("PartyB:", payload["PartyB"])
-                print("PhoneNumber:", payload["PhoneNumber"])
-                print("CallbackURL:", payload["CallBackURL"])
-                print("CheckoutRequestID:", data.get("CheckoutRequestID"))
-                print("MerchantRequestID:", data.get("MerchantRequestID"))
-                print("CustomerMessage:", data.get("CustomerMessage"))
-                print("========================================")
 
                 if uid:
                     db.collection("pending_payments").document(

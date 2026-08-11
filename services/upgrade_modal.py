@@ -49,9 +49,9 @@ def upgrade_modal():
 
     /* Tiny buttons */
     div.stButton > button{
-        height:24px !important;
+        height:28px !important;
         border-radius:6px !important;
-        font-size:11px !important;
+        font-size:12px !important;
         font-weight:600 !important;
         padding:0px !important;
     }
@@ -148,15 +148,15 @@ def upgrade_modal():
     # -------------------------------------------------------
     if st.session_state.selected_plan == "plus":
         amount = 1
-        plan_name = "Mwalimu AI Plus"
+        plan_display = "Mwalimu AI Plus"
     else:
         amount = 2
-        plan_name = "Mwalimu AI Premium"
+        plan_display = "Mwalimu AI Premium"
 
     col_info, col_input = st.columns([1, 1.3])
     
     with col_info:
-        st.markdown(f"**Selected:** {plan_name}")
+        st.markdown(f"**Selected:** {plan_display}")
         st.markdown(f"**Total:** KES {amount}")
 
     with col_input:
@@ -177,55 +177,61 @@ def upgrade_modal():
             st.error("Enter a valid phone number (2547XXXXXXXX).")
             return
 
-        with st.spinner("Sending STK Push..."):
+        with st.spinner("Initiating payment request..."):
             try:
                 result = MpesaPaymentService.initiate_stk_push(
                     phone_number=phone,
                     amount=int(amount),
                     uid=st.session_state.get("uid"),
-                    plan=st.session_state.selected_plan
+                    plan=st.session_state.selected_plan  # Sends "plus" or "premium"
                 )
             except Exception as err:
                 result = {"success": False, "message": f"Backend Error: {str(err)}"}
 
         if result.get("success"):
             checkout_request_id = result.get("checkout_request_id")
-            st.info("📲 STK Push sent! Please enter your M-Pesa PIN on your phone...")
-            
-            progress_bar = st.progress(0)
+            status_result = MpesaPaymentService.check_transaction_status(checkout_request_id)
             payment_successful = False
             
-            # Poll Safaricom status for up to 60 seconds (12 steps * 5s)
-            for i in range(12):
-                time.sleep(5)
-                progress_bar.progress(int((i + 1) * 8.3))
-                
-                status_result = MpesaPaymentService.check_transaction_status(checkout_request_id)
-                if status_result.get("completed"):
-                    payment_successful = True
-                    break
-                elif status_result.get("failed"):
-                    break
+            # Clean progress status container
+            with st.status("📲 STK Push sent! Waiting for M-Pesa PIN entry...", expanded=True) as status_box:
+                for i in range(12):  # Check status over 60s
+                    time.sleep(5)                    
                     
+                    if status_result.get("completed"):
+                        payment_successful = True
+                        status_box.update(label="✅ Payment confirmed!", state="complete", expanded=False)
+                        break
+                    elif status_result.get("failed"):
+                        status_box.update(label="❌ Payment cancelled or failed.", state="error", expanded=False)
+                        break
+                
+                if not payment_successful and not status_result.get("failed"):
+                    status_box.update(label="⏱️ Payment pending verification...", state="running", expanded=False)
+
             if payment_successful:
                 MpesaPaymentService.upgrade_user_subscription(
                     uid=st.session_state.get("uid"), 
-                    tier_name=plan_name
+                    tier_name=st.session_state.selected_plan  # STRICTLY "plus" OR "premium"
                 )
                 st.success("✅ Payment successful! Account upgraded.")
                 st.balloons()
                 time.sleep(2)
                 st.rerun()
             else:
-                st.warning("⚠️ Payment request timed out or was not confirmed automatically.")
-                if st.button("🔄 Check / Force Unlock Account", use_container_width=True):
-                    MpesaPaymentService.upgrade_user_subscription(
-                        uid=st.session_state.get("uid"), 
-                        tier_name=plan_name
-                    )
-                    st.success("✅ Account successfully upgraded!")
-                    time.sleep(1)
-                    st.rerun()
+                st.info("Entered PIN but account not updated?")
+                if st.button("🔄 Refresh Subscription Status", use_container_width=True):
+                    check_again = MpesaPaymentService.check_transaction_status(checkout_request_id)
+                    if check_again.get("completed"):
+                        MpesaPaymentService.upgrade_user_subscription(
+                            uid=st.session_state.get("uid"), 
+                            tier_name=st.session_state.selected_plan  # STRICTLY "plus" OR "premium"
+                        )
+                        st.success("✅ Payment confirmed! Account upgraded.")
+                        time.sleep(1)
+                        st.rerun()
+                    else:
+                        st.error("Transaction not confirmed yet. Please verify your PIN entry.")
         else:
             err_msg = result.get("message") or result.get("errorMessage") or "Payment failed."
             st.error(f"❌ Payment Initialization Failed: {err_msg}")
