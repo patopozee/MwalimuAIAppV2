@@ -1,16 +1,18 @@
 import base64
-from datetime import datetime
-
+from datetime import datetime, timedelta
 import requests
 import streamlit as st
-from datetime import datetime, timedelta
 from services.firebase_init import db
 
 
 class MpesaPaymentService:
 
-    TOKEN_URL = "https://sandbox.safaricom.co.ke/oauth/v1/generate?grant_type=client_credentials"
-    STK_URL = "https://sandbox.safaricom.co.ke/mpesa/stkpush/v1/processrequest"
+    # =========================================================
+    # PRODUCTION ENDPOINTS (Replaced sandbox URLs)
+    # =========================================================
+    TOKEN_URL = "https://api.safaricom.co.ke/oauth/v1/generate?grant_type=client_credentials"
+    STK_URL = "https://api.safaricom.co.ke/mpesa/stkpush/v1/processrequest"
+    QUERY_URL = "https://api.safaricom.co.ke/mpesa/stkpushquery/v1/query"
 
     @staticmethod
     def normalize_phone(phone: str) -> str:
@@ -18,10 +20,8 @@ class MpesaPaymentService:
 
         if phone.startswith("+254"):
             phone = phone[1:]
-
         elif phone.startswith("254"):
             pass
-
         elif phone.startswith("0"):
             phone = "254" + phone[1:]
 
@@ -29,11 +29,9 @@ class MpesaPaymentService:
 
     @staticmethod
     def generate_token():
-
-        consumer_key = st.secrets["mpesa"]["consumer_key"]
-        consumer_secret = st.secrets["mpesa"]["consumer_secret"]
-
         try:
+            consumer_key = st.secrets["mpesa"]["consumer_key"]
+            consumer_secret = st.secrets["mpesa"]["consumer_secret"]
 
             response = requests.get(
                 MpesaPaymentService.TOKEN_URL,
@@ -42,50 +40,53 @@ class MpesaPaymentService:
             )
 
             if response.status_code != 200:
-                return None
+                return None, f"HTTP {response.status_code}: {response.text}"
 
-            return response.json()["access_token"]
+            token = response.json().get("access_token")
+            return token, None
 
         except Exception as e:
-            return None
+            return None, str(e)
 
     @staticmethod
     def initiate_stk_push(phone_number, amount, uid=None, plan="premium"):
-        
+        token, err = MpesaPaymentService.generate_token()
 
-        token = MpesaPaymentService.generate_token()
-
-        if token is None:
-            return {
-                "success": False,
-                "error": "Failed to generate OAuth token."
-            }
+        if not token:
+            return {"success": False, "message": f"OAuth Generation Failed: {err}"}
 
         phone_number = MpesaPaymentService.normalize_phone(phone_number)
 
-        shortcode = str(st.secrets["mpesa"]["shortcode"])
+        shortcode = str(st.secrets["mpesa"]["shortcode"])  # This reads 4343165
         passkey = str(st.secrets["mpesa"]["passkey"])
         callback = st.secrets["mpesa"]["callback_url"]
+        
+        # 🚨 READS YOUR TILL NUMBER FROM SECRETS TO MAP CASH STREAMING PATHS
+        till_number = str(st.secrets["mpesa"]["till_number"]) 
 
         timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
-
         password_string = shortcode + passkey + timestamp
         password = base64.b64encode(password_string.encode()).decode()
-        
 
+        # =========================================================
+        # PROPER PAYLOAD STRUCT FOR BUY GOODS TILLS
+        # =========================================================
         payload = {
-            "BusinessShortCode": shortcode, # Use the variable from secrets
+            "BusinessShortCode": shortcode,              # Keep as 4343165
             "Password": password,
             "Timestamp": timestamp,
-            "TransactionType": "CustomerPayBillOnline",
-            "Amount": amount,
-            "PartyA": phone_number,
-            "PartyB": shortcode,            # Use the variable from secrets
-            "PhoneNumber": phone_number,
-            "CallBackURL": callback,        # Use the variable from secrets
+            "TransactionType": "CustomerBuyGoodsOnline", # Keep unchanged
+            "Amount": int(amount),
+            "PartyA": phone_number,                      
+            "PartyB": till_number,                       # 🚨 MUST BE YOUR ACTUAL TILL NUMBER
+            "PhoneNumber": phone_number,                 
+            "CallBackURL": callback,
             "AccountReference": "Mwalimu AI App",
-            "TransactionDesc": f"Mwalimu AI {plan.title()} Subscription"
+            "TransactionDesc": f"Mwalimu AI App {plan.title()} Subscription"
         }
+
+
+
 
         headers = {
             "Authorization": f"Bearer {token}",
@@ -93,7 +94,6 @@ class MpesaPaymentService:
         }
 
         try:
-
             response = requests.post(
                 MpesaPaymentService.STK_URL,
                 json=payload,
@@ -103,58 +103,64 @@ class MpesaPaymentService:
 
             data = response.json()
 
-            if response.status_code == 200:
+            if response.status_code == 200 and data.get("ResponseCode") == "0":
 
-                if data.get("ResponseCode") == "0":
-                    # Save pending payment details
-                    if uid:
-                        db.collection("pending_payments").document(
-                            data.get("CheckoutRequestID")
-                        ).set({
-                            "uid": uid,
-                            "plan": plan,
-                            "amount": amount,
-                            "phone": phone_number,
-                            "created_at": datetime.utcnow().isoformat()
-                        })
+                print("========== MPESA STK ACCEPTED ==========")
+                print("HTTP:", response.status_code)
+                print("Response:", data)
+                print("BusinessShortCode:", payload["BusinessShortCode"])
+                print("TransactionType:", payload["TransactionType"])
+                print("PartyA:", payload["PartyA"])
+                print("PartyB:", payload["PartyB"])
+                print("PhoneNumber:", payload["PhoneNumber"])
+                print("CallbackURL:", payload["CallBackURL"])
+                print("CheckoutRequestID:", data.get("CheckoutRequestID"))
+                print("MerchantRequestID:", data.get("MerchantRequestID"))
+                print("CustomerMessage:", data.get("CustomerMessage"))
+                print("========================================")
 
-                    return {
-                        "success": True,
-                        "merchant_request_id": data.get("MerchantRequestID"),
+                if uid:
+                    db.collection("pending_payments").document(
+                        data.get("CheckoutRequestID")
+                    ).set({
+                        "uid": uid,
+                        "plan": plan,
+                        "amount": amount,
+                        "phone": phone_number,
                         "checkout_request_id": data.get("CheckoutRequestID"),
-                        "customer_message": data.get("CustomerMessage"),
-                    }
+                        "merchant_request_id": data.get("MerchantRequestID"),
+                        "created_at": datetime.utcnow().isoformat()
+                    })
 
                 return {
-                    "success": False,
-                    "error": data.get(
-                        "ResponseDescription",
-                        data.get("errorMessage", "Unknown M-Pesa error"),
-                    ),
+                    "success": True,
+                    "merchant_request_id": data.get("MerchantRequestID"),
+                    "checkout_request_id": data.get("CheckoutRequestID"),
+                    "customer_message": data.get("CustomerMessage"),
                 }
 
+            error_msg = data.get("errorMessage") or data.get("ResponseDescription") or response.text
             return {
                 "success": False,
-                "error": data.get("errorMessage", response.text),
+                "message": f"Daraja Error ({response.status_code}): {error_msg}"
             }
 
         except Exception as e:
-
             return {
                 "success": False,
-                "error": str(e),
+                "message": f"Server Exception: {str(e)}"
             }
-        
+
     @staticmethod
     def check_transaction_status(checkout_request_id):
-        token = MpesaPaymentService.generate_token()
+        token, err = MpesaPaymentService.generate_token()
         if not token:
-            return {"completed": False, "error": "Token failed"}
+            return {"completed": False, "error": f"Token failed: {err}"}
 
         shortcode = str(st.secrets["mpesa"]["shortcode"])
         passkey = str(st.secrets["mpesa"]["passkey"])
         timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
-        
+
         password_string = shortcode + passkey + timestamp
         password = base64.b64encode(password_string.encode()).decode()
 
@@ -172,33 +178,27 @@ class MpesaPaymentService:
 
         try:
             response = requests.post(
-                "https://sandbox.safaricom.co.ke/mpesa/stkpushquery/v1/query",
+                MpesaPaymentService.QUERY_URL,
                 json=payload,
                 headers=headers,
                 timeout=30
             )
             data = response.json()
-            
-            # ResultCode 0 means successful transaction complete
+
             if data.get("ResultCode") == "0":
                 return {"completed": True}
             elif data.get("ResultCode"):
                 return {"completed": False, "failed": True}
-                
+
             return {"completed": False}
         except Exception as e:
             return {"completed": False, "error": str(e)}
-        
+
     @staticmethod
     def upgrade_user_subscription(uid, tier_name):
-        """
-        Updates the user's subscription tree in Firestore.
-        """
         try:
-            # Set expiry to 30 days from now
             expiry_date = (datetime.utcnow() + timedelta(days=30)).strftime("%Y-%m-%d")
-            
-            # Update only the specific fields inside the 'subscription' map
+
             db.collection("users").document(uid).update({
                 "subscription.tier": tier_name,
                 "subscription.start_date": datetime.utcnow().strftime("%Y-%m-%d"),
@@ -208,5 +208,3 @@ class MpesaPaymentService:
         except Exception as e:
             print(f"Error upgrading subscription: {e}")
             return {"success": False, "error": str(e)}
-
-    

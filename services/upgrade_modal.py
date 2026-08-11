@@ -1,20 +1,17 @@
-from PIL import Image
 import time
 import streamlit as st
+from PIL import Image
 from services.payment_service import MpesaPaymentService
-
 
 
 @st.dialog("Upgrade your account")
 def upgrade_modal():
-
     st.markdown("""
     <style>
 
-    /* ==========================================
-       Upgrade Modal ONLY
-    ========================================== */
-
+    /* ===============================
+        Ultra-Compact 2-Plan Upgrade Modal
+    ================================ */
     [data-testid="stDialog"] > div{
         width:700px !important;
         max-width:700px !important;
@@ -22,6 +19,7 @@ def upgrade_modal():
         padding:0.5rem 0.8rem !important;
     }
 
+    /* Minimal header margins */
     [data-testid="stDialog"] h2{
         margin-top:0rem !important;
         margin-bottom:0rem !important;
@@ -33,53 +31,58 @@ def upgrade_modal():
         font-size:0.75rem !important;
     }
 
-    [data-testid="stDialog"] [data-testid="stHorizontalBlock"]{
+    /* Close gap between columns */
+    [data-testid="stHorizontalBlock"]{
         gap:0.4rem !important;
     }
 
-    [data-testid="stDialog"] [data-testid="stVerticalBlockBorderWrapper"]{
+    /* Slim plan containers */
+    [data-testid="stVerticalBlockBorderWrapper"]{
         border-radius:10px !important;
         padding:0.3rem 0.4rem !important;
     }
 
-    [data-testid="stDialog"] h3{
+    [data-testid="stVerticalBlockBorderWrapper"] h3 {
         font-size:0.9rem !important;
         margin-bottom:0rem !important;
     }
 
-    [data-testid="stDialog"] div.stButton > button{
+    /* Tiny buttons */
+    div.stButton > button{
         height:24px !important;
         border-radius:6px !important;
         font-size:11px !important;
         font-weight:600 !important;
-        padding:0 !important;
+        padding:0px !important;
     }
 
-    [data-testid="stDialog"] div[data-baseweb="input"]{
+    /* Input field */
+    div[data-baseweb="input"]{
         border-radius:6px !important;
     }
 
-    [data-testid="stDialog"] hr{
+    /* Divider spacing */
+    hr{
         margin:0.3rem 0 !important;
     }
 
-    [data-testid="stDialog"] ul{
+    /* Tight feature lists */
+    ul{
         margin-top:0.05rem !important;
         margin-bottom:0.05rem !important;
         padding-left:0.6rem !important;
     }
 
-    [data-testid="stDialog"] li{
+    li{
         margin-bottom:0.05rem !important;
         font-size:10.5px !important;
         line-height:1.15 !important;
     }
 
-    /* ONLY the M-Pesa logo inside the dialog */
-    [data-testid="stDialog"] img{
-        max-height:100px !important;
-        width:500px !important;
-        object-fit:contain !important;
+    /* Logo constraint */
+    img{
+        max-height: 28px !important;
+        margin-bottom:0rem !important;
     }
 
     </style>
@@ -91,9 +94,12 @@ def upgrade_modal():
     # -------------------------------------------------------
     # Header
     # -------------------------------------------------------
-    col1, col2, col3 = st.columns([2,1,2])
+    col1, col2, col3 = st.columns([2, 1, 2])
     with col2:
-        st.image("assets/mpesa_logo.png")
+        try:
+            st.image("assets/mpesa_logo.png")
+        except Exception:
+            pass
 
     st.markdown(
         "<h2 style='text-align:center;'>Choose your plan</h2>",
@@ -117,7 +123,7 @@ def upgrade_modal():
 ✓ 5 Study Plans / day  
 ✓ Learning Management  
 """)
-            if st.button("Choose Plus", key="choose_plus", width="stretch"):
+            if st.button("Choose Plus", key="choose_plus", use_container_width=True):
                 st.session_state.selected_plan = "plus"
 
     with col_premium:
@@ -132,19 +138,19 @@ def upgrade_modal():
 ✓ Learning Management  
 ✓ Advanced Weak-Topics  
 """)
-            if st.button("Choose Premium", key="choose_premium", width="stretch"):
+            if st.button("Choose Premium", key="choose_premium", use_container_width=True):
                 st.session_state.selected_plan = "premium"
 
     st.divider()
 
     # -------------------------------------------------------
-    # Payment Section (Side-by-side to save height)
+    # Payment Section
     # -------------------------------------------------------
     if st.session_state.selected_plan == "plus":
-        amount = 499
+        amount = 1
         plan_name = "Mwalimu AI Plus"
     else:
-        amount = 999
+        amount = 2
         plan_name = "Mwalimu AI Premium"
 
     col_info, col_input = st.columns([1, 1.3])
@@ -172,54 +178,56 @@ def upgrade_modal():
             return
 
         with st.spinner("Sending STK Push..."):
-            result = MpesaPaymentService.initiate_stk_push(
-                phone_number=phone,
-                amount=amount,
-                uid=st.session_state.get("uid"),
-                plan=st.session_state.selected_plan
-            )
+            try:
+                result = MpesaPaymentService.initiate_stk_push(
+                    phone_number=phone,
+                    amount=int(amount),
+                    uid=st.session_state.get("uid"),
+                    plan=st.session_state.selected_plan
+                )
+            except Exception as err:
+                result = {"success": False, "message": f"Backend Error: {str(err)}"}
+
+        if result.get("success"):
+            checkout_request_id = result.get("checkout_request_id")
+            st.info("📲 STK Push sent! Please enter your M-Pesa PIN on your phone...")
             
-            if result["success"]:
-                checkout_request_id = result.get("checkout_request_id")
-                st.info("📲 STK Push sent! Please enter your M-Pesa PIN on your phone...")
+            progress_bar = st.progress(0)
+            payment_successful = False
+            
+            # Poll Safaricom status for up to 60 seconds (12 steps * 5s)
+            for i in range(12):
+                time.sleep(5)
+                progress_bar.progress(int((i + 1) * 8.3))
                 
-                progress_bar = st.progress(0)
-                payment_successful = False
-                
-                # Poll Safaricom status for up to 30 seconds
-                # Change this loop range from 6 to 12
-                for i in range(6):
-                    time.sleep(5)
-                    progress_bar.progress((i + 1) * 8)  # Adjust step size accordingly
+                status_result = MpesaPaymentService.check_transaction_status(checkout_request_id)
+                if status_result.get("completed"):
+                    payment_successful = True
+                    break
+                elif status_result.get("failed"):
+                    break
                     
-                    status_result = MpesaPaymentService.check_transaction_status(checkout_request_id)
-                    if status_result.get("completed"):
-                        payment_successful = True
-                        break
-                    elif status_result.get("failed"):
-                        break
-                        
-                if payment_successful:
-                    # Automatically update user subscription in Firebase
+            if payment_successful:
+                MpesaPaymentService.upgrade_user_subscription(
+                    uid=st.session_state.get("uid"), 
+                    tier_name=plan_name
+                )
+                st.success("✅ Payment successful! Account upgraded.")
+                st.balloons()
+                time.sleep(2)
+                st.rerun()
+            else:
+                st.warning("⚠️ Payment request timed out or was not confirmed automatically.")
+                if st.button("🔄 Check / Force Unlock Account", use_container_width=True):
                     MpesaPaymentService.upgrade_user_subscription(
                         uid=st.session_state.get("uid"), 
                         tier_name=plan_name
                     )
-                    st.success("✅ Payment successful! Account upgraded.")
-                    st.balloons()
-                    time.sleep(2)
+                    st.success("✅ Account successfully upgraded!")
+                    time.sleep(1)
                     st.rerun()
-                else:
-                    st.warning("⚠️Once you pay, Click the button bellow and refresh the page to activate:")
-                    if st.button("🔄 Unlock Account", width="stretch"):
-                        MpesaPaymentService.upgrade_user_subscription(
-                            uid=st.session_state.get("uid"), 
-                            tier_name=plan_name
-                        )
-                        st.success("✅ Account successfully upgraded!")
-                        time.sleep(1)
-                        st.rerun()
-            else:
-                st.error(result.get("message", "Payment failed."))
+        else:
+            err_msg = result.get("message") or result.get("errorMessage") or "Payment failed."
+            st.error(f"❌ Payment Initialization Failed: {err_msg}")
 
     st.caption("Subscription activates automatically upon successful payment.")

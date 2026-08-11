@@ -699,7 +699,10 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
         url_path="edit-profile",
     )
 
-
+    from services.upgrade_modal import upgrade_modal
+    # ======================================================
+    # SAVE ROUTES (Ensure page object components exist)
+    # ======================================================
     # ======================================================
     # SAVE ROUTES (Ensure page object components exist)
     # ======================================================
@@ -711,6 +714,11 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
     st.session_state.ROUTE_ADMIN = admin_page
     st.session_state.ROUTE_LESSON = lesson_page
     st.session_state.ROUTE_EDIT_PROFILE = edit_profile_page
+
+    # 🚨 ADD THESE STATE LOGIC INITIALIZATIONS HERE:
+    if "show_upgrade_modal" not in st.session_state:
+        st.session_state.show_upgrade_modal = False
+
     # ======================================================
     # STREAMLIT MULTI-PAGE DESERIALIZATION ROUTER (FIXED)
     # ======================================================
@@ -724,7 +732,6 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
         "Lesson Workspace": lesson_page,
         "Edit Profile": edit_profile_page
     }
-
     router = st.navigation(
         [
             chat_page,
@@ -742,50 +749,32 @@ if st.session_state.user_authenticated and "user_email" in st.session_state:
     # ======================================================
     # RESTORE SAVED WORKSPACE — ONCE PER SESSION
     # ======================================================
-
     if st.session_state.user_authenticated:
-
         if not st.session_state.get("workspace_restored", False):
-
-            saved_page = st.session_state.get(
-                "current_page",
-                "Main Chat",
-            )
-
-            target_page = route_mapper.get(
-                saved_page,
-                chat_page,
-            )
-
-            # Mark restored BEFORE switching.
-            # This prevents the next rerun from forcing
-            # the same Firebase page again.
+            saved_page = st.session_state.get("current_page", "Main Chat")
+            target_page = route_mapper.get(saved_page, chat_page)
             st.session_state.workspace_restored = True
-
             if router.url_path != target_page.url_path:
                 st.switch_page(target_page)
 
-    
-
     if st.session_state.get("user_authenticated", False):
-
-        # Load ALL layout/CSS before rendering the header.
         load_theme()
-
         from styles.sidebar import load as load_sidebar_style
         load_sidebar_style()
-
         from styles.sidebar import load_style
         load_style()
-
-        # Render sidebar before header so the header's layout
-        # calculation has the correct page structure available.
+        
         import components.sidebar as sidebar
         sidebar.render()
+        render_header()
+        
+        # 🚨 LAUNCH THE DIALOG USING PERSISTENT STATE MANAGEMENT HERE:
+        if st.session_state.show_upgrade_modal:
+            from services.upgrade_modal import upgrade_modal # Update to match your actual file path
+            upgrade_modal()
+            
+        router.run()
 
-
-    render_header()
-    router.run()
 
 
      

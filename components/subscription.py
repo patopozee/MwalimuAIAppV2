@@ -76,8 +76,10 @@ def render():
 
         # Show upgrade prompt if user is on the Free tier
         if str(tier).strip().lower() == "free":
-            if st.sidebar.button("🚀 Upgrade to Premium", width="stretch"):
-                upgrade_modal()
+            if st.sidebar.button("🚀 Upgrade to Premium", use_container_width=True):
+                st.session_state.show_upgrade_modal = True
+                st.session_state.payment_status = "idle"  # Clear out stuck processing states
+                st.rerun()
 
 
             #     #MOVED INSIDE SIDEBAR: Verification button for free users who just paid
