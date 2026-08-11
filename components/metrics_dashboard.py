@@ -8,7 +8,7 @@ from services.database import (
 )
 
 from services.db_service import MwalimuDBService
-from services.tier_guard import TIER_LIMITS
+from services.tier_guard import TIER_LIMITS, is_subscription_active
 
 
 @st.fragment
@@ -78,21 +78,23 @@ def render():
     st.sidebar.markdown("---")
     st.sidebar.subheader("📅 Daily Generation Limits")
 
+    # Always retrieve fresh student data to prevent stale session caching
     profile = get_student_data(
         st.session_state.user_email
     ) or {}
 
     subscription = profile.get("subscription", {})
+    raw_tier = str(subscription.get("tier", "Free")).strip().lower()
 
-    tier = subscription.get("tier", "Free")
+    # Verify if subscription is active first
+    tier_is_active = is_subscription_active(profile)
 
-    tier_key = "Free"
-
-    if "plus" in tier.lower():
-        tier_key = "Mwalimu AI Plus"
-
-    elif "premium" in tier.lower():
+    if tier_is_active and "premium" in raw_tier:
         tier_key = "Premium"
+    elif tier_is_active and "plus" in raw_tier:
+        tier_key = "Mwalimu AI Plus"
+    else:
+        tier_key = "Free"
 
     limits = TIER_LIMITS.get(
         tier_key,
@@ -109,7 +111,7 @@ def render():
 
         remaining = max(0, limit - used)
 
-        return f"{remaining} left (of {limit})"
+        return f"{used} / {limit}"
 
     st.sidebar.markdown(f"💬 **Ask Mwalimu:** `{usage('questions')}`")
     st.sidebar.markdown(f"📅 **Study Plans:** `{usage('has_study_plan')}`")

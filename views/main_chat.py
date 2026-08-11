@@ -200,12 +200,18 @@ def render():
             if uploaded_file:
                 # 💡 CHANGED: Checks if user has remaining upload limits instead of blocking free users outright
                 if not verify_tier_allowance(uid, tier, "has_upload"):
-                    st.session_state.file_limit_reached = True
-                    st.rerun()
+                    st.error("🔒 **Mwalimu Document Scanner Upload Today Limit Reached.** Upgrade to Premium to get Unlimited Upload!")
+                    if st.button("🚀 Upgrade to Premium Now", key="upload_guard_upgrade_btn"):
+                        st.session_state.trigger_chat_upgrade_modal = True
+                        st.rerun()
+                    st.stop()
+                if st.session_state.get("trigger_chat_upgrade_modal"):
+                    # Instantly remove the flag so it only runs EXACTLY once
+                    st.session_state.pop("trigger_chat_upgrade_modal", None)
+                    upgrade_modal()
                 else:
-                    st.session_state.pop("file_limit_reached", None)
                     attachment_payload = MwalimuVisionService.process_chat_input_file(uploaded_file)
-
+            
             # 4. Build message payload dictionary and append to state history
             user_message_block = {"role": "student", "content": user_question}
             if attachment_payload:

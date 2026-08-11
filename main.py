@@ -447,9 +447,48 @@ def sync_session_profile(profile: dict, tier: str = "Free"):
 
 
 if st.session_state.get("user_authenticated") and "user_email" in st.session_state:
+    # ---------------------------------------------------------
+    # 1. SHOW CUSTOM LOADING CARD WHILE INITIALIZING WORKSPACE
+    # ---------------------------------------------------------
+    st.markdown(
+        """
+        <style>
+        @keyframes pulse {
+            0% { opacity: 0.6; }
+            50% { opacity: 1; }
+            100% { opacity: 0.6; }
+        }
+        .loading-card {
+            background-color: #101726;
+            border: 1px solid rgba(59,130,246,0.2);
+            border-radius: 12px;
+            padding: 30px;
+            margin: 40px auto;
+            max-width: 500px;
+            color: #94A3B8;
+            animation: pulse 1.5s infinite ease-in-out;
+            text-align: center;
+            font-weight: 600;
+            font-size: 18px;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3);
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    loader = st.empty()
+    loader.markdown(
+        '<div class="loading-card">🚀 Setting up your Mwalimu AI Workspace...</div>',
+        unsafe_allow_html=True,
+    )
+
+    # ---------------------------------------------------------
+    # 2. RUN HEAVY BACKEND OPERATIONS / DATA FETCHING
+    # ---------------------------------------------------------
     uid = st.session_state.get("uid")
 
-    # 1. Enforce Expiry & Fetch Profile Once
+    # Enforce Expiry & Fetch Profile Once
     if uid and str(enforce_subscription_expiry(uid) or "").lower() == "free":
         current_profile = get_student_data(str(uid))
         if current_profile:
@@ -457,7 +496,12 @@ if st.session_state.get("user_authenticated") and "user_email" in st.session_sta
     else:
         current_profile = get_student_data(st.session_state.user_email)
 
-    # 2. Upgrade Detection & Feature Lock Reset
+    # ---------------------------------------------------------
+    # 3. CLEAR LOADER BEFORE RENDER
+    # ---------------------------------------------------------
+    loader.empty()
+
+    # Upgrade Detection & Feature Lock Reset
     if isinstance(current_profile, dict):
         live_sub = current_profile.get("subscription") or {}
         live_tier = str(live_sub.get("tier", "Free")).strip()
