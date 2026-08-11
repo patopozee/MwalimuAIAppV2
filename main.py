@@ -97,6 +97,8 @@ create_tables()
 # ============================================================
 # RESTORE USER SESSION + WORKSPACE
 # ============================================================
+if "subscription_expiry_checked" not in st.session_state:
+    st.session_state.subscription_expiry_checked = False
 if "session_checked" not in st.session_state:
     st.session_state.session_checked = False
 
@@ -425,35 +427,60 @@ if "code" in st.query_params and not st.session_state.get("user_authenticated", 
     except Exception as e:
         st.error(f"Authentication background sync failed: {str(e)}")
 
+
 # ==============================================================================
 # ROUTER ENGINE
 # ==============================================================================
-if st.session_state.user_authenticated and "user_email" in st.session_state:
-    current_profile_live = get_student_data(st.session_state.user_email)
-    
-    if current_profile_live and isinstance(current_profile_live, dict):
-        live_sub = current_profile_live.get("subscription", {})
+from components.subscription import enforce_subscription_expiry
+
+
+def sync_session_profile(profile: dict, tier: str = "Free"):
+    """Syncs live Firestore user profile data into Streamlit session state."""
+    st.session_state.user_profile = profile
+    st.session_state.user_email = profile.get(
+        "email", st.session_state.get("user_email", "")
+    )
+    st.session_state.student_name = str(profile.get("name", "Student"))
+    st.session_state.grade = str(profile.get("grade", "Grade 6"))
+    st.session_state.age = int(profile.get("age", 12))
+    st.session_state.last_known_tier = tier
+
+
+if st.session_state.get("user_authenticated") and "user_email" in st.session_state:
+    uid = st.session_state.get("uid")
+
+    # 1. Enforce Expiry & Fetch Profile Once
+    if uid and str(enforce_subscription_expiry(uid) or "").lower() == "free":
+        current_profile = get_student_data(str(uid))
+        if current_profile:
+            sync_session_profile(current_profile, tier="Free")
+    else:
+        current_profile = get_student_data(st.session_state.user_email)
+
+    # 2. Upgrade Detection & Feature Lock Reset
+    if isinstance(current_profile, dict):
+        live_sub = current_profile.get("subscription") or {}
         live_tier = str(live_sub.get("tier", "Free")).strip()
-        
-        if "last_known_tier" not in st.session_state:
-            st.session_state.last_known_tier = live_tier
-            
-        if st.session_state.last_known_tier.lower() == "free" and live_tier.lower() != "free":
-            st.session_state.last_known_tier = live_tier
-            st.session_state.user_profile = current_profile_live
-            st.session_state.grade = str(current_profile_live.get("grade", "Grade 6"))
-            st.session_state.age = int(current_profile_live.get("age", 12))
-            st.session_state.student_name = str(current_profile_live.get("name", "Student"))
-            
-            st.session_state.quiz_limit_reached = False
-            st.session_state.flashcards_limit_reached = False
-            st.session_state.study_plan_limit_reached = False
-            st.session_state.chat_limit_reached = False
-            
+        last_tier = st.session_state.get("last_known_tier", live_tier)
+
+        if last_tier.lower() == "free" and live_tier.lower() != "free":
+            sync_session_profile(current_profile, tier=live_tier)
+
+            # Reset feature limit flags
+            for limit_flag in [
+                "quiz",
+                "flashcards",
+                "study_plan",
+                "chat",
+            ]:
+                st.session_state[f"{limit_flag}_limit_reached"] = False
+
             st.balloons()
-            st.toast(f"🎉 Premium Power Unlocked! Welcome to {live_tier}!", icon="🚀")
+            st.toast(
+                f"🎉 Premium Power Unlocked! Welcome to {live_tier}!", icon="🚀"
+            )
             st.rerun()
-            
+
         st.session_state.last_known_tier = live_tier
     #===================================================
     #===================================================
