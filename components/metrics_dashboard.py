@@ -79,9 +79,13 @@ def render():
     st.sidebar.subheader("📅 Daily Generation Limits")
 
     # Always retrieve fresh student data to prevent stale session caching
-    profile = get_student_data(
-        st.session_state.user_email
-    ) or {}
+    uid = str(st.session_state.get("uid", "")).strip()
+
+    if not uid:
+        st.sidebar.error("User ID missing. Please sign in again.")
+        return
+
+    profile = get_student_data(uid) or {}
 
     subscription = profile.get("subscription", {})
     raw_tier = str(subscription.get("tier", "Free")).strip().lower()

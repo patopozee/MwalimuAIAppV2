@@ -147,7 +147,11 @@ def render():
                         
                         if not verify_tier_allowance(uid, user_tier, "quizzes"):
                             st.session_state.quiz_limit_reached = True
-                        
+                        uid = str(st.session_state.get("uid", "")).strip()
+
+                        if not uid:
+                            st.error("User identity is missing. Please sign in again.")
+                            st.stop()
                         save_activity(
                             student_uid=uid,
                             student_name=name,
@@ -237,7 +241,11 @@ def render():
                             st.session_state.quiz_submitted = True
                             
                             evaluate_quiz_submission(correct_answers=score, total_questions=total_questions)
-                            
+                            uid = str(st.session_state.get("uid", "")).strip()
+
+                            if not uid:
+                                st.error("User identity is missing. Please sign in again.")
+                                st.stop()
                             save_activity(
                                 student_uid=uid,
                                 student_name=name,
