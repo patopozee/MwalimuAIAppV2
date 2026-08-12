@@ -2,6 +2,7 @@ import base64
 import os
 import streamlit as st
 from styles.header import load
+from services.profile_service import get_student_grade
 
 
 def render():
@@ -13,9 +14,14 @@ def render():
     if os.path.exists(logo):
         with open(logo, "rb") as f:
             logo64 = base64.b64encode(f.read()).decode()
+    name = st.session_state.get("student_name", "Student")
+    
+    student_uid = str(
+        st.session_state.get("uid") or ""
+    )
 
+    grade = get_student_grade()
     student = st.session_state.get("student_name", "Student")
-    grade = st.session_state.get("student_grade", "Grade 6")
     subject = st.session_state.get("active_subject", "Mathematics")
     topic = st.session_state.get("active_topic", "Numbers")
     subtopic = st.session_state.get("active_sub_topic", "Place Value")
