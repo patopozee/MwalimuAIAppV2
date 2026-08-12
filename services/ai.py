@@ -13,12 +13,18 @@ from services.database import get_admin_material_context
 load_dotenv()
 knowledge_base = MwalimuKnowledgeLayer()
 # 2. Unified fallback: check system environment variables first, then fallback to Streamlit secrets
-api_key = os.environ.get("OPENROUTER_API_KEY") or st.secrets.get("OPENROUTER_API_KEY")
+api_key = (
+    os.environ.get("GEMINI_API_KEY")
+    or st.secrets.get("GEMINI_API_KEY")
+)
 
-# 3. Initialize unified OpenRouter gateway client safely
+if not api_key:
+    raise RuntimeError("GEMINI_API_KEY is missing.")
+
 client = OpenAI(
-    base_url="https://openrouter.ai/api/v1",
-    api_key=api_key if api_key else "MOCK_KEY"
+    api_key=api_key,
+    base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
+    timeout=60.0,
 )
 
 # SYSTEM-LEVEL PROMPT PROTECTION AGAINST FALSE POSITIVE SAFETY REFUSALS
@@ -117,9 +123,10 @@ Mwalimu AI response:
         })
 
     try:
-        # 🚀 PRE-EMPTIVE CEILING: Lower max_tokens to 400 *before* the call so you stay well under your 812 budget limit
+        # 4. Swap model strings to your recommended native Google tiers
+        # Use "gemini-2.5-flash" for quick voice/chat, or "gemini-2.5-pro" for complex CBC lessons
         response_stream = client.chat.completions.create(
-            model="openrouter/free",
+            model="gemini-3.6-flash",
             messages=api_messages,  # type: ignore
             max_tokens=1500,  
             stream=True  
@@ -129,11 +136,10 @@ Mwalimu AI response:
     except Exception as api_err:
         error_diagnostic_string = str(api_err)
         
-        
-        # 🛡️ SYSTEM GUARD: Catch 402/Credit errors explicitly before returning to prevent SSE/JSON pipeline crashes
-        if "402" in error_diagnostic_string or "credits" in error_diagnostic_string.lower():
+        # 5. Adjusted system guard to catch Google's specific resource/billing errors
+        if "402" in error_diagnostic_string or "quota" in error_diagnostic_string.lower() or "credit" in error_diagnostic_string.lower():
             def error_generator():
-                yield "Mwalimu's connection is low on OpenRouter credits. Please add a small credit top-up to your API wallet dashboard!"
+                yield "Mwalimu's connection is low on Google AI Studio wallet credits. Please top up your Google prepaid balance!"
             return error_generator()
             
         def fallback_generator():
@@ -248,19 +254,17 @@ CRITICAL OPTION CONSTRAINT RULES:
 8. **Consistent Units**: Ensure all options include the correct unit matching the question (e.g., "shillings", "passengers").
 """
     # ... Rest of your existing client.chat.completions.create logic remains completely identical below ...
-
     try:
         response = client.chat.completions.create(
             extra_headers={
                 "HTTP-Referer": "https://mwalimu-ai.streamlit.app",
                 "X-Title": "Mwalimu AI App Quiz",
             },
-            model="openrouter/free",  # 👈 CHANGED FROM "openrouter/free"
+            model="gemini-3.6-flash",  # 👈 CHANGED FROM "openrouter/free"
             messages=[{"role": "user", "content": prompt}],
             max_tokens=3000,  # 👈 ADDED FOR SWIFT INITIALIZATION (Plenty for JSON quiz)
             response_format={"type": "json_object"}  # 👈 FORCES RAPID NATIVE JSON PARSING
         )
-        
         # FIX: OpenRouter/OpenAI compatibility wrapper parsing requires indexing choices[0]
         quiz_text = response.choices[0].message.content
         if quiz_text is None:
@@ -270,6 +274,7 @@ CRITICAL OPTION CONSTRAINT RULES:
         quiz_text = quiz_text.replace("```json", "").replace("```", "").strip()
         try:
             quiz_data = json.loads(quiz_text)
+            
             for question in quiz_data:
                 if "options" in question and isinstance(question["options"], list):
                     random.shuffle(question["options"])
@@ -395,7 +400,7 @@ If 'ADMIN UPLOADED REFERENCE MATERIALS' are provided above, your study schedule 
                 "HTTP-Referer": "https://mwalimu-ai.streamlit.app",
                 "X-Title": "Mwalimu AI Study Planner",
             },
-            model="openrouter/free",
+            model="gemini-3.6-flash",
             messages=[{"role": "user", "content": prompt}],
             max_tokens=3000
         )
@@ -472,7 +477,7 @@ Return ONLY a raw, valid JSON object containing an array list of exactly 10 ques
                 "HTTP-Referer": "https://mwalimu-ai.streamlit.app",
                 "X-Title": "Mwalimu AI Flashcard Processor",
             },
-            model="openrouter/free",
+            model="gemini-3.6-flash",
             messages=[{"role": "user", "content": prompt}],
             max_tokens=2500,  # 2500 provides plenty of room for 10 rich cards
             response_format={"type": "json_object"}
@@ -583,7 +588,7 @@ Please construct the lesson using clean Markdown headers. The lesson MUST includ
                 "HTTP-Referer": "https://mwalimu-ai.streamlit.app",
                 "X-Title": "Mwalimu AI Lesson Plan Engine",
             },
-            model="openrouter/free",  # 👈 DIRECT SPEED ROUTING BYPASS
+            model="gemini-3.6-flash",  # 👈 DIRECT SPEED ROUTING BYPASS
             messages=[{"role": "user", "content": prompt}],
             max_tokens=2900  # 👈 GENEROUS ROOM FOR EXTENSIVE CBC LESSON STEPS & SCHEMES
         )
@@ -593,7 +598,7 @@ Please construct the lesson using clean Markdown headers. The lesson MUST includ
         
         return f"Mwalimu encountered an issue preparing your lesson roadmap: {e}. Please click generate again!"
 
-def ask_mwalimu_voice(question, student, messages, adaptive_context):
+def ask_mwalimu_voice(question, student, messages, adaptive_context, client):
     """Dedicated text-driven voice streaming engine with pre-emptive credit ceilings."""
     preferred_language = student.get("preferred_language", student.get("language", "English"))
     subject = student.get('subject', 'Science')
@@ -663,7 +668,7 @@ Mwalimu AI verbal response:
     try:
         # 🚀 PRE-EMPTIVE CEILING: Lower voice max_tokens to 350 to provide super-fast text chunks and stay well within your 812 budget
         response_stream = client.chat.completions.create(
-            model="openrouter/free",
+            model="gemini-3.6-flash",
             messages=api_messages,  # type: ignore
             max_tokens=350,  
             stream=True  

@@ -149,13 +149,19 @@ def render_voice_tutor_page(client):
     # =========================================================================
     if st.session_state.voice_stage == "idle":
         target_stt_lang = "sw" if "swahili" in str(language).lower() else "en"
+        stt_start = time.perf_counter()
+
         transcribed_text = speech_to_text(
             start_prompt="🎙️ Click & Start Speaking",
             stop_prompt="🛑 Stop & Send Voice Note",
             language=target_stt_lang,
-            key=f"voice_stt_v_{st.session_state.voice_recorder_version}"  
+            key=f"voice_stt_v_{st.session_state.voice_recorder_version}"
         )
 
+        stt_elapsed = time.perf_counter() - stt_start
+
+        if transcribed_text:
+            print(f"[VOICE TIMING] Transcription: {stt_elapsed:.2f}s")
         if transcribed_text:
             cleaned_text = str(transcribed_text).strip()
             cleaned_text = cleaned_text.replace("play music by", "").replace("play music", "").strip()
@@ -202,7 +208,8 @@ def render_voice_tutor_page(client):
                 question=user_input,
                 student=voice_student_profile,
                 messages=voice_history_payload,
-                adaptive_context=adaptive_context
+                adaptive_context=adaptive_context,
+                client = client
             )
 
             # Stream LLM Response safely

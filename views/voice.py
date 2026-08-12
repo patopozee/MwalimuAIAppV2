@@ -25,12 +25,15 @@ def render():
         # 2. GATE THE FEATURE: Only allow 'Premium' tier
         if str(tier).strip().lower() == "premium":
             # Check if environment setup exists
-            api_key = os.environ.get("OPENROUTER_API_KEY") or st.secrets.get("OPENROUTER_API_KEY")
+            api_key = (
+                os.environ.get("GEMINI_API_KEY")
+                or st.secrets.get("GEMINI_API_KEY")
+            )
             if api_key:
                 # 🎯 FIX: Declare an explicit localized client inside this scope block!
                 from openai import OpenAI
                 local_voice_client = OpenAI(
-                    base_url="https://openrouter.ai", 
+                    base_url="https://generativelanguage.googleapis.com/v1beta/openai/", 
                     api_key=api_key
                 )
                 

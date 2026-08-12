@@ -7,7 +7,7 @@ from services.database import get_student_data
 TIER_LIMITS = {
     "Free": {
         "questions": 15,
-        "quizzes": 5,
+        "quizzes": 7,
         "flashcards": 5,
         "lessons": 1,
         "has_study_plan": 1,
