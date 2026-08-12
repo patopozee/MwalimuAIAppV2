@@ -162,7 +162,20 @@ for key, val in default_states.items():
 # ====================================================================
 # STEP 2: TOP-LEVEL GOOGLE OAUTH INTERCEPTOR
 # ====================================================================
-
+st.markdown(
+    """
+    <style>
+    .custom-card {
+        background-color: var(--secondary-background-color);
+        color: var(--text-color);
+        border: 1px solid rgba(128, 128, 128, 0.2);
+        padding: 1rem;
+        border-radius: 8px;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True
+)
 # Add UI Styling
 st.html("""
     <style>
@@ -584,107 +597,99 @@ if st.session_state.get("user_authenticated") and "user_email" in st.session_sta
 
     import streamlit as st
 
-    st.markdown("""
-    <style>
+    st.markdown(
+        """
+        <style>
+        /* Main content */
+        [data-testid="stMainBlockContainer"] {
+            max-width: 900px;
+            margin: auto;
+            padding-bottom: 120px !important;
+        }
 
-    /* Main content */
-    [data-testid="stMainBlockContainer"]{
-        max-width:900px;
-        margin:auto;
-        padding-bottom:120px !important;
-    }
+        /* Chat input positioning wrapper */
+        div[data-testid="stChatInput"] {
+            position: fixed !important;
+            bottom: 65px !important;
+            z-index: 999999;
+            transition: left .25s ease, width .25s ease, transform .25s ease;
+            padding: 0 !important;
+            background: transparent !important;
+        }
 
-    /* Chat input */
-    div[data-testid="stChatInput"]{
-        position:fixed !important;
-        bottom:65px !important;
+        /* Inner Chat Box Container - Dynamic Theme Background */
+        div[data-testid="stChatInput"] > div {
+            background-color: var(--secondary-background-color) !important;
+            border: 1px solid rgba(128, 128, 128, 0.3) !important;
+            border-radius: 14px !important;
+            min-height: 55px !important;
+            padding-top: 10px !important;
+            padding-bottom: 1px !important;
+        }
 
-        z-index:999999;
+        /* Textarea Field - Dynamic Text Color & Caret */
+        div[data-testid="stChatInput"] textarea {
+            color: var(--text-color) !important;
+            background-color: transparent !important;
+            caret-color: var(--text-color) !important;
+        }
 
-        transition:
-            left .25s ease,
-            width .25s ease,
-            transform .25s ease;
+        /* Placeholder Text */
+        div[data-testid="stChatInput"] textarea::placeholder {
+            color: var(--text-color) !important;
+            opacity: 0.6 !important;
+        }
 
-        padding:0 !important;
-        background:transparent !important;
-    }
+        /* Submit Button */
+        div[data-testid="stChatInputSubmitButton"] {
+            color: var(--text-color) !important;
+            background-color: transparent !important;
+        }
 
-    /* Chat box - Optimized Height Profile */
-    div[data-testid="stChatInput"] > div{
-        background:#2F3037 !important;
-        border-radius:14px !important;
-        min-height: 55px !important;
-        padding-top: 10px !important;
-        padding-bottom: 1px !important;
-    }
+        /* Mobile Layout Adjustments */
+        @media (max-width: 768px) {
+            div[data-testid="stChatInput"] {
+                left: 12px !important;
+                right: 12px !important;
+                width: auto !important;
+                transform: none !important;
+                bottom: 65px !important;
+            }
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
 
-    
-    /* Mobile */
-    @media (max-width:768px){
-
-    div[data-testid="stChatInput"]{
-
-        left:12px !important;
-        right:12px !important;
-        width:auto !important;
-        transform:none !important;
-        bottom:65px !important;
-
-    }
-
-    }
-
-    </style>
-    """, unsafe_allow_html=True)
-
-    #=============================================
-    #=============================================
-
+    # Position-tracking JavaScript Bridge
     st.iframe(
-    """
-    <script>
+        """
+        <script>
+        function updateChatInput(){
+            const sidebar = window.parent.document.querySelector('section[data-testid="stSidebar"]');
+            const chat = window.parent.document.querySelector('div[data-testid="stChatInput"]');
+            const main = window.parent.document.querySelector('[data-testid="stMainBlockContainer"]');
 
-    function updateChatInput(){
+            if(!sidebar || !chat || !main) return;
 
-        const sidebar =
-            window.parent.document.querySelector('section[data-testid="stSidebar"]');
+            const mainRect = main.getBoundingClientRect();
+            chat.style.left = mainRect.left + "px";
+            chat.style.width = mainRect.width + "px";
+            chat.style.transform = "none";
+        }
 
-        const chat =
-            window.parent.document.querySelector('div[data-testid="stChatInput"]');
+        updateChatInput();
+        const resizeObserver = new ResizeObserver(updateChatInput);
+        const targetSidebar = window.parent.document.querySelector('section[data-testid="stSidebar"]');
+        if (targetSidebar) {
+            resizeObserver.observe(targetSidebar);
+        }
 
-        const main =
-            window.parent.document.querySelector('[data-testid="stMainBlockContainer"]');
-
-        if(!sidebar || !chat || !main) return;
-
-        const sidebarWidth = sidebar.getBoundingClientRect().width;
-
-        const mainRect = main.getBoundingClientRect();
-
-        chat.style.left = mainRect.left + "px";
-
-        chat.style.width = mainRect.width + "px";
-
-        chat.style.transform = "none";
-
-    }
-
-    updateChatInput();
-
-    const resizeObserver = new ResizeObserver(updateChatInput);
-
-    resizeObserver.observe(
-        window.parent.document.querySelector('section[data-testid="stSidebar"]')
-    );
-
-    window.parent.addEventListener("resize", updateChatInput);
-
-    setInterval(updateChatInput,300);
-
-    </script>
-    """,
-    height=1, # Fixed: set to 1 pixel to satisfy Streamlit's validation while staying invisible
+        window.parent.addEventListener("resize", updateChatInput);
+        setInterval(updateChatInput, 300);
+        </script>
+        """,
+        height=1,
     )
 
     #========================================================
