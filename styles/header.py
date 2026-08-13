@@ -225,9 +225,10 @@ def load():
    =========================================================== */
    @media (max-width: 768px){{
 
+       /* Entire outer header box */
        .mw-header{{
            position: fixed !important;
-           top: 4px !important;
+           top: 2px !important;
            left: 4px !important;
            right: 4px !important;
            width: auto !important;
@@ -235,103 +236,122 @@ def load():
            display: flex !important;
            flex-direction: column !important;
            align-items: stretch !important;
-           gap: 2px !important;
-           padding: 4px 8px !important;
+           gap: 1px !important;              /* Tightened spacing between rows */
+           padding: 4px 8px !important;        /* Drastically reduced outer card padding */
            background: rgba(17, 24, 39, 0.95) !important;
            backdrop-filter: blur(8px) !important;
            border: 1px solid #2E394D !important;
-           border-radius: 12px !important;
+           border-radius: 10px !important;
            box-sizing: border-box !important;
            z-index: 99999 !important;
            transition: none !important;
        }}
 
-       /* Top Row: Brand Header */
-       .mw-brand-card{{
+       /* Top Row Layout (Brand Left, Profile/Icons Right) */
+       .mw-header-top {{
+           display: flex !important;
+           justify-content: space-between !important;
+           align-items: center !important;
            width: 100% !important;
-           height: 26px !important;
-           padding: 0 4px !important;
+           margin: 0 !important;
+           padding: 0 !important;
+       }}
+
+       /* Brand Card (Logo + Text) */
+       .mw-brand-card{{
+           width: auto !important;
+           height: auto !important;
+           padding: 0 !important;
            background: transparent !important;
            border: none !important;
-           gap: 6px !important;
+           gap: 5px !important;
+           margin: 0 !important;
        }}
 
        .mw-logo{{
-           width: 22px !important;
-           height: 22px !important;
+           width: 24px !important;
+           height: 24px !important;
        }}
 
        .mw-title{{
-           font-size: 11px !important;
+           font-size: 12px !important;
            line-height: 1 !important;
+           margin: 0 !important;
        }}
 
        .mw-subtitle{{
            display: block !important;
-           font-size: 7.5px !important;
+           font-size: 7px !important;
            color: #94A3B8 !important;
            line-height: 1 !important;
-           margin-top: 1px !important;
+           margin-top: 1.5px !important;
        }}
 
-       /* Middle Row: Context Breadcrumbs */
+       /* Middle/Bottom Row: Grade & Subject Breadcrumbs */
        .mw-context-card {{
            display: flex !important;
            width: 100% !important;
            justify-content: center !important;
            align-items: center !important;
-           font-size: 8.5px !important;
-           padding: 1px 0 !important;
+           font-size: 10px !important;
+           padding: 0 !important;
+           margin: 0 !important;
            background: transparent !important;
            border: none !important;
            opacity: 0.85;
            white-space: nowrap !important;
            overflow-x: auto !important;
+           height: auto !important;
        }}
 
-       /* Bottom Row: Icons & User Profile */
+       /* Right Section (Icons & Profile Pill) */
        .mw-right{{
-           width: 100% !important;
+           width: auto !important;
            display: flex !important;
-           justify-content: space-between !important;
+           justify-content: flex-end !important;
            align-items: center !important;
-           gap: 4px !important;
-           padding-top: 2px !important;
+           gap: 3px !important;
+           margin: 0 !important;
+           padding: 0 !important;
        }}
 
        .mw-icon{{
-           width: 28px !important;
-           height: 28px !important;
-           font-size: 11px !important;
-           border-radius: 8px !important;
+           width: 22px !important;
+           height: 22px !important;
+           font-size: 10px !important;
+           border-radius: 5px !important;
+           padding: 0 !important;
        }}
 
        .mw-plan{{
-           padding: 3px 8px !important;
-           font-size: 9.5px !important;
-           border-radius: 6px !important;
+           padding: 2px 5px !important;
+           font-size: 10px !important;
+           border-radius: 4px !important;
+           line-height: 1 !important;
        }}
 
        .mw-profile{{
-           height: 28px !important;
-           padding: 0 6px !important;
-           gap: 4px !important;
-           border-radius: 8px !important;
+           height: 22px !important;
+           padding: 0 4px !important;
+           gap: 3px !important;
+           border-radius: 5px !important;
+           background: #1F2937 !important;
        }}
 
        .mw-avatar{{
-           width: 20px !important;
-           height: 20px !important;
-           font-size: 9px !important;
+           width: 16px !important;
+           height: 16px !important;
+           font-size: 10px !important;
        }}
 
        .mw-name{{
            font-size: 10px !important;
+           line-height: 1 !important;
        }}
 
-       /* Push main page layout smoothly below compact mobile card */
+       /* Reduces top margin of chat so content sits close under the new ultra-thin header */
        div[data-testid="stMainBlockContainer"]{{
-           padding-top: 115px !important;
+           padding-top: 72px !important;
        }}
    }}
 
