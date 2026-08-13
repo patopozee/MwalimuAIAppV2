@@ -219,102 +219,121 @@ def load():
     div[data-testid="stMainBlockContainer"]{{
         padding-top:82px !important;
     }}
-
+    
    /* ===========================================================
-    MOBILE (Phones & Small Tablets ONLY)
-    =========================================================== */
-    @media (max-width: 768px){{
+   MOBILE (Phones & Small Tablets ONLY)
+   =========================================================== */
+   @media (max-width: 768px){{
 
        .mw-header{{
-            position: fixed !important;
-            top: 10px !important;
-            left: 10px !important;
-            right: 10px !important;
-            width: auto !important;
-            height: auto !important;
-            display: flex !important;
-            flex-direction: column !important;
-            align-items: stretch !important;
-            gap: 8px !important;
-            padding: 8px !important;
-            background: rgba(17, 24, 39, 0.95) !important;
-            backdrop-filter: blur(8px) !important;
-            border: 1px solid #2E394D !important;
-            border-radius: 16px !important;
-            box-sizing: border-box !important;
-            z-index: 99999 !important;
-            transition: none !important;
-        }}
+           position: fixed !important;
+           top: 4px !important;
+           left: 4px !important;
+           right: 4px !important;
+           width: auto !important;
+           height: auto !important;
+           display: flex !important;
+           flex-direction: column !important;
+           align-items: stretch !important;
+           gap: 2px !important;
+           padding: 4px 8px !important;
+           background: rgba(17, 24, 39, 0.95) !important;
+           backdrop-filter: blur(8px) !important;
+           border: 1px solid #2E394D !important;
+           border-radius: 12px !important;
+           box-sizing: border-box !important;
+           z-index: 99999 !important;
+           transition: none !important;
+       }}
 
-        /* Brand */
-        .mw-brand-card{{
-            width: 100% !important;
-            height: 46px !important;
-            padding: 0 12px !important;
-            background: transparent !important;
-            border: none !important;
-        }}
+       /* Top Row: Brand Header */
+       .mw-brand-card{{
+           width: 100% !important;
+           height: 26px !important;
+           padding: 0 4px !important;
+           background: transparent !important;
+           border: none !important;
+           gap: 6px !important;
+       }}
 
-        .mw-logo{{
-            width: 28px !important;
-            height: 28px !important;
-        }}
+       .mw-logo{{
+           width: 22px !important;
+           height: 22px !important;
+       }}
 
-        .mw-title{{
-            font-size: 13px !important;
-        }}
+       .mw-title{{
+           font-size: 11px !important;
+           line-height: 1 !important;
+       }}
 
-        .mw-subtitle{{
-            font-size: 8px !important;
-        }}
+       .mw-subtitle{{
+           display: block !important;
+           font-size: 7.5px !important;
+           color: #94A3B8 !important;
+           line-height: 1 !important;
+           margin-top: 1px !important;
+       }}
 
-        /* Subject card - hidden on mobile for clean layout */
-        .mw-context-card{{
-            display: none !important;
-        }}
+       /* Middle Row: Context Breadcrumbs */
+       .mw-context-card {{
+           display: flex !important;
+           width: 100% !important;
+           justify-content: center !important;
+           align-items: center !important;
+           font-size: 8.5px !important;
+           padding: 1px 0 !important;
+           background: transparent !important;
+           border: none !important;
+           opacity: 0.85;
+           white-space: nowrap !important;
+           overflow-x: auto !important;
+       }}
 
-        /* Right section */
-        .mw-right{{
-            width: 100% !important;
-            display: flex !important;
-            justify-content: space-between !important;
-            align-items: center !important;
-            gap: 6px !important;
-        }}
+       /* Bottom Row: Icons & User Profile */
+       .mw-right{{
+           width: 100% !important;
+           display: flex !important;
+           justify-content: space-between !important;
+           align-items: center !important;
+           gap: 4px !important;
+           padding-top: 2px !important;
+       }}
 
-        .mw-icon{{
-            width: 36px !important;
-            height: 36px !important;
-            font-size: 13px !important;
-        }}
+       .mw-icon{{
+           width: 28px !important;
+           height: 28px !important;
+           font-size: 11px !important;
+           border-radius: 8px !important;
+       }}
 
-        .mw-plan{{
-            padding: 5px 10px !important;
-            font-size: 10px !important;
-        }}
+       .mw-plan{{
+           padding: 3px 8px !important;
+           font-size: 9.5px !important;
+           border-radius: 6px !important;
+       }}
 
-        .mw-profile{{
-            height: 36px !important;
-            padding: 0 8px !important;
-            gap: 6px !important;
-        }}
+       .mw-profile{{
+           height: 28px !important;
+           padding: 0 6px !important;
+           gap: 4px !important;
+           border-radius: 8px !important;
+       }}
 
-        .mw-avatar{{
-            width: 26px !important;
-            height: 26px !important;
-            font-size: 10px !important;
-        }}
+       .mw-avatar{{
+           width: 20px !important;
+           height: 20px !important;
+           font-size: 9px !important;
+       }}
 
-        .mw-name{{
-            font-size: 11px !important;
-        }}
+       .mw-name{{
+           font-size: 10px !important;
+       }}
 
-        /* Push Streamlit page down enough */
-        div[data-testid="stMainBlockContainer"]{{
-            padding-top: 140px !important;
-        }}
-    }}
-
+       /* Push main page layout smoothly below compact mobile card */
+       div[data-testid="stMainBlockContainer"]{{
+           padding-top: 115px !important;
+       }}
+   }}
 
     </style>
     """,
