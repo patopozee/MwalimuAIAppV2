@@ -1360,9 +1360,10 @@ else:
             st.info("""
         📧 **Email:** info@mwalimuaiapp.com
 
-        💬 **WhatsApp:** +254 710 694 297
-
         📞 **Call:** +254 710 694 297
+
+        💬 **WhatsApp:** +254 710 694 297    (𝕏 **X:** @mwalimuaiapp)  (📘 **Facebook:** @mwalimuaiapp)
+
         """)
 
             with st.form("contact_form", clear_on_submit=True):
