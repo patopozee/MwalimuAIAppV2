@@ -1362,7 +1362,7 @@ else:
 
         📞 **Call:** +254 710 694 297
 
-        💬 **WhatsApp:** +254 710 694 297    (𝕏 **X:** @mwalimuaiapp)  (📘 **Facebook:** @mwalimuaiapp)
+        💬 𝑾𝒉𝒂𝒕𝒔𝑨pp** +254 710 694 297    (𝕏Twitter𝕏 ** @mwalimuaiapp)  (ⓕ Facebook** @mwalimuaiapp)  (【ꚠ】𝗧𝗶𝗸𝗼𝗸 ** @mwalimuaiapp)
 
         """)
 
