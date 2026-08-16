@@ -143,7 +143,17 @@ def render_voice_tutor_page(client):
     # Containers for dynamic runtime updates
     live_response_container = st.container()
     st.write("---")
+    # SUBJECT / LANGUAGE SWITCH RESET
+    # Force state back to "idle" if the user changes context mid-session
+    # -------------------------------------------------------------------------
+    current_subject = st.session_state.get("active_subject", "General Studies")
 
+    if st.session_state.get("last_voice_subject") != current_subject:
+        # Safely unlock the recorder for the new language/subject
+        st.session_state.voice_stage = "idle"
+        st.session_state.playback_end_time = None
+        st.session_state.pending_user_text = ""
+        st.session_state.last_voice_subject = current_subject
     # =========================================================================
     # PIPELINE STAGE 1: IDLE (Render Recorder component and await speech)
     # =========================================================================
@@ -158,10 +168,10 @@ def render_voice_tutor_page(client):
             key=f"voice_stt_v_{st.session_state.voice_recorder_version}"
         )
 
-        stt_elapsed = time.perf_counter() - stt_start
+        # stt_elapsed = time.perf_counter() - stt_start
 
-        if transcribed_text:
-            print(f"[VOICE TIMING] Transcription: {stt_elapsed:.2f}s")
+        # if transcribed_text:
+        #     print(f"[VOICE TIMING] Transcription: {stt_elapsed:.2f}s")
         if transcribed_text:
             cleaned_text = str(transcribed_text).strip()
             cleaned_text = cleaned_text.replace("play music by", "").replace("play music", "").strip()
@@ -282,7 +292,8 @@ def render_voice_tutor_page(client):
         else:
             st.session_state.voice_stage = "idle"
             st.rerun()
-
+    # -------------------------------------------------------------------------
+    
     # =========================================================================
     # PIPELINE STAGE 3: SPEAKING (Autoplay active voice, lock recorder)
     # =========================================================================
