@@ -39,24 +39,6 @@ def generate_edge_tts_audio(text: str, voice: str) -> bytes:
 import re
 
 def clean_math_transcript(text: str) -> str:
-    st.markdown(
-        """
-        <style>
-        /* Force all component iframes to match dark theme background */
-        iframe {
-            background-color: transparent !important;
-            color-scheme: dark !important;
-        }
-        iframe[title*="speech_to_text"], 
-        iframe[title*="mic_recorder"] {
-            background: transparent !important;
-            border: none !important;
-            border-radius: 8px;
-        }
-        </style>
-        """,
-        unsafe_allow_html=True
-    )
 
     corrections = {
         "to": "two",
@@ -161,29 +143,19 @@ def render_voice_tutor_page(client):
     # Containers for dynamic runtime updates
     live_response_container = st.container()
     st.write("---")
-    # SUBJECT / LANGUAGE SWITCH RESET
-    # Force state back to "idle" if the user changes context mid-session
-    # -------------------------------------------------------------------------
-    current_subject = st.session_state.get("active_subject", "General Studies")
 
-    if st.session_state.get("last_voice_subject") != current_subject:
-        # Safely unlock the recorder for the new language/subject
-        st.session_state.voice_stage = "idle"
-        st.session_state.playback_end_time = None
-        st.session_state.pending_user_text = ""
-        st.session_state.last_voice_subject = current_subject
     # =========================================================================
     # PIPELINE STAGE 1: IDLE (Render Recorder component and await speech)
     # =========================================================================
     if st.session_state.voice_stage == "idle":
         target_stt_lang = "sw" if "swahili" in str(language).lower() else "en"
         stt_start = time.perf_counter()
-        
+
         transcribed_text = speech_to_text(
             start_prompt="🎙️ Click & Start Speaking",
             stop_prompt="🛑 Stop & Send Voice Note",
             language=target_stt_lang,
-            key="voice_stt_component"  # Use a fixed key unless resetting explicitly
+            key=f"voice_stt_v_{st.session_state.voice_recorder_version}"
         )
 
         # stt_elapsed = time.perf_counter() - stt_start
@@ -310,8 +282,7 @@ def render_voice_tutor_page(client):
         else:
             st.session_state.voice_stage = "idle"
             st.rerun()
-    # -------------------------------------------------------------------------
-    
+
     # =========================================================================
     # PIPELINE STAGE 3: SPEAKING (Autoplay active voice, lock recorder)
     # =========================================================================
