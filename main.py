@@ -1107,7 +1107,7 @@ else:
                     Your AI Tutor.<br>Your Academic <span style="color:#3b82f6;">Advantage.</span>
                 </h1>
                 <p style="color:#94a3b8; font-size:1.1rem; margin-top:16px; margin-bottom:24px; line-height:1.5;">
-                    Mwalimu AI is your all-in-one intelligent workspace, precision-engineered for Kenya’s CBC curriculum. We combine empathetic, 
+                    Mwalimu AI is your all-in-one intelligent workspace, precision-engineered for Kenya’s CBC curriculum Grade 1 - 12. We combine empathetic, 
                     conversational AI tutoring with a robust Learning Management System to help you master complex topics, 
                     automate your study planning, and track your academic milestones—all in one seamless hub.
                 </p>
