@@ -165,7 +165,7 @@ def render_voice_tutor_page(client):
             start_prompt="🎙️ Click & Start Speaking",
             stop_prompt="🛑 Stop & Send Voice Note",
             language=target_stt_lang,
-            key=f"voice_stt_v_{st.session_state.voice_recorder_version}"
+            key="voice_stt_component"  # Use a fixed key unless resetting explicitly
         )
 
         # stt_elapsed = time.perf_counter() - stt_start
