@@ -39,6 +39,24 @@ def generate_edge_tts_audio(text: str, voice: str) -> bytes:
 import re
 
 def clean_math_transcript(text: str) -> str:
+    st.markdown(
+        """
+        <style>
+        /* Force all component iframes to match dark theme background */
+        iframe {
+            background-color: transparent !important;
+            color-scheme: dark !important;
+        }
+        iframe[title*="speech_to_text"], 
+        iframe[title*="mic_recorder"] {
+            background: transparent !important;
+            border: none !important;
+            border-radius: 8px;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True
+    )
 
     corrections = {
         "to": "two",
@@ -160,7 +178,7 @@ def render_voice_tutor_page(client):
     if st.session_state.voice_stage == "idle":
         target_stt_lang = "sw" if "swahili" in str(language).lower() else "en"
         stt_start = time.perf_counter()
-
+        
         transcribed_text = speech_to_text(
             start_prompt="🎙️ Click & Start Speaking",
             stop_prompt="🛑 Stop & Send Voice Note",
