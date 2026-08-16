@@ -158,10 +158,10 @@ def render_voice_tutor_page(client):
             key=f"voice_stt_v_{st.session_state.voice_recorder_version}"
         )
 
-        # stt_elapsed = time.perf_counter() - stt_start
+        stt_elapsed = time.perf_counter() - stt_start
 
-        # if transcribed_text:
-        #     print(f"[VOICE TIMING] Transcription: {stt_elapsed:.2f}s")
+        if transcribed_text:
+            print(f"[VOICE TIMING] Transcription: {stt_elapsed:.2f}s")
         if transcribed_text:
             cleaned_text = str(transcribed_text).strip()
             cleaned_text = cleaned_text.replace("play music by", "").replace("play music", "").strip()
