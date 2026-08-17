@@ -15,31 +15,36 @@ from services.database import (
 )
 
 def render(): 
-    # 🚀 Pull the authoritative active profile dictionary from the sidebar state store
-    if "active_student_profile" in st.session_state:
-        student = st.session_state.active_student_profile
-    else:
-        # Secure structural fallback mapping properties if missing
-        student = {
-            "name": st.session_state.get("student_name", "Student"),
-            "grade": st.session_state.get("grade", "Grade 6"),
-            "age": int(st.session_state.get("age", 12)) if st.session_state.get("age") else 12,
-            "language": st.session_state.get("language", "English"),
-            "preferred_language": st.session_state.get("language", "English"),
-            "subject": st.session_state.get("active_subject", "Science and Technology"),
-            "topic": st.session_state.get("active_topic", ""),
-            "sub_topic": st.session_state.get("active_sub_topic", ""),
-            "learning_outcome": st.session_state.get("active_learning_outcome", "General")
-        }
+    # 🚀 1. DYNAMIC CONTEXT SYNC: Pull freshest keys from session state directly
+    active_subject = st.session_state.get("active_subject") or st.session_state.get("subject", "Science and Technology")
+    active_topic = st.session_state.get("active_topic") or st.session_state.get("topic", "")
+    active_sub_topic = st.session_state.get("active_sub_topic") or st.session_state.get("sub_topic", "")
+    active_learning_outcome = st.session_state.get("active_learning_outcome") or st.session_state.get("learning_outcome", "General")
+    active_lang = st.session_state.get("preferred_language") or st.session_state.get("language", "English")
+
+    # Always rebuild authoritative active_student_profile on page render
+    student = {
+        "name": st.session_state.get("student_name", "Student"),
+        "grade": st.session_state.get("grade", "Grade 6"),
+        "age": int(st.session_state.get("age", 12)) if st.session_state.get("age") else 12,
+        "language": active_lang,
+        "preferred_language": active_lang,
+        "subject": active_subject,
+        "topic": active_topic,
+        "sub_topic": active_sub_topic,
+        "learning_outcome": active_learning_outcome
+    }
+    st.session_state.active_student_profile = student
 
     # Extract baseline layout pointers
-    subject = student.get("subject", "")
-    sub_topic = student.get("sub_topic", "")
-    learning_outcome = student.get("learning_outcome", "")
+    subject = student["subject"]
+    topic = student["topic"]
+    sub_topic = student["sub_topic"]
+    learning_outcome = student["learning_outcome"]
 
     st.markdown("---")
     st.subheader("🎯 Mwalimu AI Learning Generators Hub")
-    st.write(f"Active Context: **{student['subject']}** ➡️ **{student['topic']}** ({student['language']})")
+    st.write(f"Active Context: **{subject}** ➡️ **{topic}** ({student['language']})")
 
     # Fetch student tier profile data upfront using email lookup
     user_profile_raw = get_student_data(st.session_state.user_email)
@@ -67,6 +72,9 @@ def render():
     if "lesson_content" not in st.session_state:
         st.session_state.lesson_content = None
 
+    # Target topic resolution prioritizing sub_topic then topic
+    context_target_topic = sub_topic if sub_topic else topic
+
     # Build Interactive Workspace Tabs Container
     tab_quiz, tab_flash, tab_less, tab_plan = st.tabs(["📝 Quiz Generator", "🗂️ Flashcards Maker", "📖 Lesson Planner", "📅 Study Plan"])
 
@@ -79,18 +87,15 @@ def render():
         # Get the active lesson FIRST
         active_lesson = st.session_state.get("lms_active_lesson_node")
 
-        # Determine what the active topic should be based on context logic
         if active_lesson:
             computed_topic = active_lesson.get("title", "")
         else:
-            computed_topic = st.session_state.get("workspace_quiz_topic", sub_topic)
+            computed_topic = context_target_topic
 
-        # Force update session state when the active context changes
-        if "workspace_quiz_topic" not in st.session_state or active_lesson:
+        # 🚨 FORCE OVERWRITE WIDGET STATE IF CONTEXT CHANGED OR PAGE RE-ENTERED
+        if st.session_state.get("last_synced_quiz_context") != computed_topic:
             st.session_state["workspace_quiz_topic"] = computed_topic
-        elif st.session_state.get("last_sub_topic") != sub_topic and not active_lesson:
-            st.session_state["workspace_quiz_topic"] = sub_topic
-            st.session_state["last_sub_topic"] = sub_topic
+            st.session_state["last_synced_quiz_context"] = computed_topic
 
         # Render the text input safely
         raw_quiz_input = st.text_input(
