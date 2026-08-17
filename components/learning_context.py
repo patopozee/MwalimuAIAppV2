@@ -98,7 +98,7 @@ def render():
         st.session_state.active_sub_topic = sub_topic
         st.session_state.active_learning_outcome = learning_outcome
 
-        st.rerun()
+        # st.rerun()
     # ============================================================
     # LOAD SUBJECT CHAT HISTORY
     # ============================================================
