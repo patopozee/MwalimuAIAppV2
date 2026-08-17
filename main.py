@@ -373,14 +373,17 @@ def render_auth_portal(context="auth"):
 # ====================================================================
 # STEP 2: TOP-LEVEL GOOGLE OAUTH INTERCEPTOR
 # ====================================================================
+# STEP 2: TOP-LEVEL GOOGLE OAUTH INTERCEPTOR
+# ====================================================================
+from services.profile_service import set_student_profile
 if "code" in st.query_params and not st.session_state.get("user_authenticated", False):
     auth_code = st.query_params["code"]
     current_redirect = resolve_redirect_uri()
-    
+
     try:
         cid = st.secrets["google_oauth"]["client_id"]
         csecret = st.secrets["google_oauth"]["client_secret"]
-        
+
         response = requests.post(
             "https://oauth2.googleapis.com/token",
             data={
@@ -393,7 +396,7 @@ if "code" in st.query_params and not st.session_state.get("user_authenticated", 
             headers={"Content-Type": "application/x-www-form-urlencoded"},
             timeout=10
         )
-        
+
         token_response = response.json()
 
         if response.status_code == 200 and "access_token" in token_response:
@@ -402,37 +405,41 @@ if "code" in st.query_params and not st.session_state.get("user_authenticated", 
                 headers={"Authorization": f"Bearer {token_response['access_token']}"},
                 timeout=10
             ).json()
-            
+
             email_val = user_info.get("email", "").strip().lower()
             name_val = user_info.get("name", "Student").strip().title()
-            
+
             try:
                 firebase_user = auth.get_user_by_email(email_val)
                 firebase_uid = firebase_user.uid
             except auth.UserNotFoundError:
                 firebase_user = auth.create_user(email=email_val, display_name=name_val)
                 firebase_uid = firebase_user.uid
-                
+
+            # Fetch or create user profile in Firestore
             profile = get_or_create_user_profile(firebase_uid, email_val, name_val)
+
+            # Standardize and map profile values safely into st.session_state
+            set_student_profile(profile)
+
+            # Sync persistent browser cookie/db session
             create_session(profile["uid"], profile["email"])
 
+            # Set authentication flags and workspace navigation state
             st.session_state.user_authenticated = True
             st.session_state.session_checked = True
             st.session_state.uid = profile["uid"]
-            st.session_state.user_email = profile["email"]
-            st.session_state.student_name = profile["name"]
-            st.session_state.grade = profile.get("grade", "Grade 1")
-            st.session_state.age = int(profile.get("age", 10))
-            st.session_state.user_profile = profile
             st.session_state.current_page = "Main Chat"
             st.session_state.active_view = "main"
 
             update_session()
 
+            # Clear OAuth query params from the browser URL bar
             if "code" in st.query_params:
                 del st.query_params["code"]
 
             st.rerun()
+
         else:
             error_desc = token_response.get("error_description", token_response.get("error", "Unknown Token Error"))
             st.error(f"Google OAuth Token Exchange Failed ({response.status_code}): {error_desc}")

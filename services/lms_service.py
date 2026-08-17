@@ -65,17 +65,25 @@ def build_course_from_curriculum(subject_tree):
 
 def load_course_structure(grade, subject):
     """
-    Builds lesson order directly from the curriculum files.
+    Builds lesson order directly from the curriculum files safely.
     """
+    if not grade:
+        return {"lessons": []}
 
-    grade_data = CURRICULUM.get(grade)
+    # Normalize grade format (e.g., convert "6" or "grade 6" to "Grade 6")
+    grade_str = str(grade).strip().title()
+    if not grade_str.startswith("Grade") and grade_str.isdigit():
+        grade_str = f"Grade {grade_str}"
 
-    if not grade_data:
+    grade_data = CURRICULUM.get(grade_str)
+
+    # Check if grade_data is valid before calling .get()
+    if not isinstance(grade_data, dict):
         return {"lessons": []}
 
     subject_tree = grade_data.get(subject)
 
-    if not subject_tree:
+    if not isinstance(subject_tree, dict):
         return {"lessons": []}
 
     return {
