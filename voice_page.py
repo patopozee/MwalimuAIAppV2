@@ -142,22 +142,29 @@ def render_voice_tutor_page(client):
     # anything below it, and interaction_holder is the single, constant
     # slot where the recorder / live response / playback UI always live.
     # =========================================================================
-    history_holder = st.container(height=420)
-    st.write("---")
+    has_history = len(st.session_state.voice_chat_history) > 0
+
+    if has_history:
+        history_holder = st.container(height=420)
+        st.write("---")
+    else:
+        history_holder = None
+
     interaction_holder = st.container()
 
     # 4. Render Conversation History Loop (inside the fixed-height box)
-    with history_holder:
-        for msg in st.session_state.voice_chat_history:
-            if msg["role"] == "user":
-                st.info(f"🗣️ **Mwanafunzi ({name}):** {msg['content']}")
-                if msg.get("audio_bytes"):
-                    st.audio(msg["audio_bytes"], format="audio/wav")
-            elif msg["role"] == "assistant":
-                st.success(f"🧙‍♂️ **Mwalimu:** {msg['content']}")
-                cached_audio = st.session_state.voice_cache.get(msg['content']) or msg.get("audio_bytes")
-                if cached_audio:
-                    st.audio(cached_audio, format="audio/mp3")
+    if history_holder is not None:
+        with history_holder:
+            for msg in st.session_state.voice_chat_history:
+                if msg["role"] == "user":
+                    st.info(f"🗣️ **Mwanafunzi ({name}):** {msg['content']}")
+                    if msg.get("audio_bytes"):
+                        st.audio(msg["audio_bytes"], format="audio/wav")
+                elif msg["role"] == "assistant":
+                    st.success(f"🧙‍♂️ **Mwalimu:** {msg['content']}")
+                    cached_audio = st.session_state.voice_cache.get(msg['content']) or msg.get("audio_bytes")
+                    if cached_audio:
+                        st.audio(cached_audio, format="audio/mp3")
 
     # =========================================================================
     # PIPELINE STAGE 1: IDLE (Render Recorder component and await speech)
