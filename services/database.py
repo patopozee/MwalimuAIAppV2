@@ -452,7 +452,7 @@ def get_ask_mwalimu_history(student_uid, subject):
         history.append(msg_node)
     return history
 
-@st.cache_data(ttl=5, show_spinner=False)
+# @st.cache_data(ttl=5, show_spinner=False)
 def get_voice_chat_history(student_uid, subject):
     """Pulls voice histories for the authenticated student and selected subject."""
 
