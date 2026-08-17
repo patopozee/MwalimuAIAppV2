@@ -8,14 +8,16 @@ import time
 import asyncio
 import edge_tts
 import tempfile
-from streamlit_mic_recorder import speech_to_text 
-from services.ai import ask_mwalimu_voice 
+import re
+from streamlit_mic_recorder import speech_to_text
+from services.ai import ask_mwalimu_voice
 from services.database import (
-    save_voice_chat_message, 
-    get_voice_chat_history, 
+    save_voice_chat_message,
+    get_voice_chat_history,
     clear_voice_chat_history_only
 )
 from services.audio_duration import get_audio_duration
+
 
 def generate_edge_tts_audio(text: str, voice: str) -> bytes:
     """Helper to run the async edge-tts generation loop and return bytes."""
@@ -24,7 +26,7 @@ def generate_edge_tts_audio(text: str, voice: str) -> bytes:
             communicate = edge_tts.Communicate(text, voice)
             await communicate.save(temp_file.name)
             temp_path = temp_file.name
-        
+
         with open(temp_path, "rb") as f:
             audio_bytes = f.read()
         try:
@@ -36,7 +38,7 @@ def generate_edge_tts_audio(text: str, voice: str) -> bytes:
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     return loop.run_until_complete(_async_gen())
-import re
+
 
 def clean_math_transcript(text: str) -> str:
 
@@ -62,6 +64,7 @@ def clean_math_transcript(text: str) -> str:
 
     return " ".join(cleaned)
 
+
 def render_voice_tutor_page(client):
     st.title("🎙️ Mwalimu AI - Voice Tutor")
     st.write("Click the microphone below to talk with your AI Teacher. Speak clearly!")
@@ -86,7 +89,7 @@ def render_voice_tutor_page(client):
     age = st.session_state.get("age", 13)
     learning_style = st.session_state.get("learning_style", "Interactive")
     language = st.session_state.get("language", "English")
-    
+
     subject = st.session_state.get("active_subject", "Mathematics")
     topic = st.session_state.get("active_topic", "Whole Numbers")
     sub_topic = st.session_state.get("active_sub_topic", "Place Value")
@@ -111,8 +114,8 @@ def render_voice_tutor_page(client):
     current_subject = st.session_state.get("active_subject", "General Studies")
 
     if student_uid:
-        if (st.session_state.get("last_voice_uid") != student_uid or 
-            st.session_state.get("last_voice_subject") != current_subject):
+        if (st.session_state.get("last_voice_uid") != student_uid or
+                st.session_state.get("last_voice_subject") != current_subject):
             try:
                 all_raw_history = get_voice_chat_history(student_uid, current_subject)
                 st.session_state.voice_chat_history = []
@@ -128,44 +131,56 @@ def render_voice_tutor_page(client):
             except Exception:
                 st.session_state.voice_chat_history = []
 
-    # 4. Render Conversation History Loop
-    for msg in st.session_state.voice_chat_history:
-        if msg["role"] == "user":
-            st.info(f"🗣️ **Mwanafunzi ({name}):** {msg['content']}")
-            if msg.get("audio_bytes"):
-                st.audio(msg["audio_bytes"], format="audio/wav")
-        elif msg["role"] == "assistant":
-            st.success(f"🧙‍♂️ **Mwalimu:** {msg['content']}")
-            cached_audio = st.session_state.voice_cache.get(msg['content']) or msg.get("audio_bytes")
-            if cached_audio:
-                st.audio(cached_audio, format="audio/mp3")
-
-    # Containers for dynamic runtime updates
-    live_response_container = st.container()
+    # =========================================================================
+    # FIXED LAYOUT ANCHORS
+    # -------------------------------------------------------------------------
+    # These are declared ONCE, in a fixed order, before any conditional
+    # rendering happens. This is what keeps the mic recorder's position in
+    # the DOM stable across reruns — regardless of how many chat/audio
+    # messages are rendered above it. A fixed-height, scrollable container
+    # for history means the history list can grow/shrink without shifting
+    # anything below it, and interaction_holder is the single, constant
+    # slot where the recorder / live response / playback UI always live.
+    # =========================================================================
+    history_holder = st.container(height=420)
     st.write("---")
+    interaction_holder = st.container()
+
+    # 4. Render Conversation History Loop (inside the fixed-height box)
+    with history_holder:
+        for msg in st.session_state.voice_chat_history:
+            if msg["role"] == "user":
+                st.info(f"🗣️ **Mwanafunzi ({name}):** {msg['content']}")
+                if msg.get("audio_bytes"):
+                    st.audio(msg["audio_bytes"], format="audio/wav")
+            elif msg["role"] == "assistant":
+                st.success(f"🧙‍♂️ **Mwalimu:** {msg['content']}")
+                cached_audio = st.session_state.voice_cache.get(msg['content']) or msg.get("audio_bytes")
+                if cached_audio:
+                    st.audio(cached_audio, format="audio/mp3")
 
     # =========================================================================
     # PIPELINE STAGE 1: IDLE (Render Recorder component and await speech)
     # =========================================================================
     if st.session_state.voice_stage == "idle":
         target_stt_lang = "sw" if "swahili" in str(language).lower() else "en"
-        stt_start = time.perf_counter()
 
-        transcribed_text = speech_to_text(
-            start_prompt="🎙️ Click & Start Speaking",
-            stop_prompt="🛑 Stop & Send Voice Note",
-            language=target_stt_lang,
-            key=f"voice_stt_v_{st.session_state.voice_recorder_version}"
-        )
+        with interaction_holder:
+            transcribed_text = speech_to_text(
+                start_prompt="🎙️ Click & Start Speaking",
+                stop_prompt="🛑 Stop & Send Voice Note",
+                language=target_stt_lang,
+                # Versioned key is intentional: it forces a fresh component
+                # instance (and therefore a cleared return value) only when
+                # a turn genuinely completes or history is cleared — not on
+                # every rerun. Do NOT tie this to subject/topic changes.
+                key=f"voice_stt_v_{st.session_state.voice_recorder_version}"
+            )
 
-        stt_elapsed = time.perf_counter() - stt_start
-
-        if transcribed_text:
-            print(f"[VOICE TIMING] Transcription: {stt_elapsed:.2f}s")
         if transcribed_text:
             cleaned_text = str(transcribed_text).strip()
             cleaned_text = cleaned_text.replace("play music by", "").replace("play music", "").strip()
-            
+
             if cleaned_text:
                 # Freeze details into session state, move stage immediately to block double capture
                 st.session_state.pending_user_text = cleaned_text
@@ -183,9 +198,9 @@ def render_voice_tutor_page(client):
 
         # Remove accidental extra spaces
         user_input = " ".join(user_input.split())
-        
+
         # 1. Instantly write user speech bubble into layout
-        with live_response_container:
+        with interaction_holder:
             st.info(f"🗣️ **Mwanafunzi ({name}):** {user_input}")
             assistant_placeholder = st.empty()
             assistant_placeholder.markdown("🧙‍♂️ **Mwalimu AI is typing...**")
@@ -209,7 +224,7 @@ def render_voice_tutor_page(client):
                 student=voice_student_profile,
                 messages=voice_history_payload,
                 adaptive_context=adaptive_context,
-                client = client
+                client=client
             )
 
             # Stream LLM Response safely
@@ -240,15 +255,15 @@ def render_voice_tutor_page(client):
         ai_response_text = ai_response_text.replace("User Safety: safe", "").strip()
 
         if ai_response_text:
-            with live_response_container:
+            with interaction_holder:
                 with st.spinner("🔊 Generating Mwalimu's voice file..."):
                     try:
                         voice_target = "sw-KE-RafikiNeural" if "swahili" in str(language).lower() else "en-KE-AsiliaNeural"
                         audio_bytes_payload = generate_edge_tts_audio(ai_response_text, voice_target)
-                        
+
                         # Cache raw file binary mapping string content
                         st.session_state.voice_cache[ai_response_text] = audio_bytes_payload
-                        
+
                         # Add to persistent lists
                         st.session_state.voice_chat_history.append(user_msg_dict)
                         st.session_state.voice_chat_history.append({
@@ -257,13 +272,13 @@ def render_voice_tutor_page(client):
 
                         # Save Assistant output to Data Layer
                         save_voice_chat_message(
-                            student_uid=student_uid, 
-                            student_name=name, 
-                            grade=grade, 
+                            student_uid=student_uid,
+                            student_name=name,
+                            grade=grade,
                             age=int(age),
-                            subject=current_subject, 
-                            role="assistant", 
-                            message=ai_response_text, 
+                            subject=current_subject,
+                            role="assistant",
+                            message=ai_response_text,
                             audio_bytes=audio_bytes_payload
                         )
 
@@ -287,18 +302,18 @@ def render_voice_tutor_page(client):
     # PIPELINE STAGE 3: SPEAKING (Autoplay active voice, lock recorder)
     # =========================================================================
     elif st.session_state.voice_stage == "speaking":
-        if st.session_state.voice_chat_history:
-            last_msg = st.session_state.voice_chat_history[-1]
-            if last_msg["role"] == "assistant" and last_msg.get("audio_bytes"):
-                with live_response_container:
+        with interaction_holder:
+            if st.session_state.voice_chat_history:
+                last_msg = st.session_state.voice_chat_history[-1]
+                if last_msg["role"] == "assistant" and last_msg.get("audio_bytes"):
                     st.markdown("🧙‍♂️ **Mwalimu AI is speaking...**")
                     st.audio(last_msg["audio_bytes"], format="audio/mp3", autoplay=True)
-        
-        # Display a passive loader indicator while timer ticks down
-        st.caption("⏳ Input locked until Mwalimu finishes reading context aloud.")
+
+            # Display a passive loader indicator while timer ticks down
+            st.caption("⏳ Input locked until Mwalimu finishes reading context aloud.")
+
         time.sleep(1.0)  # 🚀 Increased checking sleep interval for stability
         st.rerun()
-
 
     # --- DEDICATED CONFIRMATION DIALOG MODAL ---
     @st.dialog("🗑️ Clear Voice Data")
@@ -325,6 +340,6 @@ def render_voice_tutor_page(client):
                 st.rerun()
 
     if len(st.session_state.voice_chat_history) > 0:
-        st.write("") 
+        st.write("")
         if st.button("🗑️ Permanently Delete Voice DB Logs", type="secondary"):
             confirm_clear_voice_dialog()
