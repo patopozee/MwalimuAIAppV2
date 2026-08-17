@@ -21,6 +21,12 @@ RUN SITE_PACKAGES=$(python -c "import site; print(site.getsitepackages()[0])") &
     cp /app/assets/favicon.png "$SITE_PACKAGES/streamlit/static/favicon.png"
 # --- END SEO & STATIC PATCH ---
 
+ENV STREAMLIT_SERVER_ENABLE_CORS=false
+ENV STREAMLIT_SERVER_ENABLE_XSRF_PROTECTION=false
+ENV STREAMLIT_SERVER_HEADLESS=true
+ENV STREAMLIT_BROWSER_SERVER_ADDRESS="app.mwalimuaiapp.com"
+ENV STREAMLIT_BROWSER_SERVER_PORT=443
+
 EXPOSE 8080
 
 CMD mkdir -p /app/.streamlit && \
