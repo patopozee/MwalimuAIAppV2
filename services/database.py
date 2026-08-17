@@ -598,7 +598,7 @@ def save_voice_chat_message(
     conn.commit()
     conn.close()
 
-    get_voice_chat_history.clear()
+    # get_voice_chat_history.clear()
 
 def clear_student_chat_history(
         student_uid: str,
@@ -712,7 +712,7 @@ def clear_voice_chat_history_only(student_uid, grade, age, subject):
     conn.commit()
     conn.close()
 
-    get_voice_chat_history.clear()
+    #get_voice_chat_history.clear()
 
 def save_admin_material(subject, topic, sub_topic, filename, content):
     """Saves or updates global teaching material in the system."""
