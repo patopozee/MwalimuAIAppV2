@@ -41,6 +41,13 @@ if not firebase_admin._apps:
 db = firestore.client()
 
 # Services & Module Imports
+import os
+import base64
+import requests
+import streamlit as st
+from dotenv import load_dotenv
+from firebase_admin import auth
+
 from services.auth_service import MwalimuAuthService
 from services.db_service import MwalimuDBService
 from services.legal_text import TERMS_AND_CONDITIONS
@@ -71,14 +78,16 @@ if not is_oauth_callback:
     cookies_controller = CookieController()
 else:
     cookies_controller = None
+
 load_dotenv()
+
 
 # Dynamic Redirect URI Resolution
 def resolve_redirect_uri():
     headers = {}
     if hasattr(st, "context") and hasattr(st.context, "headers"):
         headers = st.context.headers or {}
-    
+
     host = headers.get("x-forwarded-host") or headers.get("host") or ""
 
     if "localhost" in host or "127.0.0.1" in host:
@@ -89,11 +98,10 @@ def resolve_redirect_uri():
     else:
         return "https://app.mwalimuaiapp.com"
 
+
 REDIRECT_URI = resolve_redirect_uri()
 create_tables()
 
-# ============================================================
-# RESTORE USER SESSION + WORKSPACE
 # ============================================================
 # RESTORE USER SESSION + WORKSPACE
 # ============================================================
@@ -106,7 +114,7 @@ if "session_checked" not in st.session_state:
 if cookies_controller is not None:
     if not st.session_state.get("user_authenticated", False) and not st.session_state.session_checked:
         session_data = validate_session()
-        
+
         if session_data:
             uid = session_data.get("uid")
             if uid:
@@ -152,7 +160,7 @@ default_states = {
     "user_profile": None,
     "ask_mwalimu_history": [],
     "voice_chat_history": [],
-    "new_message": False
+    "new_message": False,
 }
 
 for key, val in default_states.items():
@@ -174,10 +182,12 @@ st.markdown(
     }
     </style>
     """,
-    unsafe_allow_html=True
+    unsafe_allow_html=True,
 )
+
 # Add UI Styling
-st.html("""
+st.html(
+    """
     <style>
     @media (min-width: 768px) {
     [data-testid="stHeader"], header { background-color: transparent !important; height: 3.5rem !important; }
@@ -201,7 +211,9 @@ st.html("""
     box-shadow: 0 2px 8px rgba(30, 58, 138, 0.1) !important;
     }
     </style>
-    """)
+    """
+)
+
 
 # Helper Utilities
 def get_base64_image(image_path):
@@ -210,25 +222,26 @@ def get_base64_image(image_path):
             return base64.b64encode(f.read()).decode()
     return ""
 
+
 def render_auth_portal(context="auth"):
     if "selected_tier" in st.session_state:
-        st.info(f"You are signing up for: **{st.session_state.selected_tier}**") 
-        
+        st.info(f"You are signing up for: **{st.session_state.selected_tier}**")
+
     if "show_reset_form" not in st.session_state:
         st.session_state.show_reset_form = False
 
     tab_login, tab_signup, tab_google = st.tabs(["🔑 Login", "✨ Sign Up", "🔵 Google"])
-    
+
     with tab_login:
         with st.container(border=True):
             if not st.session_state.get("show_reset_form", False):
                 email = st.text_input("Email", key="signin_email")
                 password = st.text_input("Password", type="password", key="signin_pass")
-                
+
                 if st.button("Log In to Workspace", use_container_width=True):
                     if email.strip() and password.strip():
                         with st.spinner("Verifying credentials..."):
-                            auth_res = MwalimuAuthService.login_user(email.strip(), password.strip())                    
+                            auth_res = MwalimuAuthService.login_user(email.strip(), password.strip())
                             if auth_res.get("success"):
                                 uid = str(auth_res["uid"])
                                 db_profile = get_student_data(uid)
@@ -268,7 +281,7 @@ def render_auth_portal(context="auth"):
                                 st.success("📩 **Reset link sent successfully!** Please check your email inbox.")
                             else:
                                 st.error("If the email is registered, you will receive a reset link shortly.")
-                
+
                 if st.button("⬅ Return to Login Screen", use_container_width=True, key="back_to_login_from_reset"):
                     st.session_state.show_reset_form = False
                     st.rerun()
@@ -281,12 +294,22 @@ def render_auth_portal(context="auth"):
                 reg_email = st.text_input("Email Address", key="reg_email")
                 col_g, col_a = st.columns(2)
                 with col_g:
-                    reg_grade = st.selectbox("Current Grade", [f"Grade {i}" for i in range(1, 13)], index=5, key="reg_grade")
+                    reg_grade = st.selectbox(
+                        "Current Grade",
+                        [f"Grade {i}" for i in range(1, 13)],
+                        index=5,
+                        key="reg_grade",
+                    )
                 with col_a:
                     reg_age = st.number_input("Age", min_value=5, max_value=25, value=12, key="reg_age")
-                reg_pass = st.text_input("Choose Secure Password", type="password", placeholder="At least 6 characters", key="reg_pass")
+                reg_pass = st.text_input(
+                    "Choose Secure Password",
+                    type="password",
+                    placeholder="At least 6 characters",
+                    key="reg_pass",
+                )
                 reg_agree = st.checkbox("I agree to terms and conditions", key="reg_agree")
-                
+
                 if st.button("Register account", use_container_width=True):
                     if not reg_name.strip():
                         st.warning("Please enter your name.")
@@ -304,7 +327,7 @@ def render_auth_portal(context="auth"):
                                 name=reg_name.strip().title(),
                                 grade=reg_grade,
                                 age=int(reg_age),
-                                tier=st.session_state.get("selected_tier", "Free")
+                                tier=st.session_state.get("selected_tier", "Free"),
                             )
                             if reg_res.get("success"):
                                 st.session_state.pending_verification = reg_email.strip().lower()
@@ -314,11 +337,10 @@ def render_auth_portal(context="auth"):
             else:
                 st.write(f"Enter the code sent to {st.session_state.pending_verification}")
                 entered_code = st.text_input("Verification Code", key="verification_code_entry_input")
-                
+
                 if st.button("Complete Registration", use_container_width=True):
                     res = MwalimuAuthService.finalize_registration(
-                        st.session_state.pending_verification, 
-                        entered_code
+                        st.session_state.pending_verification, entered_code
                     )
                     if res.get("success"):
                         st.success("Account created! Please sign in via the Login tab.")
@@ -330,7 +352,7 @@ def render_auth_portal(context="auth"):
         with st.container(border=True):
             st.write("Fast access via Google:")
             google_agree = st.checkbox("I agree to terms and conditions", key="google_agree")
-            
+
             dynamic_redirect = resolve_redirect_uri()
             auth_url = (
                 "https://accounts.google.com/o/oauth2/v2/auth"
@@ -341,10 +363,11 @@ def render_auth_portal(context="auth"):
                 "&access_type=offline"
                 "&prompt=select_account"
             )
-            
+
             if google_agree:
                 google_logo_b64 = get_base64_image("assets/google.png")
-                st.markdown(f"""
+                st.markdown(
+                    f"""
                 <a href="{auth_url}" target="_self" style="
                     display: flex; align-items: center; justify-content: center;
                     padding: 12px 20px; background-color: #ffffff; border: 1px solid #dadce0;
@@ -355,9 +378,12 @@ def render_auth_portal(context="auth"):
                     <img src="data:image/png;base64,{google_logo_b64}" style="width: 20px; margin-right: 10px;">
                     Continue with Google
                 </a>
-                """, unsafe_allow_html=True)
+                """,
+                    unsafe_allow_html=True,
+                )
             else:
-                st.markdown("""
+                st.markdown(
+                    """
                 <div style="
                     display: flex; align-items: center; justify-content: center;
                     padding: 12px 20px; background-color: #f1f3f4; border: 1px solid #dadce0;
@@ -367,15 +393,15 @@ def render_auth_portal(context="auth"):
                 ">
                     Continue with Google
                 </div>
-                """, unsafe_allow_html=True)
+                """,
+                    unsafe_allow_html=True,
+                )
                 st.info("🔒 Please check the agreement box above to activate Google Sign-In.")
-                
+
+
 # ====================================================================
 # STEP 2: TOP-LEVEL GOOGLE OAUTH INTERCEPTOR
 # ====================================================================
-# STEP 2: TOP-LEVEL GOOGLE OAUTH INTERCEPTOR
-# ====================================================================
-from services.profile_service import set_student_profile
 if "code" in st.query_params and not st.session_state.get("user_authenticated", False):
     auth_code = st.query_params["code"]
     current_redirect = resolve_redirect_uri()
@@ -394,7 +420,7 @@ if "code" in st.query_params and not st.session_state.get("user_authenticated", 
                 "grant_type": "authorization_code",
             },
             headers={"Content-Type": "application/x-www-form-urlencoded"},
-            timeout=10
+            timeout=10,
         )
 
         token_response = response.json()
@@ -403,7 +429,7 @@ if "code" in st.query_params and not st.session_state.get("user_authenticated", 
             user_info = requests.get(
                 "https://www.googleapis.com/oauth2/v2/userinfo",
                 headers={"Authorization": f"Bearer {token_response['access_token']}"},
-                timeout=10
+                timeout=10,
             ).json()
 
             email_val = user_info.get("email", "").strip().lower()
@@ -416,36 +442,33 @@ if "code" in st.query_params and not st.session_state.get("user_authenticated", 
                 firebase_user = auth.create_user(email=email_val, display_name=name_val)
                 firebase_uid = firebase_user.uid
 
-            # Fetch or create user profile in Firestore
             profile = get_or_create_user_profile(firebase_uid, email_val, name_val)
-
-            # Standardize and map profile values safely into st.session_state
-            set_student_profile(profile)
-
-            # Sync persistent browser cookie/db session
             create_session(profile["uid"], profile["email"])
 
-            # Set authentication flags and workspace navigation state
             st.session_state.user_authenticated = True
             st.session_state.session_checked = True
             st.session_state.uid = profile["uid"]
+            st.session_state.user_email = profile["email"]
+            st.session_state.student_name = profile["name"]
+            st.session_state.grade = profile.get("grade", "Grade 1")
+            st.session_state.age = int(profile.get("age", 10))
+            st.session_state.user_profile = profile
             st.session_state.current_page = "Main Chat"
             st.session_state.active_view = "main"
 
             update_session()
 
-            # Clear OAuth query params from the browser URL bar
             if "code" in st.query_params:
                 del st.query_params["code"]
 
             st.rerun()
-
         else:
             error_desc = token_response.get("error_description", token_response.get("error", "Unknown Token Error"))
             st.error(f"Google OAuth Token Exchange Failed ({response.status_code}): {error_desc}")
 
     except Exception as e:
         st.error(f"Authentication background sync failed: {str(e)}")
+
 
 
 # ==============================================================================
