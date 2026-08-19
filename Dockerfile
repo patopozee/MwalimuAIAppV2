@@ -7,17 +7,16 @@ COPY . .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # --- BEGIN SEO & STATIC PATCH ---
-# Locates Streamlit's static directory and patches index.html + favicon
-RUN SITE_PACKAGES=$(python -c "import site; print(site.getsitepackages()[0])") && \
+RUN SITE_PACKAGES=$(python -c "import site; print(site.getsitepackages())") && \
     INDEX_HTML="$SITE_PACKAGES/streamlit/static/index.html" && \
     \
-    # 1. Remove the Streamlit/Snowflake copyright comment header
+    # 1. Clean out standard default corporate comments
     sed -i '/Copyright (c) Streamlit Inc/d' "$INDEX_HTML" && \
     \
-    # 2. Inject custom Title and Meta Description
-    sed -i 's|<title>Streamlit</title>|<title>Mwalimu AI App - Smart Educational Assistant</title><meta name="description" content="Mwalimu AI App provides advanced educational assistance, lesson planning, and smart study tools for teachers and students in Kenya." />|g' "$INDEX_HTML" && \
+    # 2. Inject completely absolute public paths to target actual file types
+    sed -i 's|<title>Streamlit</title>|<title>Mwalimu AI App - Smart Educational Assistant</title><meta name="description" content="Mwalimu AI App provides advanced educational assistance, lesson planning, and smart study tools for teachers and students in Kenya." /><link rel="icon" type="image/png" href="https://mwalimuaiapp.com" /><link rel="apple-touch-icon" href="https://mwalimuaiapp.com" /><meta property="og:title" content="Mwalimu AI App - Smart Educational Assistant" /><meta property="og:description" content="Mwalimu AI App provides advanced educational assistance, lesson planning, and smart study tools for teachers and students in Kenya." /><meta property="og:image" content="https://mwalimuaiapp.com" /><meta property="og:type" content="website" /><meta property="og:url" content="https://mwalimuaiapp.com" />|g' "$INDEX_HTML" && \
     \
-    # 3. Replace default favicon with Mwalimu AI logo
+    # 3. CRITICAL: Replaces the file directly to white-label the initial app handshake/loading tab
     cp /app/assets/favicon.png "$SITE_PACKAGES/streamlit/static/favicon.png"
 # --- END SEO & STATIC PATCH ---
 
