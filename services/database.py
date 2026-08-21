@@ -63,6 +63,8 @@ def flush_all_database_caches():
     get_next_difficulty.clear()
     get_student_learning_analysis.clear()
     get_ask_mwalimu_history.clear()
+    
+    # 🚨 CRITICAL ADDITION: Evict cached profile documents right away!
     get_student_data.clear()
 
 def migrate_students_table():
