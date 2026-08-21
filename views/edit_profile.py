@@ -19,9 +19,8 @@ def render():
     st.write("Keep your academic milestones up to date. Changing your profile details or baseline grade helps Mwalimu AI adjust the difficulty of quizzes and voice tasks automatically.")
 
     # ============================================================
-    # UNIFIED ID RESOLUTION (CRITICAL ACCURACY FACTOR)
+    # UNIFIED ID RESOLUTION
     # ============================================================
-    # Your Firestore uses UID documents universally. We target this path directly.
     target_uid = st.session_state.get("uid")
     
     if not target_uid:
@@ -30,64 +29,51 @@ def render():
 
     user_doc_ref = db.collection("users").document(str(target_uid))
     
-    # Fetch live snapshot directly from the uniform UID Document reference path
+    # Fetch live snapshot directly from Firestore
     try:
         doc_snap = user_doc_ref.get()
-        active_profile = doc_snap.to_dict() if doc_snap.exists else {}
+        db_profile = doc_snap.to_dict() if doc_snap.exists else {}
     except Exception:
-        active_profile = {}
+        db_profile = {}
 
-    # Fallback to active session profile dictionary memory if Firestore query exhibits lag
-    if not active_profile:
-        active_profile = st.session_state.get("user_profile") or {}
+    # Fallback to active session profile dictionary memory
+    if not db_profile:
+        db_profile = st.session_state.get("user_profile") or {}
 
     # ============================================================
-    # LIVE-SYNC WIDGET CALLBACK UTILITIES
+    # 🚨 ISOLATION LAYER: CREATE A DETACHED COPY FOR THE FORM
     # ============================================================
-    def sync_name_live():
-        if st.session_state.get("form_input_name"):
-            st.session_state.student_name = st.session_state.form_input_name
-            if "user_profile" in st.session_state and isinstance(st.session_state.user_profile, dict):
-                st.session_state.user_profile["name"] = st.session_state.form_input_name
-
-    def sync_grade_live():
-        if st.session_state.get("form_select_grade"):
-            st.session_state.grade = st.session_state.form_select_grade
-            if "user_profile" in st.session_state and isinstance(st.session_state.user_profile, dict):
-                st.session_state.user_profile["grade"] = st.session_state.form_select_grade
-
-    def sync_age_live():
-        if st.session_state.get("form_input_age") is not None:
-            st.session_state.age = int(st.session_state.form_input_age)
-            if "user_profile" in st.session_state and isinstance(st.session_state.user_profile, dict):
-                st.session_state.user_profile["age"] = int(st.session_state.form_input_age)
+    # This prevents typing inside the fields from mutating the live sidebar state prematurely!
+    if "form_temp_profile" not in st.session_state or st.button("🔄 Reset Form Fields", help="Click to pull latest database data"):
+        st.session_state.form_temp_profile = {
+            "name": db_profile.get("name", st.session_state.get("student_name", "Student")),
+            "grade": db_profile.get("grade", st.session_state.get("grade", "Grade 1")),
+            "age": int(db_profile.get("age", st.session_state.get("age", 12)))
+        }
 
     # 🚨 CRITICAL PYLANCE ASSURANCE: Guarantees user_doc_ref is evaluated as non-None
     assert user_doc_ref is not None
     
     # ============================================================
-    # FLAT UI FORM RENDERING (ELIMINATES INTERACTION BLOCKAGES)
+    # FLAT UI FORM RENDERING (USES DETACHED ISOLATED MEMORY PATHS)
     # ============================================================
     with st.container(border=True):
         input_name = st.text_input(
             "Student Name", 
-            value=active_profile.get("name", st.session_state.get("student_name", "Student")),
-            key="form_input_name",
-            on_change=sync_name_live  # Synchronizes sidebar UI header text parameters on key input
+            value=st.session_state.form_temp_profile["name"]
         )
         st.text_input(
             "Registered Email Address", 
-            value=active_profile.get("email", st.session_state.get("user_email", "")), 
+            value=db_profile.get("email", st.session_state.get("user_email", "")), 
             disabled=True
         )                
         
         new_name = str(input_name).strip() if input_name is not None else ""
-        
         if not new_name:
             st.error("Student Name cannot be left blank.")
 
         grades_list = [f"Grade {i}" for i in range(1, 13)]
-        saved_grade = active_profile.get("grade", st.session_state.get("grade", "Grade 1"))
+        saved_grade = st.session_state.form_temp_profile["grade"]
         
         try:
             default_grade_index = grades_list.index(saved_grade)
@@ -97,20 +83,21 @@ def render():
         new_grade = st.selectbox(
             "Current Grade Level", 
             grades_list, 
-            index=default_grade_index,
-            key="form_select_grade",
-            on_change=sync_grade_live  # Synchronizes navigation headers live when user makes a switch
+            index=default_grade_index
         )
         
         new_age = st.number_input(
             "Age", 
             min_value=5, 
             max_value=25, 
-            value=int(active_profile.get("age", st.session_state.get("age", 12))),
-            key="form_input_age",
-            on_change=sync_age_live  # Synchronizes workspace metrics array settings instantly
+            value=st.session_state.form_temp_profile["age"]
         )
         
+        # Keep our transient form track updated behind the scenes safely without affecting the sidebar layout
+        st.session_state.form_temp_profile["name"] = new_name
+        st.session_state.form_temp_profile["grade"] = new_grade
+        st.session_state.form_temp_profile["age"] = int(new_age)
+
         st.warning("""
         ⚠️ **Important Progress Notice:**
         Changing your current grade level or age parameters will reset active quiz metrics and your Learning Progress Data.
@@ -118,6 +105,9 @@ def render():
         
         confirm_reset = st.checkbox("I understand and authorize Mwalimu AI to re-align my progress tracking records to this configuration.", key="form_reset_verify")
         
+        # ============================================================
+        # COMMIT POINT: EXECUTE LIVE UPDATES ONLY ON BUTTON CLICK
+        # ============================================================
         if st.button("Save Profile Settings", use_container_width=True, type="primary", key="save_profile_action_node"):
             if not new_name:
                 st.error("Please provide a valid Student Name before saving.")
@@ -126,12 +116,12 @@ def render():
             else:
                 with st.spinner("Synchronizing your parameters securely across cloud database nodes..."):
                     
-                    # Construct explicit dictionary payload configuration map schema
+                    # Construct uniform layout map payload configuration
                     payload = {
                         "name": new_name,
                         "grade": new_grade,
                         "age": int(new_age),
-                        "email": st.session_state.get("user_email", active_profile.get("email", ""))
+                        "email": st.session_state.get("user_email", db_profile.get("email", ""))
                     }
                     
                     # A. Cloud Write Pipeline using exclusive verified user UID index parameter
@@ -153,11 +143,11 @@ def render():
                         except Exception:
                             pass
                     
-                    # C. Synchronize parameters down through centralized profile manager tool utilities
+                    # C. NOW WE SAFELY COMMIT TO THE SIDEBAR LAYER CODES!
                     from services.profile_service import set_student_profile
                     set_student_profile(payload)
                     
-                    # D. THE INSTANT DELAY CORRECTION: Evict and drop the 120-second memory cache loop
+                    # D. THE INSTANT DELAY CORRECTION: Clear database caches
                     from services.database import flush_all_database_caches
                     flush_all_database_caches()
                     
@@ -167,6 +157,10 @@ def render():
                         update_session()
                     except Exception:
                         pass
+
+                    # Clean our temporary storage states right after success
+                    if "form_temp_profile" in st.session_state:
+                        del st.session_state["form_temp_profile"]
 
                     st.toast("🎉 Profile settings synchronized successfully!")
                     
