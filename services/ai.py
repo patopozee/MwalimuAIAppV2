@@ -167,14 +167,13 @@ def generate_quiz(topic, student, difficulty="Medium"):
     kicd_data = knowledge_base.get_curriculum_context(subject, topic, sub_topic)
     past_papers = knowledge_base.get_past_papers_context(subject, topic)
     
-    # 🆕 FETCH GLOBAL ADMIN MATERIALS FOR THIS SPECIFIC QUIZ CONTEXT
+    # FETCH GLOBAL ADMIN MATERIALS FOR THIS SPECIFIC QUIZ CONTEXT
     admin_provided_text = get_admin_material_context(subject, topic, sub_topic)
     
     # 2. Strict engineering template layout instructions
     prompt = f"""
-{SYSTEM_GUARD}
-= You are Mwalimu AI, an elite CBC Curriculum framework subject expert.
-Generate a 5-question multiple-choice quiz payload.
+ROLE: You are Mwalimu AI, an elite CBC Curriculum framework subject expert and Examiner specializing in the Kenyan KICD framework.
+TASK: Generate a 5-question multiple-choice quiz payload about '{topic}' for a student in {grade} ({student.get('age', '11-12')} years old).
 
 TARGET CONTEXT SCHEMA:
 - Subject Domain: {subject}
@@ -185,106 +184,93 @@ TARGET CONTEXT SCHEMA:
 - Output Language Interface: {language}
 {admin_provided_text}
 
-=======================================================
- CRITICAL STOP-GATE CONSTRAINTS (NO MATH ALLOWED)
-=======================================================
-- DO NOT generate word problems that require mathematical calculations, numbers counting, area computations, weight multiplication, spacing ratios, or geometry dimensions. 
-- Questions must evaluate factual and conceptual domain knowledge of the subject, NOT calculation tricks.
-
-=======================================================
- LOCALIZATION & FORMATTING RULES
-=======================================================
-- Output ALL JSON keys, question values, structural text, and options answers entirely inside this language: {language}.
-Return ONLY a single valid raw JSON string matching this exact array map structure without markdown code blocks (```json ... ```):
-{{
-"quiz": [
-{{
-"question": "Insert conceptual multiple choice question text here",
-"options": ["Option A", "Option B", "Option C", "Option D"],
-"answer": "The exact correct option string matching one of the options elements cleanly"
-}}
-]
-}}
-
-You are Mwalimu AI, an expert Examiner specializing in the Kenyan KICD Competency-Based Curriculum (CBC) framework. 
-Your task is to generate a highly contextual, age-appropriate practice quiz based on the student's current learning topic.
-Generate a multiple-choice quiz about '{topic}' for a student in {student.get('grade')} ({student.get('age')} years old).
-
 === GROUND TRUTH KNOWLEDGE LAYER ===
 Use the following verified rules and definitions to construct your questions. Do not deviate from these concepts:
-- Definition Focus: {kicd_data['definition']}
-- Target Learning Goals: {', '.join(kicd_data['learning_objectives'])}
+- Definition Focus: {kicd_data.get('definition', '')}
+- Target Learning Goals: {', '.join(kicd_data.get('learning_objectives', []))}
 - Reference Past Examination Structures: {json.dumps(past_papers)}
 
 ⚠️ ADMINISTRATIVE GUIDELINE:
 If 'ADMIN UPLOADED REFERENCE MATERIALS' are present above, prioritize them over all else. Formulate your quiz questions, correct options, and distractor statements directly from the definitions, facts, and curriculum examples provided in those materials.
 
-CRITICAL CONTEXT RULES:
-- Every math word problem MUST contain all necessary numerical information to be solvable.
-- Use Kenyan names, locations, and real-world local scenarios (M-Pesa, market stalls, matatus) to make the word problems relatable.
-- Match the cognitive expectations of a {student.get('grade')} student under CBC guidelines.
-- Write the text strictly in the student's preferred language: {student.get('language', 'English')}.
-Target Difficulty Level: {difficulty}
-Difficulty Context Rules: {difficulty_rules.get(difficulty, "")}
-Preferred Learning Style: {student.get('learning_style', 'General')}
+=======================================================
+ QUIZ COMPOSITION & MIXTURE RULES
+=======================================================
+The 5 questions MUST be an engaging mixture of the following styles:
+1. Conceptual/Vocabulary (Max 1 question): Test core terminology (e.g., Identifying the dividend, divisor, quotient, or what a remainder represents).
+2. Pure Numerical Calculations (2 questions): Standard equation problems evaluating arithmetic mastery (e.g., long division operations, division with decimal quotients, or dividing by decimals).
+3. Localized Real-World Word Problems (2 questions): Word problems requiring calculation steps set within authentic scenarios.
 
-Return your response strictly as a valid JSON array containing EXACTLY 5 objects structured exactly like this layout format:
+=======================================================
+ LOCALIZATION & DIFFICULTY RULES
+=======================================================
+- Target Difficulty Level: {difficulty}
+- Difficulty Context Rules: {difficulty_rules.get(difficulty, "")}
+- Preferred Learning Style: {student.get('learning_style', 'General')}
+- Word problems MUST feature Kenyan names (e.g., Mwangi, Amina, Atieno), currencies (shillings), locations, and relatable local context (e.g., M-Pesa transactions, market stalls, matatu fares, harvesting maize/mangoes).
+
+=======================================================
+ CRITICAL OPTION CONSTRAINT RULES
+=======================================================
+1. Every math calculation or word problem MUST contain all necessary numerical data to be fully solvable.
+2. For Numerical/Word Problems, every element in the "options" array MUST be a fully computed, single final value (e.g., use "48 shillings" or "12 R 4", NEVER expressions like "40 + 8 shillings").
+3. Ensure all choices share consistent units matching the question context (e.g., "shillings", "box of mangoes", "passengers").
+4. Realistic Distractors: Create plausible mathematical errors for incorrect options (e.g., forgetting a remainder, misplacing a decimal place value by one spot, or omitting a zero place-holder in long division).
+
+=======================================================
+ STRICT OUTPUT FORMATTING RULES
+=======================================================
+- Output ALL JSON keys, question values, structural text, and options answers entirely inside this language: {language}.
+- Return ONLY a single valid raw JSON array matching this exact map structure without markdown code blocks (```json ... ```):
+
 [
-{{
-"question": "First Question text here",
-"options": ["Option A", "Option B", "Option C", "Option D"],
-"answer": "The exact correct option string matching one of the options"
-}}
-]
- {{
+  {{
+    "question": "First Question text here",
+    "options": ["Option A", "Option B", "Option C", "Option D"],
+    "answer": "The exact correct option string matching one of the options cleanly"
+  }},
+  {{
     "question": "Second Question text here",
     "options": ["Option A", "Option B", "Option C", "Option D"],
-    "answer": "The exact correct option string matching one of the options"
+    "answer": "The exact correct option string matching one of the options cleanly"
   }},
   ... up to 5 elements total
 ]
-CRITICAL OPTION CONSTRAINT RULES:
-1. **No Math Formulations**: Every element in the "options" array MUST be a fully calculated, single final value (e.g., use "48,878 shillings", NEVER "45,678 + 3,200 shillings").
-2. **Realistic Distractors**: Make the incorrect options plausible calculation errors (like missing a carry-over digit or accidentally subtracting instead of adding) so students are challenged to think critically.
-3. Every math word problem MUST contain all necessary numerical information to be solvable.
-4. For Mathematics (Whole Numbers), ensure all intermediate and final calculation results are strictly positive WHOLE NUMBERS. Avoid division problems that result in fractional remainders or decimals.
-5. Use Kenyan names (e.g., Mwangi, Amina), locations, and real-world local scenarios (M-Pesa, market stalls, matatus) to make the word problems relatable.
-6. Match the cognitive expectations of a {student.get('grade')} student under CBC guidelines.
-7. Write the text strictly in the student's preferred language: {student.get('language', 'English')}.
-8. **Consistent Units**: Ensure all options include the correct unit matching the question (e.g., "shillings", "passengers").
 """
-    # ... Rest of your existing client.chat.completions.create logic remains completely identical below ...
+
     try:
         response = client.chat.completions.create(
             extra_headers={
                 "HTTP-Referer": "https://mwalimu-ai.streamlit.app",
                 "X-Title": "Mwalimu AI App Quiz",
             },
-            model="gemini-3.6-flash",  # 👈 CHANGED FROM "openrouter/free"
+            model="gemini-3.6-flash",
             messages=[{"role": "user", "content": prompt}],
-            max_tokens=3000,  # 👈 ADDED FOR SWIFT INITIALIZATION (Plenty for JSON quiz)
-            response_format={"type": "json_object"}  # 👈 FORCES RAPID NATIVE JSON PARSING
+            max_tokens=3000,
+            response_format={"type": "json_object"}
         )
-        # FIX: OpenRouter/OpenAI compatibility wrapper parsing requires indexing choices[0]
+        
         quiz_text = response.choices[0].message.content
         if quiz_text is None:
-            
             return []
             
         quiz_text = quiz_text.replace("```json", "").replace("```", "").strip()
         try:
             quiz_data = json.loads(quiz_text)
             
+            # If the model wrapped it in an object key like {"quiz": [...]}, unwrap it safely
+            if isinstance(quiz_data, dict) and "quiz" in quiz_data:
+                quiz_data = quiz_data["quiz"]
+                
             for question in quiz_data:
                 if "options" in question and isinstance(question["options"], list):
                     random.shuffle(question["options"])
             return quiz_data
         except json.JSONDecodeError:
-            
             return []
     except Exception as e:
-        
         return []
+
     
 def generate_study_plan(student: dict, stats: dict) -> str:
     """Crafts an optimized personalized study timetable map strategy framework with grid layouts."""

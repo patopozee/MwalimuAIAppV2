@@ -134,34 +134,57 @@ def start_or_update_lesson(student_uid: str, student_name: str, grade: str, subj
     conn.commit()
     conn.close()
 
-def complete_student_lesson(student_uid: str, student_name: str, grade: str, subject: str, lesson_id: str, mastery: int, quiz_score: int):
-    """Marks a targeted learning objective node as complete using standard keys."""
+def complete_student_lesson(student_uid: str, student_name: str, grade: str, subject: str, 
+    lesson_id: str, mastery: int, quiz_score: int):
+    """Marks a targeted learning objective node as complete and handles leaderboard inclusion."""
+    from services.database import create_leaderboard_table
     conn = sqlite3.connect(DATABASE_NAME)
     cursor = conn.cursor()
-    
     now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    
-    # 🎯 FIXED: Aligned columns sequence to match the passed tuple array exactly
+
+    # 1. Update standard student progress tracker
     cursor.execute("""
-        INSERT INTO student_progress (
-            student_uid, student_name, grade, subject, lesson_id, 
-            mastery_score, status, quiz_high_score, completed_at
-        )
-        VALUES (?, ?, ?, ?, ?, ?, 'Completed', ?, ?)
-        ON CONFLICT(student_uid, subject, lesson_id) 
-        DO UPDATE SET 
-            student_name = EXCLUDED.student_name,
-            mastery_score = CASE WHEN EXCLUDED.mastery_score > student_progress.mastery_score THEN EXCLUDED.mastery_score ELSE student_progress.mastery_score END,
-            quiz_high_score = CASE WHEN EXCLUDED.quiz_high_score > student_progress.quiz_high_score THEN EXCLUDED.quiz_high_score ELSE student_progress.quiz_high_score END,
-            status = 'Completed',
-            completed_at = COALESCE(student_progress.completed_at, EXCLUDED.completed_at)
+    INSERT INTO student_progress (
+        student_uid, student_name, grade, subject, lesson_id, 
+        mastery_score, status, quiz_high_score, completed_at
+    )
+    VALUES (?, ?, ?, ?, ?, ?, 'Completed', ?, ?)
+    ON CONFLICT(student_uid, subject, lesson_id) 
+    DO UPDATE SET 
+        student_name = EXCLUDED.student_name,
+        mastery_score = CASE WHEN EXCLUDED.mastery_score > student_progress.mastery_score THEN EXCLUDED.mastery_score ELSE student_progress.mastery_score END,
+        quiz_high_score = CASE WHEN EXCLUDED.quiz_high_score > student_progress.quiz_high_score THEN EXCLUDED.quiz_high_score ELSE student_progress.quiz_high_score END,
+        status = 'Completed',
+        completed_at = COALESCE(student_progress.completed_at, EXCLUDED.completed_at)
     """, (
         str(student_uid), str(student_name), str(grade), str(subject), 
         str(lesson_id), int(mastery), int(quiz_score), now_str
     ))
-    
     conn.commit()
     conn.close()
+
+    # 2. Add to leaderboard if score hits mastery of 70% or more
+    if int(mastery) >= 70:
+        create_leaderboard_table()  # Ensures table exists safely
+        conn = sqlite3.connect(DATABASE_NAME)
+        cursor = conn.cursor()
+        
+        # We fetch student age safely from the profile context if needed, defaulting to 0 here
+        student_age = 0 
+        
+        cursor.execute("""
+        INSERT INTO leaderboard (
+            student_uid, student_name, student_grade, student_age, 
+            activity_type, topic, score, subject, created_at
+        )
+        VALUES (?, ?, ?, ?, 'quiz_score', ?, ?, ?, ?)
+        """, (
+            str(student_uid), str(student_name), str(grade), int(student_age),
+            str(lesson_id), int(quiz_score), str(subject), now_str
+        ))
+        conn.commit()
+        conn.close()
+
 
 # --- UPDATE THIS LOGIC AT THE BOTTOM OF PAGE 6 & TOP OF PAGE 7 ---
 def get_current_active_lesson(student_uid: str, grade: str, subject: str):

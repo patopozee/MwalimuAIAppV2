@@ -198,6 +198,9 @@ migrate_database_for_certificates()
 
 def create_tables():
     migrate_students_table()
+
+    create_leaderboard_table() 
+
     conn = sqlite3.connect(DATABASE_NAME)
     cursor = conn.cursor()
     
@@ -822,3 +825,37 @@ def get_grade_leaderboard(grade, limit=100):
     conn.close()
     return rows
 
+def create_leaderboard_table():
+    """Explicitly builds the leaderboard schema to match the progress table structural layout."""
+    conn = sqlite3.connect(DATABASE_NAME)
+    cursor = conn.cursor()
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS leaderboard (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        student_uid TEXT, 
+        student_name TEXT,
+        student_grade TEXT,
+        student_age INTEGER,
+        activity_type TEXT,
+        topic TEXT,
+        score INTEGER,
+        subject TEXT,
+        strand TEXT,
+        sub_strand TEXT,
+        learning_outcome TEXT,
+        attachment TEXT,
+        is_voice INTEGER DEFAULT 0, 
+        audio_bytes BLOB DEFAULT NULL, 
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+    """)
+    conn.commit()
+    conn.close()
+
+def delete_leaderboard_table():
+    """Drops the leaderboard table entirely."""
+    conn = sqlite3.connect(DATABASE_NAME)
+    cursor = conn.cursor()
+    cursor.execute("DROP TABLE IF EXISTS leaderboard")
+    conn.commit()
+    conn.close()

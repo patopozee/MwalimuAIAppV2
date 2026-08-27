@@ -9,7 +9,7 @@ def get_single_student_progress_metrics(student_id_or_uid):
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
     
-    # Works perfectly by matching your progress table's student_uid field with the active session token
+    # Keep this targeting the student_progress table to render their personal gradebook row matrix
     cursor.execute("""
         SELECT 
             subject,
@@ -24,6 +24,7 @@ def get_single_student_progress_metrics(student_id_or_uid):
     rows = cursor.fetchall()
     conn.close()
     return rows
+
 
 def render_student_leaderboard_page():
     st.write("Track your personalized curriculum progress goals and view national academic rankings across Kenya [INDEX].")
@@ -136,16 +137,33 @@ def render_student_leaderboard_page():
     )
 
     st.write("##")
-    st.markdown(f"#### 🏆 Current Top Standings for {selected_grade}")
-    
+    st.markdown(f"#### Current Top Standings for {selected_grade}")
 
-    # Fetch ranked rows from database using the text aggregate engine
-    raw_leaderboard_records = get_grade_leaderboard(selected_grade, limit=100)
+    # Clear old streamlit system memory caches on page view to pull the freshest records
+    st.cache_data.clear()
+
+    try:
+        conn = sqlite3.connect(DATABASE_NAME)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT student_name, score, count(id) as activity_count, sum(score) as total_score, student_grade
+            FROM leaderboard 
+            WHERE student_grade = ? 
+            GROUP BY student_uid
+            ORDER BY score DESC 
+            LIMIT 100
+        """, (selected_grade,))
+        raw_leaderboard_records = cursor.fetchall()
+        conn.close()
+    except sqlite3.OperationalError:
+        raw_leaderboard_records = []
 
     if not raw_leaderboard_records:
-        st.info(f"No rank scores recorded for {selected_grade} students yet. Be the first to claim the top spot! 🌟")
+        st.info(f"No rank scores recorded for {selected_grade} students yet. Be the first to claim the top spot! ")
     else:
         leaderboard_records = [dict(row) for row in raw_leaderboard_records]
+
 
         # 🌟 ENFORCED GRID: Maintains 3 columns without stretching layouts across the screen
                 # 🌟 ENFORCED GRID: Keeps 3 columns stable
