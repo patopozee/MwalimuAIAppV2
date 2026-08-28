@@ -51,19 +51,16 @@ def render():
         f"**Learning Status:** `{analysis.get('current_level','Medium')}`"
     )
 
+    # 📊 Clean, collapsible topics to save space
     if analysis.get("weak_topics"):
-
-        st.sidebar.markdown("**Needs Improvement**")
-
-        for topic in analysis["weak_topics"]:
-            st.sidebar.caption(f"❌ {topic}")
+        with st.sidebar.expander("❌ Needs Improvement", expanded=False):
+            for topic in analysis["weak_topics"]:
+                st.caption(f"{topic}")
 
     if analysis.get("strong_topics"):
-
-        st.sidebar.markdown("**Mastered Areas**")
-
-        for topic in analysis["strong_topics"]:
-            st.sidebar.caption(f"✅ {topic}")
+        with st.sidebar.expander("✅ Mastered Areas", expanded=False):
+            for topic in analysis["strong_topics"]:
+                st.caption(f"{topic}")
 
     history = get_student_quiz_history(uid, grade, age)
 

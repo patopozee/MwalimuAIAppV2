@@ -35,10 +35,19 @@ def render():
         student_grade,
         active_subject,
     )
+    # Import the active lesson tracker to check for complete milestone completion
+    from services.lms_service import get_current_active_lesson
+    active_lesson = get_current_active_lesson(student_uid, student_grade, active_subject)
 
-    progress = int(
-        lms_stats.get("completion", 0)
-    )
+    # If active_lesson is None, it means they completed all curriculum nodes! Force 100%
+    if active_lesson is None:
+        progress = 100
+    else:
+        progress = int(lms_stats.get("completion", 0))
+        # Ensure it doesn't accidentally show 100% prematurely 
+        if progress >= 100:
+            progress = 99
+
     avatar = name[:1].upper()
 
     st.sidebar.markdown("---")
