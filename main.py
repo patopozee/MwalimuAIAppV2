@@ -707,7 +707,7 @@ if st.session_state.get("user_authenticated") and "user_email" in st.session_sta
         @media (max-width: 768px) {
             div[data-testid="stChatInput"] {
                 position: relative !important;
-                bottom: 30px !important;
+                bottom: 20px !important;
                 width: 100% !important;
                 left: 0px !important;
                 padding: 10px 0px !important;
