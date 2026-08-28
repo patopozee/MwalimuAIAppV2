@@ -25,7 +25,7 @@ def load():
 
         top:0;
 
-        left:0;
+        left:-8px;
 
         width:0;
 
@@ -37,7 +37,7 @@ def load():
 
         align-items:center;
 
-        padding:10px 20px;
+        padding:0px 0px;
 
         z-index:99999;
 
@@ -56,7 +56,7 @@ def load():
     .mw-icon{{
         background:#1F2937;
 
-        border:1px solid #2E394D;
+        border:-4px solid #2E394D;
 
         border-radius:16px;
 
@@ -70,7 +70,7 @@ def load():
         
             align-items:center;
     
-            gap:10px;
+            gap:4px;
     
             height:52px;
     
@@ -93,13 +93,13 @@ def load():
 
     .mw-title{{
         color:white;
-        font-size:12px;
+        font-size:10px;
         font-weight:700;
     }}
 
     .mw-subtitle{{
         color:#94A3B8;
-        font-size:8px;
+        font-size:6px;
     }}
 
     /* ========================= */
@@ -109,7 +109,7 @@ def load():
 
         align-items:center;
 
-        gap:10px;
+        gap:6px;
 
         height:52px;
 
@@ -127,7 +127,7 @@ def load():
 
         align-items:center;
 
-        gap:12px;
+        gap:2px;
     }}
 
     /* ========================= */
