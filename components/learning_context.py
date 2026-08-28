@@ -3,6 +3,21 @@ from config import CBC
 from services.database import get_ask_mwalimu_history
 
 
+def handle_subject_change():
+    """Triggered instantly the millisecond the student clicks a new subject choice."""
+    # 1. Force the active context variables to sync with the interactive UI value right away
+    new_subject = st.session_state["sidebar_subject_select"]
+    st.session_state.active_subject = new_subject
+    
+    # 2. Reset subordinate dependent selectbox keys to prevent cross-topic index structural crashes
+    st.session_state.pop("sidebar_topic_select", None)
+    st.session_state.pop("sidebar_subtopic_select", None)
+    st.session_state.pop("sidebar_outcome_select", None)
+    
+    # 3. Clear data frames caching to sweep out stale progress statistics matrices
+    st.cache_data.clear()
+
+
 def render():
     st.sidebar.markdown("---")
     st.sidebar.subheader("📚 Learning Context")
@@ -20,11 +35,13 @@ def render():
     saved_subject = st.session_state.get("active_subject", subjects[0])
     sub_idx = subjects.index(saved_subject) if saved_subject in subjects else 0
 
+    # Attached the live on_change handler callback event link here
     subject = st.sidebar.selectbox(
         "Subject",
         options=subjects,
         index=sub_idx,
         key="sidebar_subject_select",
+        on_change=handle_subject_change,
     )
 
     subject_dict = grade_dict.get(subject, {})

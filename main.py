@@ -630,66 +630,102 @@ if st.session_state.get("user_authenticated") and "user_email" in st.session_sta
     st.markdown(
         """
         <style>
-        /* Main content */
+        /* Base Page Setup */
         [data-testid="stMainBlockContainer"] {
-            max-width: 900px;
+            max-width: 800px; 
             margin: auto;
-            padding-bottom: 120px !important;
+            padding-bottom: 140px !important;
         }
 
-        /* Chat input positioning wrapper */
+        /* 💬 CHAT MESSAGE CONTAINERS */
+        div[data-testid="stChatMessage"] {
+            background-color: transparent !important;
+            padding: 1.5rem 0rem !important;
+            border-bottom: 1px solid rgba(128, 128, 128, 0.08);
+        }
+        
+        div[data-testid="stChatMessage"] p, div[data-testid="stChatMessage"] li {
+            font-size: 16px !important;
+            line-height: 1.6 !important;
+        }
+
+        /* ⌨️ FLOATING CHAT INPUT WORKINGS */
         div[data-testid="stChatInput"] {
-            position: fixed !important;
-            bottom: 65px !important;
-            z-index: 999999;
-            transition: left .25s ease, width .25s ease, transform .25s ease;
-            padding: 0 !important;
             background: transparent !important;
         }
 
-        /* Inner Chat Box Container - Dynamic Theme Background */
+        /* Professional Theme-Aware Pill Box Wrapper */
         div[data-testid="stChatInput"] > div {
-            background-color: var(--secondary-background-color) !important;
-            border: 1px solid rgba(128, 128, 128, 0.3) !important;
-            border-radius: 14px !important;
-            min-height: 55px !important;
-            padding-top: 10px !important;
-            padding-bottom: 1px !important;
+            border: 1px solid rgba(128, 128, 128, 0.25) !important; 
+            border-radius: 24px !important; 
+            padding: 4px 14px !important;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05) !important; 
         }
 
-        /* Textarea Field - Dynamic Text Color & Caret */
+        /* Input Textarea Field */
         div[data-testid="stChatInput"] textarea {
-            color: var(--text-color) !important;
-            background-color: transparent !important;
-            caret-color: var(--text-color) !important;
+            line-height: 1.5 !important;
         }
 
-        /* Placeholder Text */
+        /* Placeholder Style */
         div[data-testid="stChatInput"] textarea::placeholder {
-            color: var(--text-color) !important;
-            opacity: 0.6 !important;
+            opacity: 0.5 !important;
         }
 
-        /* Submit Button */
-        div[data-testid="stChatInputSubmitButton"] {
-            color: var(--text-color) !important;
-            background-color: transparent !important;
+        /* 💻 PC/DESKTOP SPECIFIC FLOATING GEOMETRY */
+        @media (min-width: 769px) {
+            div[data-testid="stChatInput"] {
+                position: fixed !important;
+                bottom: 65px !important;
+                z-index: 999999;
+                transition: left .25s ease, width .25s ease;
+                padding: 0 !important;
+            }
+            
+            div[data-testid="stChatInput"] textarea {
+                font-size: 16px !important;
+                padding-top: 8px !important;
+            }
+
+            /* Premium Rounded Send Action Button Grid Layout */
+            div[data-testid="stChatInputSubmitButton"] {
+                border-radius: 50% !important;
+                width: 32px !important;
+                height: 32px !important;
+                margin-top: 4px !important;
+                display: flex !important;
+                align-items: center !important;
+                justify-content: center !important;
+            }
+            
+            div[data-testid="stChatInput"] button svg {
+                transform: scale(1.1) !important;
+            }
         }
 
-        /* Mobile Layout Adjustments */
+        /* 📱 MOBILE PHONE SAFETY BOUNDARY CODE */
         @media (max-width: 768px) {
             div[data-testid="stChatInput"] {
-                left: 12px !important;
-                right: 12px !important;
-                width: auto !important;
-                transform: none !important;
-                bottom: 65px !important;
+                position: relative !important;
+                bottom: 30px !important;
+                width: 100% !important;
+                left: 0px !important;
+                padding: 10px 0px !important;
+            }
+            
+            button[data-testid="stChatInputSubmitButton"] {
+                border-radius: 50% !important;
             }
         }
         </style>
         """,
         unsafe_allow_html=True,
     )
+
+
+
+
+
 
     # Position-tracking JavaScript Bridge
     st.iframe(
