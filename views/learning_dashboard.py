@@ -127,11 +127,17 @@ def render():
                 )
 
 
-                
+    #================================            
     st.markdown("## 📈 Learning Statistics")
     with st.container(border=True):
-        st.write("Learning statistics coming here...")
         col1, col2, col3, col4 = st.columns(4)
+
+        # 🎯 FORCE 100% DISPLAY: Overrides statistics calculations once the final topic node is completed
+        is_course_complete = (current_lesson is None)
+        total_lessons_count = len(all_lessons_list) if all_lessons_list else 1
+        
+        lessons_metric = f"{total_lessons_count}/{total_lessons_count}" if is_course_complete else f"{lms_stats['completed_lessons']}/{lms_stats['total_lessons']}"
+        completion_metric = "100%" if is_course_complete else f"{lms_stats['completion']}%"
 
         with col1:
             st.metric(
@@ -142,13 +148,13 @@ def render():
         with col2:
             st.metric(
                 "Lessons",
-                f"{lms_stats['completed_lessons']}/{lms_stats['total_lessons']}"
+                lessons_metric
             )
 
         with col3:
             st.metric(
                 "Completion",
-                f"{lms_stats['completion']}%"
+                completion_metric
             )
 
         with col4:
@@ -156,6 +162,7 @@ def render():
                 "Mastery",
                 f"{lms_stats['mastery']}%"
             )
+
     st.markdown("---")
 
     st.subheader("📊 Performance Trend")
