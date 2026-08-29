@@ -128,7 +128,7 @@ Mwalimu AI response:
         response_stream = client.chat.completions.create(
             model="gemini-3.6-flash",
             messages=api_messages,  # type: ignore
-            max_tokens=1500,  
+            max_tokens=2048,  
             stream=True  
         )
         return response_stream  
@@ -656,7 +656,7 @@ Mwalimu AI verbal response:
         response_stream = client.chat.completions.create(
             model="gemini-3.6-flash",
             messages=api_messages,  # type: ignore
-            max_tokens=350,  
+            max_tokens=800,  
             stream=True  
         )
         return response_stream  
