@@ -309,55 +309,133 @@ def render():
                 "learning_outcome": st.session_state.get("active_learning_outcome", "")
             }
 
+            
+            # 7. TRIGGER GENERATOR INSTANTLY WITH A CHATGPT LOADING WAVE
+            # ====================================================
+            # Create an explicit temporary layout box for the custom animation
+                # ====================================================
+            # 7. TRIGGER GENERATOR INSTANTLY WITH A NATIVE CHATGPT LOADER
+            # ====================================================
+            # 🎯 FIX: Using a clean, immediate text block that forces Streamlit to render instantly
+                # ====================================================
+            # 7. TRIGGER GENERATOR INSTANTLY WITH AN UNBLOCKABLE SVG ANIMATED LOADER
+            # ====================================================
+            # 🎯 FIX: Using inline SVG animations allows the browser to render moving dots instantly
+            # while the Python engine is busy establishing the network connection stream.
+            loader_placeholder = st.empty()
+            loader_placeholder.markdown(
+                """
+                <div style="display: flex; align-items: center; gap: 10px; padding: 12px 0; margin-bottom: 5px;">
+                    <span style="font-size: 16px; color: var(--text-color); opacity: 0.65; font-style: italic;">
+                        💭 Mwalimu is thinking
+                    </span>
+                    <svg width="35" height="12" viewBox="0 0 60 20" style="vertical-align: middle;">
+                        <circle cx="10" cy="10" r="7" fill="var(--text-color)">
+                            <animate attributeName="opacity" values="0.2;1;0.2" dur="1.2s" repeatCount="indefinite" begin="0s"/>
+                        </circle>
+                        <circle cx="30" cy="10" r="7" fill="var(--text-color)">
+                            <animate attributeName="opacity" values="0.2;1;0.2" dur="1.2s" repeatCount="indefinite" begin="0.2s"/>
+                        </circle>
+                        <circle cx="50" cy="10" r="7" fill="var(--text-color)">
+                            <animate attributeName="opacity" values="0.2;1;0.2" dur="1.2s" repeatCount="indefinite" begin="0.4s"/>
+                        </circle>
+                    </svg>
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
 
-            # 8. FIRE DYNAMIC CHUNK GENERATION AND STREAM INTO PLACEHOLDER
-                    # 🛠️ UPDATE your ask_mwalimu call parameters to look like this:
+            # Invoke your backend streaming connection gateway
             response_stream = ask_mwalimu(
                 question=user_question,
-                student=ai_student_context, # 👈 Route the synchronized profile metadata block here
-                messages=st.session_state.ask_mwalimu_history[:-1],
+                student=ai_student_context,
+                messages=st.session_state.ask_mwalimu_history,
                 attachment=attachment_payload
             )
 
-                            
-            # ====================================================                               
-            # 8. SAFE CHUNK GENERATION & DEFENSIVE STREAMING LOOP
+
+            # ==================================================== 
+            # 8. REASONING-AWARE CHATGPT STYLE STREAMING LOOP (TYPE-SAFE)
             # ====================================================
             assistant_text = ""
-            full_response_text = ""
-            placeholder_element = st.empty()
-            
+            thought_text = ""
+            has_cleared_loader = False  # Track if the placeholder message has been wiped out
+
+            # Clear individual element layout slots right below the loader space
+            thought_container = st.empty()
+            assistant_placeholder = st.empty()
+
             try:
                 for chunk in response_stream:
-                    if isinstance(chunk, str):
-                        # Catch raw string injection issues early
+                    # Type-safe dynamic property lookup to extract choices list
+                    choices_list = getattr(chunk, "choices", None)
+                    
+                    if choices_list and len(choices_list) > 0:
+                        try:
+                            first_choice = choices_list[0]
+                            delta = getattr(first_choice, "delta", None)
+                            
+                            if delta:
+                                # A. Stream model thought process tokens live
+                                reasoning = getattr(delta, "reasoning_content", None)
+                                if reasoning:
+                                    # Wipe out the loader text message instantly on the very first incoming data chunk
+                                    if not has_cleared_loader:
+                                        loader_placeholder.empty()
+                                        has_cleared_loader = True
+
+                                    thought_text += str(reasoning)
+                                    with thought_container:
+                                        with st.expander("💭 Mwalimu is thinking...", expanded=True):
+                                            st.markdown(thought_text)
+                                            
+                                # B. Stream final educational conversational answers
+                                content = getattr(delta, "content", None)
+                                if content:
+                                    # Wipe out the loader text message instantly if not already done
+                                    if not has_cleared_loader:
+                                        loader_placeholder.empty()
+                                        has_cleared_loader = True
+
+                                    # Automatically fold up the reasoning block when the final response prints
+                                    if thought_text:
+                                        with thought_container:
+                                            with st.expander("💭 Thought Process Complete", expanded=False):
+                                                st.markdown(thought_text)
+                                                
+                                    assistant_text += str(content)
+                                    assistant_placeholder.markdown(assistant_text)
+                        except (IndexError, AttributeError, TypeError):
+                            pass
+                            
+                    elif isinstance(chunk, str):
                         if "error" in chunk.lower() or "injected" in chunk.lower():
                             continue
+                        
+                        # Wipe out loader for plain string tokens too
+                        if not has_cleared_loader:
+                            loader_placeholder.empty()
+                            has_cleared_loader = True
+
                         assistant_text += chunk
                         assistant_placeholder.markdown(assistant_text)
-                        continue
-                        
-                    if hasattr(chunk, 'choices') and chunk.choices:
-                        try:
-                            choice_item = chunk.choices[0]
-                            if hasattr(choice_item, 'delta') and choice_item.delta:
-                                delta_content = getattr(choice_item.delta, 'content', None)
-                                
-                                if delta_content is not None:
-                                    # 🎯 FIX: Intercept the OpenRouter SSE Error Injection early!
-                                    if '"error":' in str(delta_content) or 'openai-error' in str(delta_content).lower():
-                                        print(f"[Mwalimu Stream Intercept] Caught injected OpenRouter SSE gateway error chunk.")
-                                        continue
-                                        
-                                    assistant_text += str(delta_content)
-                                    assistant_placeholder.markdown(assistant_text)
-                        except (IndexError, AttributeError, KeyError):
-                            continue
+                            
             except Exception as stream_err:
-                print(f"[Mwalimu Stream Warning] Connection stream interrupted: {stream_err}")
-                if not assistant_text:
-                    assistant_text = "Mwalimu encountered a brief connection stutter. Please try sending your query again!"
-                    assistant_placeholder.markdown(assistant_text)
+                print(f"[Mwalimu Stream Warning] Interrupted: {stream_err}")
+
+            # Final sweep boundary cleanup: ensure loader gets wiped out once everything completes
+            if not has_cleared_loader:
+                loader_placeholder.empty()
+
+            # Fallback error messaging block assignment
+            if not assistant_text:
+                assistant_text = "Mwalimu encountered a brief connection stutter. Please try sending your query again!"
+                assistant_placeholder.markdown(assistant_text)
+
+
+
+
+
 
 
             
