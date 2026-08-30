@@ -64,7 +64,7 @@ def render():
         if msg.get("role") in ["student", "user"]:
             # 👤 STUDENT CONTAINER
             st.markdown(f"""
-            <div style="display: flex; justify-content: flex-end; align-items: flex-start; gap: 10px; margin-bottom: 20px; width: 100%;">
+            <div style="display: flex; justify-content: flex-end; align-items: flex-start; gap: 10px; margin-bottom: 10px; width: 100%;">
                 <div style="background-color: #2F3037; color: #ECECF1; padding: 12px 18px; border-radius: 20px; max-width: 70%; font-family: sans-serif; font-size: 15px; line-height: 1.6; box-shadow: 0 1px 2px rgba(0,0,0,0.1);">
                     <div style="text-align: left;">{msg.get("content", "")}</div>
                 </div>
@@ -74,20 +74,22 @@ def render():
             </div>
             """, unsafe_allow_html=True)
             
-            if "image_preview" in msg and msg["image_preview"]:
+            img_src = msg.get("image_preview") or msg.get("preview")
+            if img_src:
                 st.markdown(f"""
                 <div style="display: flex; justify-content: flex-end; margin-bottom: 20px; width: 100%; padding-right: 42px; box-sizing: border-box;">
                     <div style="max-width: 320px; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.15); border: 1px solid #424656;">
-                        <img src="{msg["image_preview"]}" style="width: 100%; display: block;" />
+                        <img src="{img_src}" style="width: 100%; display: block;" />
                     </div>
                 </div>
                 """, unsafe_allow_html=True)
 
-            if "file_preview" in msg and msg["file_preview"]:
+            file_src = msg.get("file_preview")
+            if file_src:
                 st.markdown(f"""
                 <div style="display: flex; justify-content: flex-end; margin-bottom: 20px; width: 100%; padding-right: 42px; box-sizing: border-box;">
                     <div style="background-color: #2F3037; color: #ECECF1; padding: 10px 14px; border-radius: 12px; border: 1px solid #424656; display: flex; align-items: center; gap: 8px; font-size: 13px; font-family: sans-serif;">
-                        📄 {msg["file_preview"]}
+                        📄 {file_src}
                     </div>
                 </div>
                 """, unsafe_allow_html=True)
@@ -111,7 +113,7 @@ def render():
             st.markdown("<div style='margin-bottom: 32px;'></div>", unsafe_allow_html=True)
 
     # ----------------------------------------------------
-    # 🛠️ SCROLL ENGINE AUTOMATION MANAGER (DOCUMENT METHOD)
+    # 🛠️ SCROLL ENGINE AUTOMATION MANAGER
     # ----------------------------------------------------
     target_scroll_id = f"msg_{assistant_messages_count}"
 
@@ -133,7 +135,6 @@ def render():
     # ----------------------------------------------------
     if st.session_state.get("chat_limit_reached"):
         st.error("⚠️ Daily question Limit Reached, Wait for 24hrs or Upgrade to Premium to continue!")
-        
         if st.button("🚀 Upgrade to Premium", key="chat_upgrade_unique_btn"):
             st.session_state.pop("chat_limit_reached", None)
             st.session_state.trigger_chat_upgrade_modal = True
@@ -141,15 +142,11 @@ def render():
 
     if st.session_state.get("upload_limit_reached"):
         st.error("🔒 **Mwalimu Document Scanner Upload Today Limit Reached.** Upgrade to Premium to get Unlimited Upload!")
-        
         if st.button("🚀 Upgrade to Premium Now", key="upload_guard_upgrade_btn"):
             st.session_state.pop("upload_limit_reached", None)
             st.session_state.trigger_chat_upgrade_modal = True
             st.rerun()
 
-    # ----------------------------------------------------
-    # Safe Modal Activation Layer (Global Target)
-    # ----------------------------------------------------
     if st.session_state.get("trigger_chat_upgrade_modal"):
         st.session_state.pop("trigger_chat_upgrade_modal", None)
         upgrade_modal()
@@ -163,9 +160,11 @@ def render():
         file_type=["pdf", "png", "jpg", "jpeg"]
     )
 
-    #=======================
+    # =====================================================
+    # LIVE MESSAGE SUBMISSION & STREAMING HANDLER
+    # =====================================================
     if chat_payload:
-        # 1. Safely extract message payload text & file metadata
+        # 1. Extract message text & attachment files
         if hasattr(chat_payload, "text"):
             user_question = chat_payload.text or ""
         elif isinstance(chat_payload, dict):
@@ -205,16 +204,30 @@ def render():
                 "learning_outcome": st.session_state.get("active_learning_outcome", "")
             }
 
-            # 4. Handle attachments with tier allowance checks
+            # 4. Handle attachments & standardize preview fields
             attachment_payload = None
+            image_preview_url = None
+            file_preview_name = None
+
             if uploaded_file:
                 if not verify_tier_allowance(uid, tier, "has_upload"):
-                    # Store flag in session_state and rerun so the banner renders globally above chat input
                     st.session_state.upload_limit_reached = True
                     st.rerun()
                 else:
                     st.session_state.pop("upload_limit_reached", None)
                     attachment_payload = MwalimuVisionService.process_chat_input_file(uploaded_file)
+                    
+                    # Standardize extraction of image/file preview values
+                    if attachment_payload:
+                        image_preview_url = (
+                            attachment_payload.get("preview") or 
+                            attachment_payload.get("image_preview") or 
+                            (attachment_payload.get("content") if attachment_payload.get("type") == "image_base64" else None)
+                        )
+                        file_preview_name = (
+                            attachment_payload.get("file_preview") or 
+                            attachment_payload.get("filename")
+                        )
 
             # 5. Save incoming user message to memory & database
             age_raw = str(st.session_state.get("age", ""))
@@ -231,16 +244,19 @@ def render():
                 attachment=attachment_payload
             )
 
-            # Append to session state immediately for streaming turn
+            # Append to session state for current turn
             st.session_state.ask_mwalimu_history.append({
                 "role": "user",
                 "content": user_question,
-                "image_preview": attachment_payload.get("preview") if attachment_payload else None
+                "image_preview": image_preview_url,
+                "file_preview": file_preview_name
             })
 
-            # Explicitly render User Message HTML FIRST before streaming AI starts
+            # -------------------------------------------------
+            # EXPLICITLY RENDER USER PROMPT + UPLOAD IMMEDIATELY
+            # -------------------------------------------------
             st.markdown(f"""
-            <div style="display: flex; justify-content: flex-end; align-items: flex-start; gap: 10px; margin-bottom: 20px; width: 100%;">
+            <div style="display: flex; justify-content: flex-end; align-items: flex-start; gap: 10px; margin-bottom: 10px; width: 100%;">
                 <div style="background-color: #2F3037; color: #ECECF1; padding: 12px 18px; border-radius: 20px; max-width: 70%; font-family: sans-serif; font-size: 15px; line-height: 1.6; box-shadow: 0 1px 2px rgba(0,0,0,0.1);">
                     <div style="text-align: left;">{user_question}</div>
                 </div>
@@ -250,18 +266,25 @@ def render():
             </div>
             """, unsafe_allow_html=True)
 
-            if attachment_payload and attachment_payload.get("preview"):
+            if image_preview_url:
                 st.markdown(f"""
                 <div style="display: flex; justify-content: flex-end; margin-bottom: 20px; width: 100%; padding-right: 42px; box-sizing: border-box;">
                     <div style="max-width: 320px; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.15); border: 1px solid #424656;">
-                        <img src="{attachment_payload["preview"]}" style="width: 100%; display: block;" />
+                        <img src="{image_preview_url}" style="width: 100%; display: block;" />
                     </div>
                 </div>
                 """, unsafe_allow_html=True)
 
-            # 6. Target calculation for dynamic scroll anchoring
-            next_scroll_target_id = f"msg_{assistant_messages_count + 1}"
-            
+            if file_preview_name and not image_preview_url:
+                st.markdown(f"""
+                <div style="display: flex; justify-content: flex-end; margin-bottom: 20px; width: 100%; padding-right: 42px; box-sizing: border-box;">
+                    <div style="background-color: #2F3037; color: #ECECF1; padding: 10px 14px; border-radius: 12px; border: 1px solid #424656; display: flex; align-items: center; gap: 8px; font-size: 13px; font-family: sans-serif;">
+                        📄 {file_preview_name}
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+
+            # Auto-scroll focus to tail
             st.markdown(f'<div id="chat-page-tail" style="height: 5px;"></div>', unsafe_allow_html=True)
             st.html("""
                 <script>
@@ -269,7 +292,8 @@ def render():
                 </script>
             """)
 
-            # 7. Setup Live Streaming View Node for Mwalimu AI (Renders BELOW the user prompt)
+            # 6. Stream View Node for Mwalimu AI
+            next_scroll_target_id = f"msg_{assistant_messages_count + 1}"
             st.markdown(f"""
             <div id="{next_scroll_target_id}" style="display: flex; justify-content: flex-start; align-items: center; gap: 10px; margin-bottom: 12px; width: 100%; scroll-margin-top: 80px;">
                 <div style="width: 32px; height: 32px; background-color: #FF4B4B; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 15px; flex-shrink: 0; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">
@@ -286,37 +310,21 @@ def render():
                 """
                 <style>
                 @keyframes cgpt-bounce {
-                    0%, 80%, 100% { 
-                        transform: scale(0.6);
-                        opacity: 0.4;
-                    } 
-                    40% { 
-                        transform: scale(1.0);
-                        opacity: 1;
-                    }
+                    0%, 80%, 100% { transform: scale(0.6); opacity: 0.4; } 
+                    40% { transform: scale(1.0); opacity: 1; }
                 }
                 .cgpt-dots-wrapper {
-                    display: flex;
-                    align-items: center;
-                    gap: 6px;
-                    padding: 8px 0;
-                    margin-bottom: 12px;
+                    display: flex; align-items: center; gap: 6px; padding: 8px 0; margin-bottom: 12px;
                 }
                 .cgpt-dots-wrapper span {
-                    width: 8px;
-                    height: 8px;
-                    background-color: #ECECF1;
-                    border-radius: 50%;
-                    display: inline-block;
+                    width: 8px; height: 8px; background-color: #ECECF1; border-radius: 50%; display: inline-block;
                     animation: cgpt-bounce 1.4s infinite ease-in-out both;
                 }
                 .cgpt-dots-wrapper span:nth-child(1) { animation-delay: -0.32s; }
                 .cgpt-dots-wrapper span:nth-child(2) { animation-delay: -0.16s; }
                 </style>
                 <div class="cgpt-dots-wrapper">
-                    <span></span>
-                    <span></span>
-                    <span></span>
+                    <span></span><span></span><span></span>
                 </div>
                 """,
                 unsafe_allow_html=True
@@ -330,7 +338,7 @@ def render():
                 attachment=attachment_payload
             )
 
-            # 8. Type-Safe Stream Processing Loop
+            # 7. Type-Safe Stream Processing Loop
             assistant_text = ""
             thought_text = ""
             has_cleared_loader = False
@@ -348,7 +356,6 @@ def render():
                             delta = getattr(first_choice, "delta", None)
                             
                             if delta:
-                                # Stream model thinking phase
                                 reasoning = getattr(delta, "reasoning_content", None)
                                 if reasoning:
                                     if not has_cleared_loader:
@@ -360,7 +367,6 @@ def render():
                                         with st.expander("💭 Mwalimu is thinking...", expanded=True):
                                             st.markdown(thought_text)
                                             
-                                # Stream final output content
                                 content = getattr(delta, "content", None)
                                 if content:
                                     if not has_cleared_loader:
@@ -398,7 +404,7 @@ def render():
                 assistant_text = "Mwalimu encountered a brief connection stutter. Please try sending your query again!"
                 assistant_placeholder.markdown(assistant_text)
 
-            # 9. Final Persistence & Metrics Increment
+            # 8. Persistence & Metrics Increment
             MwalimuDBService.increment_usage(uid, "questions")
 
             if attachment_payload is not None:
