@@ -7,7 +7,6 @@ import sqlite3
 import time
 import asyncio
 import edge_tts
-import tempfile
 import re
 from streamlit_mic_recorder import speech_to_text
 from services.ai import ask_mwalimu_voice
@@ -19,25 +18,46 @@ from services.database import (
 from services.audio_duration import get_audio_duration
 
 
+# =============================================================================
+# TTS GENERATION — OPTIMIZED
+# -----------------------------------------------------------------------------
+# What changed vs. the previous version, and why:
+#   1. No more temp file. The old version wrote MP3 bytes to disk
+#      (NamedTemporaryFile), then immediately read them back, then deleted
+#      the file — three filesystem operations for zero benefit, since we
+#      only ever wanted the bytes in memory. edge_tts.Communicate.stream()
+#      yields audio chunks directly; we just concatenate them.
+#   2. asyncio.run() instead of manually creating + setting a new event
+#      loop and never closing it. Functionally similar, but asyncio.run()
+#      guarantees the loop is properly closed afterward — the old pattern
+#      leaked a fresh, un-closed event loop on every single call.
+#   3. Everything else about how this is called (sync function, returns
+#      bytes) is unchanged, so nothing else in the file needs to know
+#      about this.
+# This does NOT eliminate the network round-trip to Microsoft's Edge TTS
+# service (that connection has to happen no matter what), but it removes
+# the disk I/O overhead stacked on top of it.
+# =============================================================================
+async def _generate_edge_tts_audio_async(text: str, voice: str) -> bytes:
+    communicate = edge_tts.Communicate(text, voice)
+    audio_chunks = bytearray()
+    async for chunk in communicate.stream():
+        if chunk["type"] == "audio":
+            # .get() instead of chunk["data"]: edge_tts's TTSChunk TypedDict
+            # marks "data" as NOT required even on audio-type chunks, so a
+            # plain equality check on "type" doesn't let static type-checkers
+            # (Pylance) narrow the type safely. This also acts as a real
+            # runtime guard, not just a lint fix: an audio chunk that somehow
+            # arrives without "data" is silently skipped instead of raising.
+            data = chunk.get("data")
+            if data:
+                audio_chunks.extend(data)
+    return bytes(audio_chunks)
+
+
 def generate_edge_tts_audio(text: str, voice: str) -> bytes:
-    """Helper to run the async edge-tts generation loop and return bytes."""
-    async def _async_gen():
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as temp_file:
-            communicate = edge_tts.Communicate(text, voice)
-            await communicate.save(temp_file.name)
-            temp_path = temp_file.name
-
-        with open(temp_path, "rb") as f:
-            audio_bytes = f.read()
-        try:
-            os.remove(temp_path)
-        except:
-            pass
-        return audio_bytes
-
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    return loop.run_until_complete(_async_gen())
+    """Generate TTS audio entirely in memory — no temp file round-trip."""
+    return asyncio.run(_generate_edge_tts_audio_async(text, voice))
 
 
 def clean_math_transcript(text: str) -> str:
@@ -132,15 +152,11 @@ def render_voice_tutor_page(client):
                 st.session_state.voice_chat_history = []
 
     # =========================================================================
-    # FIXED LAYOUT ANCHORS
+    # FIXED LAYOUT ANCHORS  (unchanged from the container-fix version)
     # -------------------------------------------------------------------------
-    # These are declared ONCE, in a fixed order, before any conditional
-    # rendering happens. This is what keeps the mic recorder's position in
-    # the DOM stable across reruns — regardless of how many chat/audio
-    # messages are rendered above it. A fixed-height, scrollable container
-    # for history means the history list can grow/shrink without shifting
-    # anything below it, and interaction_holder is the single, constant
-    # slot where the recorder / live response / playback UI always live.
+    # Declared ONCE, in a fixed order, before any conditional rendering.
+    # This keeps the mic recorder's position in the DOM stable across
+    # reruns regardless of how many chat/audio messages are above it.
     # =========================================================================
     has_history = len(st.session_state.voice_chat_history) > 0
 
@@ -183,6 +199,12 @@ def render_voice_tutor_page(client):
                 # every rerun. Do NOT tie this to subject/topic changes.
                 key=f"voice_stt_v_{st.session_state.voice_recorder_version}"
             )
+            # NEW: sets expectations for the transcription wait. This is a
+            # static hint, not a dynamic status — Python has no visibility
+            # into the recorder component's internal processing state, so
+            # it can't show a live "transcribing..." spinner for that gap.
+            # What it CAN do is stop that silent wait from looking broken.
+            st.caption("💡 After you stop recording, transcription can take a few seconds — please wait, don't click again.")
 
         if transcribed_text:
             cleaned_text = str(transcribed_text).strip()

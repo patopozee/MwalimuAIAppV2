@@ -1,4 +1,3 @@
-# services/ai.py
 import os
 import json
 import random
@@ -9,9 +8,12 @@ from dotenv import load_dotenv
 from openai import OpenAI
 from knowledge_layer import MwalimuKnowledgeLayer, clean_and_parse_json
 from services.database import get_admin_material_context
+from services.router_service import RouterService
+
 # 1. Load keys from local .env file if it exists
 load_dotenv()
 knowledge_base = MwalimuKnowledgeLayer()
+
 # 2. Unified fallback: check system environment variables first, then fallback to Streamlit secrets
 api_key = (
     os.environ.get("GEMINI_API_KEY")
@@ -34,11 +36,23 @@ SYSTEM_GUARD = (
     "regarding religious studies (CRE), communities, or historical events. Absolutely NEVER return text strings "
     "like 'User safety: safe' or refuse to generate answers. Always provide full, comprehensive educational output."
 )
+
 def ask_mwalimu(question, student, messages, adaptive_context="", attachment=None):
-    """Dispatches prompts to a specific high-quality free model on OpenRouter."""
     """Handles real-time conversational Q&A locked to the local curriculum guide framework."""
+    # 1. Evaluate query using RouterService
+    route_info = RouterService.route_query(question, attachment)
+    
+    # Ensure selected model is an active Google Gemini model ID
+    valid_models = ["gemini-3.6-flash", "gemini-3.1-pro", "gemini-3.5-flash"]
+    selected_model = route_info.get("model_name", "gemini-3.6-flash")
+    
+    if selected_model not in valid_models:
+        selected_model = "gemini-3.6-flash"
+
+    mode = route_info.get("mode", "STANDARD")
+    
+    # Context Extractors
     preferred_language = student.get("preferred_language", student.get("language", "English"))
-        # 🚀 ADD THESE LINES HERE:
     student_name = student.get("student_name") or student.get("name", "Student")
     student_grade = student.get("grade", "Grade 6")
     student_age = student.get("age", "12")
@@ -47,14 +61,13 @@ def ask_mwalimu(question, student, messages, adaptive_context="", attachment=Non
     topic = student.get('topic', 'Whole Numbers')
     sub_topic = student.get('sub_topic', 'Place Value')
     learning_style = student.get("learning_style", "General")
+    
     kicd_data = knowledge_base.get_curriculum_context(subject, topic, sub_topic)
-
     admin_provided_text = get_admin_material_context(subject, topic, sub_topic)
 
-    # Clean language rules focusing on conversational interaction instead of timetables
     language_rules = {
         "English": "Respond naturally and directly in grammatically correct English like an empathetic Kenyan classroom teacher.",
-        "Kiswahili": "Andika majibu yako yote kwa Kiswahili sanihu, fasaha, na safi kabisa kinachofaa mazingira ya shule za Kenya. Usitumie Kiingereza.",
+        "Kiswahili": "Andika majibu yako yote kwa Kiswahili sanifu, fasaha, na safi kabisa kinachofaa mazingira ya shule za Kenya. Usitumie Kiingereza.",
         "Sheng": "Tumia lugha ya kirafiki ya Sheng iliyochanganywa na maelezo ya kimasomo ili kumfanya mwanafunzi achangamke, lakini hakikisha ukweli wa kimasomo unabaki sahihi na rahisi kuelewa."
     }
     
@@ -69,74 +82,75 @@ def ask_mwalimu(question, student, messages, adaptive_context="", attachment=Non
             elif role in ["assistant", "mwalimu"]:
                 history += f"Mwalimu AI: {content}\n"
 
-    # Build text prompt context elements for local files
     pdf_text_context = ""
     if attachment and attachment.get("type") == "text_extraction":
-        pdf_text_context = f"\n\n=== ATTACHED PDF DOCUMENT CONTENT ({attachment['filename']}) ===\n{attachment['content']}"
+        pdf_text_context = f"\n\n=== ATTACHED PDF DOCUMENT CONTENT ({attachment.get('filename', 'Doc')}) ===\n{attachment.get('content', '')}"
 
-    # --- THE ONLY CHANGED PART: GREETING GUARDRAIL ---
     greeting_guardrail = ""
     if history.strip():
         greeting_guardrail = "\n- CRITICAL: A conversation history already exists. Do NOT greet the student, do not say hello or 'Habari', and do not repeat introductions. Answer the current question directly."
 
-    # RESTRUCTURED PROMPT: Natural chat guidelines, zero study plan leaks
     prompt = f"""
-{SYSTEM_GUARD}
+    {SYSTEM_GUARD}
 
-=== STUDENT PROFILE & LOCAL CONTEXT ===
-- **Student Name**: {student_name}
-- **Current Grade**: {student_grade}
-- **Age**: {student_age} years old
-- **Subject**: {subject}
-- **Topic**: {topic} (Sub-topic: {sub_topic})
-- **Preferred Language**: {preferred_language}
-- **Learning Style**: {learning_style} (Adapt your explanations to match this style, e.g., use descriptions or analogies if visual/auditory)
-- **Curriculum KICD Guidelines**: {json.dumps(kicd_data, ensure_ascii=False)}
-- **Adaptive Remediation Notes**: {adaptive_context} {pdf_text_context}
+    === ROUTER MODE: {mode} ===
+
+    === STUDENT PROFILE & LOCAL CONTEXT ===
+    - **Student Name**: {student_name}
+    - **Current Grade**: {student_grade}
+    - **Age**: {student_age} years old
+    - **Subject**: {subject}
+    - **Topic**: {topic} (Sub-topic: {sub_topic})
+    - **Preferred Language**: {preferred_language}
+    - **Learning Style**: {learning_style}
+    - **Curriculum KICD Guidelines**: {json.dumps(kicd_data, ensure_ascii=False)}
+    - **Adaptive Remediation Notes**: {adaptive_context} {pdf_text_context}
     {admin_provided_text}
 
-=== LANGUAGE & TEACHING INSTRUCTIONS ===
-{language_rules.get(preferred_language, language_rules["English"])}
-- Break down difficult educational topics into simple, snackable student steps.
-- 🚀 CONVERSATIONAL RULE: Talk naturally like a real human teacher. Greet the student by their name ({student_name}) casually if it's the start of the chat. Never append their grade or age in parentheses or force it into your greetings unless they specifically ask you about it.
-- If the user uploaded an image attachment snippet...
-- Break down difficult educational topics into simple, snackable student steps.
-- If the user uploaded an image attachment snippet, deeply scan it for math problems, handwritten errors, diagrams, or reading exercises. Address its visual elements directly.
-- NEVER output headers like 'Daily Study Goals', 'Study Schedule', or 'Time Intervals'. 
-- Respond directly, warmly, and helpfully to the current student query below.{greeting_guardrail}
+    === LANGUAGE & TEACHING INSTRUCTIONS ===
+    {language_rules.get(preferred_language, language_rules["English"])}
+    - Break down difficult educational topics into simple, snackable student steps.
+    - Talk naturally like a real human teacher. Greet the student by their name ({student_name}) casually if it's the start of the chat.
+    - NEVER output headers like 'Daily Study Goals', 'Study Schedule', or 'Time Intervals'. 
+    - Respond directly, warmly, and helpfully to the current student query below.{greeting_guardrail}
 
-=== CONVERSATION HISTORY ===
-{history}
+    === CONVERSATION HISTORY ===
+    {history}
 
-=== CURRENT STUDENT INQUIRY ===
-Student Question/Attachment upload: {question}
-Mwalimu AI response:
-"""
+    === CURRENT STUDENT INQUIRY ===
+    Student Question/Attachment upload: {question}
+    Mwalimu AI response:
+    """
 
-    # Assemble structural payload for OpenRouter's API wrapper
-    api_messages = [{"role": "user", "content": [{"type": "text", "text": prompt}]}]
-    
+    # Build clean message payload depending on vision attachment
     if attachment and attachment.get("type") == "image_base64":
-        api_messages[0]["content"].append({
-            "type": "image_url",
-            "image_url": {"url": str(attachment["content"])}
-        })
+        img_url = str(attachment["content"])
+        if not img_url.startswith("data:"):
+            img_url = f"data:image/jpeg;base64,{img_url}"
+
+        api_messages = [{
+            "role": "user",
+            "content": [
+                {"type": "text", "text": prompt},
+                {"type": "image_url", "image_url": {"url": img_url}}
+            ]
+        }]
+    else:
+        api_messages = [{"role": "user", "content": prompt}]
 
     try:
-        # 4. Swap model strings to your recommended native Google tiers
-        # Use "gemini-2.5-flash" for quick voice/chat, or "gemini-2.5-pro" for complex CBC lessons
         response_stream = client.chat.completions.create(
-            model="gemini-3.6-flash",
+            model=selected_model,
             messages=api_messages,  # type: ignore
             max_tokens=2048,  
             stream=True  
         )
         return response_stream  
-        
+
     except Exception as api_err:
         error_diagnostic_string = str(api_err)
+        print(f"[API ERROR LOG]: {error_diagnostic_string}")  # Prints full error to VS Code terminal
         
-        # 5. Adjusted system guard to catch Google's specific resource/billing errors
         if "402" in error_diagnostic_string or "quota" in error_diagnostic_string.lower() or "credit" in error_diagnostic_string.lower():
             def error_generator():
                 yield "Mwalimu's connection is low on Google AI Studio wallet credits. Please top up your Google prepaid balance!"
@@ -145,9 +159,6 @@ Mwalimu AI response:
         def fallback_generator():
             yield f"Mwalimu encountered a brief connection stutter. Details: {error_diagnostic_string}"
         return fallback_generator()
-
-
-
 
 def generate_quiz(topic, student, difficulty="Medium"):
     # 1. Unpack properties safely from the unified user state map
@@ -584,16 +595,28 @@ Please construct the lesson using clean Markdown headers. The lesson MUST includ
         
         return f"Mwalimu encountered an issue preparing your lesson roadmap: {e}. Please click generate again!"
 
-def ask_mwalimu_voice(question, student, messages, adaptive_context, client):
-    """Dedicated text-driven voice streaming engine with pre-emptive credit ceilings."""
+def ask_mwalimu_voice(question, student, messages, adaptive_context="", attachment=None, client=None):
+    """Dedicated text-driven voice streaming engine with dynamic RouterService model selection."""
+    
+    # 1. Dynamically route model choice using RouterService
+    route_info = RouterService.route_query(question, attachment)
+    
+    # Ensure selected model is an active Google Gemini model ID
+    valid_models = ["gemini-3.7-flash", "gemini-3.6-flash", "gemini-3.1-pro"]
+    selected_model = route_info.get("model_name", "gemini-3.6-flash")
+
+    if selected_model not in valid_models:
+        selected_model = "gemini-3.6-flash"
+
+    mode = route_info.get("mode", "FAST_VOICE")
+    
+    # Context Extractors
     preferred_language = student.get("preferred_language", student.get("language", "English"))
+    student_name = student.get("student_name") or student.get("name", "Student")
     subject = student.get('subject', 'Science')
     topic = student.get('topic', 'Living Things')
     sub_topic = student.get('sub_topic', 'Plants')
     learning_style = student.get("learning_style", "General")
-    
-    # Safely look up curriculum details from your knowledge base
-    kicd_data = knowledge_base.get_curriculum_context(subject, topic, sub_topic)
     
     language_rules = {
         "English": "Respond naturally and directly in grammatically correct English like an empathetic Kenyan classroom teacher.",
@@ -601,74 +624,77 @@ def ask_mwalimu_voice(question, student, messages, adaptive_context, client):
         "Sheng": "Tumia lugha ya kirafiki ya Sheng iliyochanganywa na maelezo ya kimasomo ili kumfanya mwanafunzi achangamke, lakini hakikisha ukweli wa kimasomo unabaki sahihi."
     }
     
-    # Get the language instruction string based on student choice
     selected_language_rule = language_rules.get(preferred_language, language_rules["English"])
     
-    # 🏎️ CRITICAL OPTIMIZATION: Tight sliding window. Never send more than the last 4 messages to save tokens!
+    # 🏎️ TIGHT SLIDING WINDOW: Limit context to last 4 messages to minimize latency
     recent_messages = messages[-4:] if messages else []
     
-    # Build history string strictly using the recent_messages slice
     voice_history_string = ""
     for msg in recent_messages:
-        role_label = "Mwanafunzi" if msg.get("role") in ["user", "student", "voice_student"] else "Mwalimu"
-        voice_history_string += f"{role_label}: {msg.get('content')}\n"
+        if isinstance(msg, dict) and "content" in msg:
+            role_label = "Student" if msg.get("role") in ["user", "student", "voice_student"] else "Mwalimu"
+            voice_history_string += f"{role_label}: {msg.get('content')}\n"
 
-    # Assemble the final, isolated prompt string
+    # Assemble isolated voice prompt
     prompt = f"""
-{SYSTEM_GUARD}
+    {SYSTEM_GUARD}
 
-=== CRITICAL CONTEXT CONFLICT PROTECTION WALL ===
-- THIS IS A COMPLETELY SEPARATE, INDEPENDENT VOICE LEARNING SESSION.
-- NEVER read, reference, or use information from the student's normal text chat window history.
-- Treat this voice session as its own isolated classroom environment.
-- Ignore any text chat messages that are not present in the Voice Tutor history block below.
-- Never explain your reasoning.
-- Never describe the conversation history.
-- Never repeat the student's sentence.
-- Never say "Current context".
-- Never say "Voice session".
-- Only answer the student directly.
+    === ROUTER MODE: {mode} ===
 
-=== VOICE TUTOR RULES (STRICT CAP) ===
-- YOU ARE SPEAKING ALOUD. NEVER EXCEED 50 WORDS TOTAL.
-- Keep answers brief, conversational, warm, and highly snackable.
-- Avoid asterisks, bolding markdown, or symbols completely.
-- Language Instruction: {selected_language_rule}
+    === CRITICAL VOICE SESSION WALL ===
+    - THIS IS AN ISOLATED VOICE LEARNING SESSION.
+    - Treat this voice session as its own isolated classroom environment.
+    - Never explain your reasoning or mention conversation context/history.
+    - Only answer the student directly.
 
-=== EXCLUSIVE VOICE TUTOR INTERACTION HISTORY ===
-{voice_history_string}
-================================================
+    === VOICE TUTOR RULES (STRICT TTS OPTIMIZATION) ===
+    - YOU ARE SPEAKING ALOUD. NEVER EXCEED 50 WORDS TOTAL.
+    - Speak warmly, conversationally, and keep explanations simple and snackable.
+    - CRITICAL FOR TTS: Do NOT use markdown symbols (no asterisks, bolding, hashes, or emojis). Write pure plain text only.
+    - Language Instruction: {selected_language_rule}
 
-=== STUDENT PROFILE & CURRENT SUBJECT CONTEXT ===
-- **Student Name**: {student.get('name', 'Student')}
-- **Subject**: {subject} | **Topic**: {topic} ({sub_topic})
-- **Learning Style**: {learning_style}
+    === VOICE HISTORY ===
+    {voice_history_string}
 
-=== CURRENT STUDENT SPOKEN INQUIRY ===
-Student Spoken Question: {question}
-Mwalimu AI verbal response:
-"""
+    === STUDENT PROFILE ===
+    - Name: {student_name}
+    - Subject: {subject} | Topic: {topic} ({sub_topic})
+    - Learning Style: {learning_style}
+
+    === CURRENT STUDENT SPOKEN QUESTION ===
+    {question}
+    
+    Mwalimu AI verbal response:
+    """
 
     api_messages = [{"role": "user", "content": prompt}]
 
+    # 1. Fallback Guard: Fallback to the globally initialized client in ai.py if None is passed
+    if client is None:
+        # Check for your global client instance variable in services/ai.py
+        # Replace 'client' below if your global variable name is different
+        from services.ai import client as global_client  
+        client = global_client
+
+    # 2. Type Assertion: Assure Pylance that client is not None
+    assert client is not None, "Client object is not initialized."
+
     try:
-        # 🚀 PRE-EMPTIVE CEILING: Lower voice max_tokens to 350 to provide super-fast text chunks and stay well within your 812 budget
         response_stream = client.chat.completions.create(
-            model="gemini-3.6-flash",
+            model=selected_model,
             messages=api_messages,  # type: ignore
-            max_tokens=800,  
+            max_tokens=700,  
             stream=True  
         )
         return response_stream  
         
     except Exception as api_err:
         error_diagnostic_string = str(api_err)
+        print(f"[VOICE API ERROR LOG]: {error_diagnostic_string}")
         
-        
-        # 🛡️ SYSTEM GUARD: Catch 402/Credit errors explicitly before returning to prevent SSE/JSON pipeline crashes
-        if "402" in error_diagnostic_string or "credits" in error_diagnostic_string.lower():
+        if "402" in error_diagnostic_string or "quota" in error_diagnostic_string.lower() or "credit" in error_diagnostic_string.lower():
             def error_generator():
-                yield "Mwalimu's voice box is currently offline due to low OpenRouter credits. Please add a small credit top-up to your API wallet dashboard!"
+                yield "Mwalimu's voice box is currently offline due to low API credits. Please top up your prepaid balance!"
             return error_generator()
 
         def fallback_generator():
