@@ -254,7 +254,30 @@ element.scrollIntoView({{ behavior: "smooth", block: "start" }});
 """, unsafe_allow_html=True)
         
         assistant_placeholder = st.empty()
-        
+        loader_placeholder = st.empty()
+        loader_placeholder.markdown(
+            """
+            <style>
+            @keyframes cgpt-bounce {
+                0%, 80%, 100% { transform: scale(0.6); opacity: 0.4; } 
+                40% { transform: scale(1.0); opacity: 1; }
+            }
+            .cgpt-dots-wrapper {
+                display: flex; align-items: center; gap: 6px; padding: 8px 0; margin-bottom: 12px;
+            }
+            .cgpt-dots-wrapper span {
+                width: 8px; height: 8px; background-color: #ECECF1; border-radius: 50%; display: inline-block;
+                animation: cgpt-bounce 1.4s infinite ease-in-out both;
+            }
+            .cgpt-dots-wrapper span:nth-child(1) { animation-delay: -0.32s; }
+            .cgpt-dots-wrapper span:nth-child(2) { animation-delay: -0.16s; }
+            </style>
+            <div class="cgpt-dots-wrapper">
+                <span></span><span></span><span></span>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
         response_stream = ask_mwalimu(
             question=user_query,
             student=chat_profile,
