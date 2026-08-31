@@ -5,16 +5,19 @@ from services.database import get_ask_mwalimu_history
 
 def handle_subject_change():
     """Triggered instantly the millisecond the student clicks a new subject choice."""
-    # 1. Force the active context variables to sync with the interactive UI value right away
+    # 🎯 FIREBASE LOGOUT SAFEGUARD: Exit early if state was cleared to prevent KeyErrors
+    if "sidebar_subject_select" not in st.session_state:
+        return
+
     new_subject = st.session_state["sidebar_subject_select"]
     st.session_state.active_subject = new_subject
     
-    # 2. Reset subordinate dependent selectbox keys to prevent cross-topic index structural crashes
+    # Reset subordinate dependent selectbox keys safely
     st.session_state.pop("sidebar_topic_select", None)
     st.session_state.pop("sidebar_subtopic_select", None)
     st.session_state.pop("sidebar_outcome_select", None)
     
-    # 3. Clear data frames caching to sweep out stale progress statistics matrices
+    # Clear data frames caching to sweep out stale progress statistics matrices
     st.cache_data.clear()
 
 
