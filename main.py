@@ -399,8 +399,9 @@ def render_auth_portal(context="auth"):
                 st.info("🔒 Please check the agreement box above to activate Google Sign-In.")
 
 
+
 # ====================================================================
-# STEP 2: TOP-LEVEL GOOGLE OAUTH INTERCEPTOR
+# STEP 2: TOP-LEVEL GOOGLE OAUTH INTERCEPTOR (FIXED FOR MOBILE REFRESHES)
 # ====================================================================
 if "code" in st.query_params and not st.session_state.get("user_authenticated", False):
     auth_code = st.query_params["code"]
@@ -456,13 +457,20 @@ if "code" in st.query_params and not st.session_state.get("user_authenticated", 
             st.session_state.current_page = "Main Chat"
             st.session_state.active_view = "main"
 
+            # 🎯 THE FIX: Explicitly clear the entire address bar variables 
+            # to guarantee mobile browsers pull down a clean URL on fresh refreshes.
+            st.query_params.clear()
+
             update_session()
-
-            if "code" in st.query_params:
-                del st.query_params["code"]
-
             st.rerun()
         else:
+            # 💡 SAFEGUARD: If a spent code is processed due to mobile page pull-to-refresh,
+            # bypass the error banner if the session profile context is already active.
+            if st.session_state.get("user_authenticated") or st.session_state.get("uid"):
+                st.rerun()
+                
+
+                
             error_desc = token_response.get("error_description", token_response.get("error", "Unknown Token Error"))
             st.error(f"Google OAuth Token Exchange Failed ({response.status_code}): {error_desc}")
 
