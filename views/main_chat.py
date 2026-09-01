@@ -164,6 +164,13 @@ def render():
     # LIVE MESSAGE SUBMISSION & STREAMING HANDLER
     # =====================================================
     if chat_payload:
+        user_question = str(chat_payload.text) if hasattr(chat_payload, "text") else str(chat_payload)
+        
+        # 🎯 FIX 2: Dynamic entry defense guardrail
+        injection_keywords = ["protocol:", "ignore prior", "override", "system directive", "developer mode"]
+        if any(keyword in user_question.lower() for keyword in injection_keywords):
+            st.warning("⚠️ Mwalimu detected invalid characters or system instructions in your query. Please ask an academic question!")
+            st.stop()
         # 1. Extract message text & attachment files
         if hasattr(chat_payload, "text"):
             user_question = chat_payload.text or ""
