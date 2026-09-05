@@ -908,22 +908,27 @@ if st.session_state.get("user_authenticated") and "user_email" in st.session_sta
                 st.switch_page(target_page)
 
     if st.session_state.get("user_authenticated", False):
-        load_theme()
-        from styles.sidebar import load as load_sidebar_style
-        load_sidebar_style()
-        from styles.sidebar import load_style
-        load_style()
-        
-        import components.sidebar as sidebar
-        sidebar.render()
-        render_header()
-        
-        # 🚨 LAUNCH THE DIALOG USING PERSISTENT STATE MANAGEMENT HERE:
-        if st.session_state.show_upgrade_modal:
-            from services.upgrade_modal import upgrade_modal # Update to match your actual file path
-            upgrade_modal()
+        try:
+            load_theme()
+            from styles.sidebar import load as load_sidebar_style
+            load_sidebar_style()
+            from styles.sidebar import load_style
+            load_style()
             
-        router.run()
+            import components.sidebar as sidebar
+            sidebar.render()
+            render_header()
+            
+            if st.session_state.show_upgrade_modal:
+                from services.upgrade_modal import upgrade_modal
+                upgrade_modal()
+                
+            # 🚀 THIS IS WHERE THE VIEW CODE ACTUALLY EXECUTES
+            router.run()
+
+        except Exception as e:
+            # Prevent Streamlit red traceback screen completely
+            st.error("⚠️ Something went wrong while loading the app. Please refresh or try again.")
 
 
 

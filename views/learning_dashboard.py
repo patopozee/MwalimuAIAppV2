@@ -11,198 +11,207 @@ from services.lms_service import (
 
 
 def render():
-    student_uid = str(st.session_state.get("uid") or "")
-    student_grade = get_student_grade()
-    active_subject = str(st.session_state.get("active_subject", "Mathematics"))
-    lms_stats = get_lms_statistics(
-        student_uid,
-        student_grade,
-        active_subject
-    )
-    from services.lms_service import (
-        get_current_active_lesson,
-        load_course_structure,
-        get_student_lesson_progress,
-    )
+    try:
+        student_uid = str(st.session_state.get("uid") or "")
+        student_grade = get_student_grade()
+        active_subject = str(st.session_state.get("active_subject", "Mathematics"))
+        lms_stats = get_lms_statistics(
+            student_uid,
+            student_grade,
+            active_subject
+        )
+        from services.lms_service import (
+            get_current_active_lesson,
+            load_course_structure,
+            get_student_lesson_progress,
+        )
 
-    #=========
-    # # 🏫 LMS CORE INTEGRATION: TODAY'S LEARNING & CONTINUE LEARNING GATE
-    # # ====================================================================               
-    
-    student_profile_dict = get_student_profile()
-    # 1. Unpack subscription details
-    student_profile_dict = st.session_state.get("user_profile", {})    
-    subscription_tree = student_profile_dict.get('subscription', {}) if isinstance(student_profile_dict.get('subscription'), dict) else {}
-    user_tier = str(subscription_tree.get('tier', 'Free')).strip()
-
-    if "premium" in user_tier.lower() or "plus" in user_tier.lower():
-        st.session_state.lms_limit_reached = False
-
-    current_lesson = get_current_active_lesson(student_uid, student_grade, active_subject)
-    course_structure = load_course_structure(student_grade, active_subject)
-    all_lessons_list = course_structure.get("lessons", [])
-    #current_lesson = None
-    
-    st.markdown("### 🏫 Your Learning Path (Get Certificate Upon Completion)")
-
-    # --------------------------------------------------------------------
-    # 🚨 Gatekeeper Banner UI Elements (Only visible if limit is tripped)
-    # --------------------------------------------------------------------
-    if st.session_state.get("lms_limit_reached"):
-        st.error("⚠️ Structured linear learning paths are only available for Plus and Premium members.")
+        #=========
+        # # 🏫 LMS CORE INTEGRATION: TODAY'S LEARNING & CONTINUE LEARNING GATE
+        # # ====================================================================               
         
-        if st.button("🚀 Upgrade to Premium", key="lms_gate_upgrade_unique_btn"):
-            # Clean up the limit message flag and set a short-lived transient trigger token
-            st.session_state.pop("lms_limit_reached", None)
-            st.session_state.trigger_lms_upgrade_modal = True
-            st.rerun()
+        # ✅ NEW CODE (Safely handles None or missing keys)
+        raw_profile = st.session_state.get("user_profile")
+        if not isinstance(raw_profile, dict):
+            raw_profile = get_student_profile()
 
-    # Non-locking conditional rendering bridge to process upgrade modal triggers smoothly
-    if st.session_state.get("trigger_lms_upgrade_modal"):
-        st.session_state.pop("trigger_lms_upgrade_modal", None)
-        upgrade_modal() # Launches your system's global tier pricing sheet modal
+        student_profile_dict = raw_profile if isinstance(raw_profile, dict) else {}
 
-    # --------------------------------------------------------------------
-    # 📊 Core Learning Progress Card Panel Component
-    # --------------------------------------------------------------------
-    with st.container(border=True):
-        col_lbl, col_progress, col_btn = st.columns([1.2, 1, 1], vertical_alignment="center")
+        sub_data = student_profile_dict.get('subscription')
+        subscription_tree = sub_data if isinstance(sub_data, dict) else {}
+        user_tier = str(subscription_tree.get('tier', 'Free')).strip()
 
-        with col_lbl:
-            if current_lesson:
-                st.markdown(f"🎯 **Today's Goal:** `{active_subject}`")
-                st.markdown(f"↳ Current Lesson: **{current_lesson['title']}** (Lesson {current_lesson['order_index']} of {len(all_lessons_list)})")
-            else:
-                st.markdown("🎉 **Course Completed!** Excellent job mastering this subject profile.")
-                
-        with col_progress:
-            completed_count = 0
-            for les in all_lessons_list:
-                prog_state = get_student_lesson_progress(student_uid, student_grade, active_subject, str(les["lesson_id"]))
-                if prog_state.get("status") == "Completed":
-                    completed_count += 1
+        if "premium" in user_tier.lower() or "plus" in user_tier.lower():
+            st.session_state.lms_limit_reached = False
+
+        current_lesson = get_current_active_lesson(student_uid, student_grade, active_subject)
+        course_structure = load_course_structure(student_grade, active_subject)
+        all_lessons_list = course_structure.get("lessons", [])
+        #current_lesson = None
+        
+        st.markdown("### 🏫 Your Learning Path (Get Certificate Upon Completion)")
+
+        # --------------------------------------------------------------------
+        # 🚨 Gatekeeper Banner UI Elements (Only visible if limit is tripped)
+        # --------------------------------------------------------------------
+        if st.session_state.get("lms_limit_reached"):
+            st.error("⚠️ Structured linear learning paths are only available for Plus and Premium members.")
+            
+            if st.button("🚀 Upgrade to Premium", key="lms_gate_upgrade_unique_btn"):
+                # Clean up the limit message flag and set a short-lived transient trigger token
+                st.session_state.pop("lms_limit_reached", None)
+                st.session_state.trigger_lms_upgrade_modal = True
+                st.rerun()
+
+        # Non-locking conditional rendering bridge to process upgrade modal triggers smoothly
+        if st.session_state.get("trigger_lms_upgrade_modal"):
+            st.session_state.pop("trigger_lms_upgrade_modal", None)
+            upgrade_modal() # Launches your system's global tier pricing sheet modal
+
+        # --------------------------------------------------------------------
+        # 📊 Core Learning Progress Card Panel Component
+        # --------------------------------------------------------------------
+        with st.container(border=True):
+            col_lbl, col_progress, col_btn = st.columns([1.2, 1, 1], vertical_alignment="center")
+
+            with col_lbl:
+                if current_lesson:
+                    st.markdown(f"🎯 **Today's Goal:** `{active_subject}`")
+                    st.markdown(f"↳ Current Lesson: **{current_lesson['title']}** (Lesson {current_lesson['order_index']} of {len(all_lessons_list)})")
+                else:
+                    st.markdown("🎉 **Course Completed!** Excellent job mastering this subject profile.")
                     
-            total_lessons = len(all_lessons_list) if all_lessons_list else 1
-            progress_percentage = int((completed_count / total_lessons) * 100)
-            
-            st.write(f"Course Completion Progress: **{progress_percentage}%**")
-            st.progress(progress_percentage / 100.0)
-            
-        with col_btn:
-            if current_lesson:
-                if st.button("🚀 Continue Learning", key="lms_dash_continue_learning_action_btn", use_container_width=True, type="primary"):
-                    if not ("premium" in user_tier.lower() or "plus" in user_tier.lower()):
-                        st.session_state.lms_limit_reached = True
-                        st.rerun()
-                    else:
-                        st.session_state.pop("lms_limit_reached", None)
-                        st.session_state.lms_active_lesson_node = current_lesson
-                        st.session_state.active_subject = active_subject 
+            with col_progress:
+                completed_count = 0
+                for les in all_lessons_list:
+                    prog_state = get_student_lesson_progress(student_uid, student_grade, active_subject, str(les["lesson_id"]))
+                    if prog_state.get("status") == "Completed":
+                        completed_count += 1
                         
-                        if "ROUTE_LESSON" in st.session_state:
-                            st.switch_page(st.session_state.ROUTE_LESSON)
-            #============================================
-            else:
-                from services.lms_service import generate_completion_certificate
+                total_lessons = len(all_lessons_list) if all_lessons_list else 1
+                progress_percentage = int((completed_count / total_lessons) * 100)
                 
-                # Fetch student profile details from session state safely
-                user_profile = st.session_state.get("user_profile", {})
-                student_name = user_profile.get("name", "Student")
+                st.write(f"Course Completion Progress: **{progress_percentage}%**")
+                st.progress(progress_percentage / 100.0)
+                
+            with col_btn:
+                if current_lesson:
+                    if st.button("🚀 Continue Learning", key="lms_dash_continue_learning_action_btn", use_container_width=True, type="primary"):
+                        if not ("premium" in user_tier.lower() or "plus" in user_tier.lower()):
+                            st.session_state.lms_limit_reached = True
+                            st.rerun()
+                        else:
+                            st.session_state.pop("lms_limit_reached", None)
+                            st.session_state.lms_active_lesson_node = current_lesson
+                            st.session_state.active_subject = active_subject 
+                            
+                            if "ROUTE_LESSON" in st.session_state:
+                                st.switch_page(st.session_state.ROUTE_LESSON)
+                #============================================
+                else:
+                    from services.lms_service import generate_completion_certificate
+                    
+                    # Fetch student profile details from session state safely
+                    user_profile = st.session_state.get("user_profile", {})
+                    student_name = user_profile.get("name", "Student")
 
-                # UPDATED: Now passes student_uid as the first parameter to lock the serial
-                cert_bytes = generate_completion_certificate(
-                    student_uid=str(student_uid), # PASSED HERE 🚀
-                    student_name=student_name,
-                    grade=str(student_grade),
-                    subject=str(active_subject)
+                    # UPDATED: Now passes student_uid as the first parameter to lock the serial
+                    cert_bytes = generate_completion_certificate(
+                        student_uid=str(student_uid), # PASSED HERE 🚀
+                        student_name=student_name,
+                        grade=str(student_grade),
+                        subject=str(active_subject)
+                    )
+
+                    st.download_button(
+                        label="📜 Download Completion Certificate",
+                        data=cert_bytes,
+                        file_name=f"Certificate_{student_name.replace(' ', '_')}_{active_subject}.pdf",
+                        mime="application/pdf",
+                        use_container_width=True,
+                        type="primary"
+                    )
+
+
+        #================================            
+        st.markdown("## 📈 Learning Statistics")
+        with st.container(border=True):
+            col1, col2, col3, col4 = st.columns(4)
+
+            # 🎯 FORCE 100% DISPLAY: Overrides statistics calculations once the final topic node is completed
+            is_course_complete = (current_lesson is None)
+            total_lessons_count = len(all_lessons_list) if all_lessons_list else 1
+            
+            lessons_metric = f"{total_lessons_count}/{total_lessons_count}" if is_course_complete else f"{lms_stats['completed_lessons']}/{lms_stats['total_lessons']}"
+            completion_metric = "100%" if is_course_complete else f"{lms_stats['completion']}%"
+
+            with col1:
+                st.metric(
+                    "Average Score",
+                    f"{lms_stats['average_score']}%"
                 )
 
-                st.download_button(
-                    label="📜 Download Completion Certificate",
-                    data=cert_bytes,
-                    file_name=f"Certificate_{student_name.replace(' ', '_')}_{active_subject}.pdf",
-                    mime="application/pdf",
-                    use_container_width=True,
-                    type="primary"
+            with col2:
+                st.metric(
+                    "Lessons",
+                    lessons_metric
                 )
 
+            with col3:
+                st.metric(
+                    "Completion",
+                    completion_metric
+                )
 
-    #================================            
-    st.markdown("## 📈 Learning Statistics")
-    with st.container(border=True):
-        col1, col2, col3, col4 = st.columns(4)
+            with col4:
+                st.metric(
+                    "Mastery",
+                    f"{lms_stats['mastery']}%"
+                )
 
-        # 🎯 FORCE 100% DISPLAY: Overrides statistics calculations once the final topic node is completed
-        is_course_complete = (current_lesson is None)
-        total_lessons_count = len(all_lessons_list) if all_lessons_list else 1
-        
-        lessons_metric = f"{total_lessons_count}/{total_lessons_count}" if is_course_complete else f"{lms_stats['completed_lessons']}/{lms_stats['total_lessons']}"
-        completion_metric = "100%" if is_course_complete else f"{lms_stats['completion']}%"
+        st.markdown("---")
 
-        with col1:
-            st.metric(
-                "Average Score",
-                f"{lms_stats['average_score']}%"
-            )
+        st.subheader("📊 Performance Trend")
 
-        with col2:
-            st.metric(
-                "Lessons",
-                lessons_metric
-            )
+        # 🎯 FIXED: Removed the incorrect 3-argument function call and kept only the valid lms history call
+        history_scores = get_lms_quiz_history(
+            student_uid,
+            active_subject
+        )
 
-        with col3:
-            st.metric(
-                "Completion",
-                completion_metric
-            )
+        if history_scores:
+            st.line_chart(history_scores)
+        else:
+            st.info("Complete LMS lessons to see your performance trend.")
 
-        with col4:
-            st.metric(
-                "Mastery",
-                f"{lms_stats['mastery']}%"
-            )
+        analysis = get_lms_learning_analysis(
+            student_uid,
+            active_subject
+        )
 
-    st.markdown("---")
+        left, right = st.columns(2)
 
-    st.subheader("📊 Performance Trend")
+        with left:
+            with st.expander(
+                f"❌ Needs Improvement ({len(analysis['weak_topics'])})",
+                expanded=False
+            ):
+                if analysis["weak_topics"]:
+                    for topic in analysis["weak_topics"]:
+                        st.markdown(f"• {topic}")
+                else:
+                    st.success("No weak topics 🎉")
 
-    # 🎯 FIXED: Removed the incorrect 3-argument function call and kept only the valid lms history call
-    history_scores = get_lms_quiz_history(
-        student_uid,
-        active_subject
-    )
+        with right:
+            with st.expander(
+                f"✅ Mastered Areas ({len(analysis['strong_topics'])})",
+                expanded=False
+            ):
+                if analysis["strong_topics"]:
+                    for topic in analysis["strong_topics"]:
+                        st.markdown(f"• {topic}")
+                else:
+                    st.info("Complete lessons to unlock mastery.")
 
-    if history_scores:
-        st.line_chart(history_scores)
-    else:
-        st.info("Complete LMS lessons to see your performance trend.")
-
-    analysis = get_lms_learning_analysis(
-        student_uid,
-        active_subject
-    )
-
-    left, right = st.columns(2)
-
-    with left:
-        with st.expander(
-            f"❌ Needs Improvement ({len(analysis['weak_topics'])})",
-            expanded=False
-        ):
-            if analysis["weak_topics"]:
-                for topic in analysis["weak_topics"]:
-                    st.markdown(f"• {topic}")
-            else:
-                st.success("No weak topics 🎉")
-
-    with right:
-        with st.expander(
-            f"✅ Mastered Areas ({len(analysis['strong_topics'])})",
-            expanded=False
-        ):
-            if analysis["strong_topics"]:
-                for topic in analysis["strong_topics"]:
-                    st.markdown(f"• {topic}")
-            else:
-                st.info("Complete lessons to unlock mastery.")
+    except Exception as e:
+        st.error("⚠️ Unable to load your Learning Dashboard right now. Please refresh the page or contact support.")
