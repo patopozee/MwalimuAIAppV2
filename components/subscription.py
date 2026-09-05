@@ -3,12 +3,6 @@ import streamlit as st
 from services.database import db, get_student_data
 
 
-from datetime import UTC, datetime
-import streamlit as st
-
-from services.database import db, get_student_data
-
-
 def enforce_subscription_expiry(uid):
     """Check and enforce subscription expiry for the current user."""
 
@@ -118,7 +112,6 @@ def enforce_subscription_expiry(uid):
 
 def render():
 
-    
     if "user_email" in st.session_state:
         active_target_id = st.session_state.get("uid") or st.session_state.user_email
         
@@ -138,6 +131,10 @@ def render():
 
         status_text = ""
         status_color = "#22C55E"  # Default Green
+        status_icon = ""
+
+        # Common SVG design parameters ensuring vertical alignment
+        svg_base = "style='width:16px; height:16px; vertical-align:middle; margin-right:4px; fill:{color};'"
 
         if expiry_date and str(tier).strip().lower() != "free":
             try:
@@ -146,26 +143,35 @@ def render():
                 remaining_days = (expiry - today).days
 
                 if remaining_days > 0:
-                    status_text = f"⏳ {remaining_days} days remaining"
                     status_color = "#22C55E"
+                    status_text = f"{remaining_days} days remaining"
+                    # Hourglass Top SVG (Offline)
+                    status_icon = f"<svg xmlns='http://w3.org' viewBox='0 -960 960 960' {svg_base.format(color=status_color)}><path d='m300-800 360 1v120L480-500 300-679v-121Zm0 600h360v120H300v-120Zm0-180h360v60H300v-60Zm180-80 180-180v-60H300v60l180 180Z'/></svg>"
 
                 elif remaining_days == 0:
-                    status_text = "⚠️ Expires today"
                     status_color = "#F59E0B"
+                    status_text = "Expires today"
+                    # Alarm Clock SVG (Offline)
+                    status_icon = f"<svg xmlns='http://w3.org' viewBox='0 -960 960 960' {svg_base.format(color=status_color)}><path d='M480-80q-125 0-212.5-87.5T180-380q0-125 87.5-212.5T480-680q125 0 212.5 87.5T780-380q0 125-87.5 212.5T480-80Zm0-60q100 0 170-70t70-170q0-100-70-170t-170-70q-100 0-170 70t-70 170q0 100 70 170t170 70Zm0-180q13 0 21.5-8.5T510-350v-130q0-13-8.5-21.5T480-510q-13 0-21.5 8.5T450-480v130q0 13 8.5 21.5T480-320Z'/></svg>"
 
                 else:
-                    status_text = "❌ Subscription expired"
                     status_color = "#EF4444"
+                    status_text = "Subscription expired"
+                    # Block / Cancel SVG (Offline)
+                    status_icon = f"<svg xmlns='http://w3.org' viewBox='0 -960 960 960' {svg_base.format(color=status_color)}><path d='M480-80q-83 0-156-31.5T197-197q-54-54-85.5-127T80-480q0-83 31.5-156T209-763q54-54 127-85.5T492-880q83 0 156 31.5T775-763q54 54 85.5 127T892-480q0 83-31.5 156T775-197q-54 54-127 85.5T480-80Zm0-60q142 0 241-99t99-241q0-59-19.5-112.5T546-686L274-214q53 35.5 106.5 54.5T480-140Zm-266-134 272-472q-53-35.5-106.5-54.5T220-820q-142 0-241 99t-99 241q0 59 19.5 112.5T214-274Z'/></svg>"
 
             except Exception:
-                status_text = "Unable to determine expiry."
                 status_color = "#94A3B8"
+                status_text = "Unable to determine expiry."
+                status_icon = ""
 
         elif str(tier).strip().lower() == "free":
-            status_text = "🚀 Upgrade to unlock Premium features"
             status_color = "#3B82F6"
+            status_text = "Upgrade to unlock Premium features"
+            # Rocket SVG (Offline)
+            status_icon = f"<svg xmlns='http://w3.org' viewBox='0 -960 960 960' {svg_base.format(color=status_color)}><path d='M760-760q-48 48-76 109.5T656-524L468-336q-16 16-36.5 24.5T390-303l-72 8q-23 2-38.5-13.5T265-347l9-72q3-21 11-41.5t25-36.5l188-188q24-24 55.5-38.5T619-738q64-4 125-32.5T760-760ZM328-261l39-4 163-163-35-35-163 163-4 39 23 23Z'/></svg>"
 
-        # --- FIX: Outer wrapper switched to single quotes (''') to isolate HTML double quotes ("") ---
+        # Render HTML string with safely embedded local vector shapes
         st.sidebar.markdown(
             f'''
             <div style="background: #101726; border: 1px solid rgba(59,130,246,0.15); border-radius: 14px; padding: 16px; margin-bottom: 12px;">
@@ -175,8 +181,8 @@ def render():
                 <div style="font-size: 17px; font-weight: 700; color: white; margin-bottom: 10px;">
                     {tier}
                 </div>
-                <div style="color: {status_color}; font-size: 14px; font-weight: 600;">
-                    {status_text}
+                <div style="color: {status_color}; font-size: 14px; font-weight: 600; display: flex; align-items: center;">
+                    {status_icon} <span>{status_text}</span>
                 </div>
             </div>
             ''',
@@ -188,41 +194,10 @@ def render():
 
         # Show upgrade prompt if user is on the Free tier
         if str(tier).strip().lower() == "free":
-            if st.sidebar.button("🚀 Upgrade to Premium", width="stretch"):
+            # Swapped emoji out for native Material Icon token framework
+            if st.sidebar.button(
+                label="Upgrade to Premium", 
+                icon=":material/rocket_launch:", 
+                use_container_width=True
+            ):
                 upgrade_modal()
-
-
-            #     #MOVED INSIDE SIDEBAR: Verification button for free users who just paid
-            # if st.sidebar.button("💳 I've Paid, Check Status", use_container_width=True):
-            #     # ----------------------------------------------------------------
-            #     # TEMPORARY MOCK PAYMENT TRIGGER (REMOVE BEFORE PRODUCTION)
-            #     # ----------------------------------------------------------------
-            #     from datetime import datetime, timedelta
-                
-            #     mock_expiry = (datetime.utcnow() + timedelta(days=30)).strftime("%Y-%m-%d")
-            #     mock_subscription = {
-            #         "tier": "Premium",  # Change this to "Mwalimu AI Plus" to test that tier too
-            #         "expiry_date": mock_expiry,
-            #         "payment_status": "Completed",
-            #         "reference_id": "MOCK_PAYMENT_12345"
-            #     }
-                
-            #     # Directly update your Firestore user document layout
-            #     from services.database import db
-            #     uid = st.session_state.get("uid") or st.session_state.user_email
-            #     db.collection('users').document(str(uid)).update({
-            #         "subscription": mock_subscription
-            #     })
-            #     st.sidebar.success("🔧 Mock Payment Simulated!")
-            #     # ----------------------------------------------------------------
-
-            #     # Refresh data from database to check if everything updates live
-            #     user_data = get_student_data(st.session_state.user_email)
-            #     subscription = user_data.get('subscription', {}) if user_data else {}
-            #     updated_tier = subscription.get('tier', 'Free')
-                
-            #     if str(updated_tier).strip().lower() != "free":
-            #        st.sidebar.success(f"Upgrade successful! You are now {updated_tier}")
-            #        st.rerun()
-            #     # else:
-            #     #    st.sidebar.warning("Payment not confirmed yet. Please wait a moment.")

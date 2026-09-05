@@ -24,6 +24,7 @@ def render():
         # Render clean, highly responsive navigation choices
         if st.sidebar.button(
             label=f"{link['route'].title}", 
+            icon=link['route'].icon,  # 👈 ADD THIS LINE TO RENDER THE MATERIAL ICONS
             key=f"nav_btn_{link['title']}", 
             use_container_width=True,
             type=btn_type

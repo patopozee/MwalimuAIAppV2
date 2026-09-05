@@ -36,6 +36,6 @@ def render():
     st.sidebar.markdown("---")
 
     with st.sidebar.container(border=True):
-        st.markdown("### 🚪 Sign Out")
+        st.markdown("### :material/logout: Sign Out")
         if st.button("Log Out", use_container_width=True):
             confirm_logout()

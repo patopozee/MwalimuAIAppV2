@@ -14,7 +14,8 @@ def render():
         "General Studies",
     )
 
-    @st.dialog(f"🗑️ Clear {current_subject} Chat")
+    # Material shortcode injected directly into the dialog title string
+    @st.dialog(f":material/delete: Clear {current_subject} Chat")
     def confirm_clear_chat():
 
         st.markdown(
@@ -25,7 +26,7 @@ def render():
 
     Other subjects remain untouched.
 
-    ⚠️ This cannot be undone.
+    :material/warning: This cannot be undone.
     """
         )
 
@@ -33,8 +34,10 @@ def render():
 
         with col1:
 
+            # Native button using the built-in offline delete symbol
             if st.button(
-                "🗑️ Delete History",
+                label="Delete History",
+                icon=":material/delete:",
                 type="primary",
                 use_container_width=True,
             ):
@@ -54,9 +57,10 @@ def render():
                 if hasattr(get_student_stats, "clear"):
                     get_student_stats.clear()
 
+                # Native toast notification displaying local icon framework
                 st.toast(
                     f"{current_subject} history deleted.",
-                    icon="🗑️",
+                    icon=":material/delete:",
                 )
 
                 st.rerun()
@@ -77,10 +81,13 @@ def render():
 
     with st.sidebar.container(border=True):
 
-        st.markdown("### 💬 Chat")
+        # Injected local icon inside heading markdown
+        st.markdown("### :material/chat: Chat")
 
+        # Native trigger button updated to use internal asset assets
         if st.button(
-            "🗑️ Clear Chat History",
+            label="Clear Chat History",
+            icon=":material/delete_sweep:",
             use_container_width=True,
         ):
             confirm_clear_chat()

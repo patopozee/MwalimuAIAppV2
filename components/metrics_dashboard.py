@@ -18,7 +18,7 @@ def render():
 
     if not name:
         st.sidebar.markdown("---")
-        st.sidebar.subheader("📈 Progress Dashboard")
+        st.sidebar.subheader(":material/trending_up: Progress Dashboard")
         st.sidebar.caption("Fill in your name to start tracking progress.")
         return
 
@@ -31,7 +31,7 @@ def render():
     # ==========================================================
 
     st.sidebar.markdown("---")
-    st.sidebar.subheader("📈 Progress Dashboard")
+    st.sidebar.subheader(":material/trending_up: Progress Dashboard")
 
     stats = get_student_stats(uid, grade, age)
 
@@ -51,14 +51,14 @@ def render():
         f"**Learning Status:** `{analysis.get('current_level','Medium')}`"
     )
 
-    # 📊 Clean, collapsible topics to save space
+    # :material/bar_chart: Clean, collapsible topics to save space
     if analysis.get("weak_topics"):
-        with st.sidebar.expander("❌ Needs Improvement", expanded=False):
+        with st.sidebar.expander(":material/cancel: Needs Improvement", expanded=False):
             for topic in analysis["weak_topics"]:
                 st.caption(f"{topic}")
 
     if analysis.get("strong_topics"):
-        with st.sidebar.expander("✅ Mastered Areas", expanded=False):
+        with st.sidebar.expander(":material/check_circle: Mastered Areas", expanded=False):
             for topic in analysis["strong_topics"]:
                 st.caption(f"{topic}")
 
@@ -73,7 +73,7 @@ def render():
     # ==========================================================
 
     st.sidebar.markdown("---")
-    st.sidebar.subheader("📅 Daily Generation Limits")
+    st.sidebar.subheader(":material/calendar_today: Daily Generation Limits")
 
     # Always retrieve fresh student data to prevent stale session caching
     uid = str(st.session_state.get("uid", "")).strip()
@@ -114,9 +114,9 @@ def render():
 
         return f"{used} / {limit}"
 
-    st.sidebar.markdown(f"💬 **Ask Mwalimu:** `{usage('questions')}`")
-    st.sidebar.markdown(f"📅 **Study Plans:** `{usage('has_study_plan')}`")
-    st.sidebar.markdown(f"📝 **Quizzes:** `{usage('quizzes')}`")
-    st.sidebar.markdown(f"🎴 **Flashcards:** `{usage('flashcards')}`")
-    st.sidebar.markdown(f"📚 **Lessons:** `{usage('lessons')}`")
-    st.sidebar.markdown(f"📤 **Uploads:** `{usage('has_upload')}`")
+    st.sidebar.markdown(f":material/chat: **Ask Mwalimu:** `{usage('questions')}`")
+    st.sidebar.markdown(f":material/edit_calendar: **Study Plans:** `{usage('has_study_plan')}`")
+    st.sidebar.markdown(f":material/description: **Quizzes:** `{usage('quizzes')}`")
+    st.sidebar.markdown(f":material/style: **Flashcards:** `{usage('flashcards')}`")
+    st.sidebar.markdown(f":material/menu_book: **Lessons:** `{usage('lessons')}`")
+    st.sidebar.markdown(f":material/upload_file: **Uploads:** `{usage('has_upload')}`")

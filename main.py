@@ -17,6 +17,16 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded"
 )
+st.markdown(
+    """
+    <!-- Import Font Awesome Icons Globally -->
+    <link rel="stylesheet" href="https://cloudflare.com">
+    
+    <!-- Import Lucide Icons Globally via Unpkg Development Kit -->
+    <script src="https://unpkg.com"></script>
+    """,
+    unsafe_allow_html=True
+)
 
 st.markdown("""
     <head>
@@ -769,13 +779,16 @@ if st.session_state.get("user_authenticated") and "user_email" in st.session_sta
     #========================================================
     # RENDER VIEWS
     #========================================================
+        #========================================================
+    # RENDER VIEWS
+    #========================================================
     def render_main_chat():
         render_main_chat_view()
 
     chat_page = st.Page(
         render_main_chat,
         title="Main Chat",
-        icon="🏠",
+        icon=":material/chat:",  # 🏠 -> Material Chat
         url_path="chat",
     )
 
@@ -785,7 +798,7 @@ if st.session_state.get("user_authenticated") and "user_email" in st.session_sta
     voice_page = st.Page(
         render_voice_tutor,
         title="Voice Tutor",
-        icon="🎙️",
+        icon=":material/mic:",  # 🎙️ -> Material Mic
         url_path="voice",
     )
 
@@ -795,7 +808,7 @@ if st.session_state.get("user_authenticated") and "user_email" in st.session_sta
     generator_page = st.Page(
         render_generators,
         title="AI Generators",
-        icon="⚡",
+        icon=":material/bolt:",  # ⚡ -> Material Bolt
         url_path="generators",
     )
 
@@ -805,7 +818,7 @@ if st.session_state.get("user_authenticated") and "user_email" in st.session_sta
     learning_page = st.Page(
         render_learning_dashboard,
         title="Learning Dashboard",
-        icon="📚",
+        icon=":material/menu_book:",  # 📚 -> Material Menu Book
         url_path="learning",
     )
 
@@ -815,7 +828,7 @@ if st.session_state.get("user_authenticated") and "user_email" in st.session_sta
     leaderboard_page = st.Page(
         render_leaderboard,
         title="Leaderboard",
-        icon="🏆",
+        icon=":material/trophy:",  # 🏆 -> Material Trophy
         url_path="leaderboard",
     )
 
@@ -825,7 +838,7 @@ if st.session_state.get("user_authenticated") and "user_email" in st.session_sta
     admin_page = st.Page(
         render_admin,
         title="Admin Dashboard",
-        icon="👑",
+        icon=":material/shield_person:",  # 👑 -> Material Shield Person (Admin)
         url_path="admin",
     )
 
@@ -835,7 +848,7 @@ if st.session_state.get("user_authenticated") and "user_email" in st.session_sta
     lesson_page = st.Page(
         render_lesson_workspace,
         title="Lesson Workspace",
-        icon="📖",
+        icon=":material/book_2:",  # 📖 -> Material Book Variant
         url_path="lesson",
     )
 
@@ -845,14 +858,11 @@ if st.session_state.get("user_authenticated") and "user_email" in st.session_sta
     edit_profile_page = st.Page(
         render_edit_profile,
         title="Edit Profile",
-        icon="⚙️",
+        icon=":material/settings:",  # ⚙️ -> Material Settings
         url_path="edit-profile",
     )
 
     from services.upgrade_modal import upgrade_modal
-    # ======================================================
-    # SAVE ROUTES (Ensure page object components exist)
-    # ======================================================
     # ======================================================
     # SAVE ROUTES (Ensure page object components exist)
     # ======================================================

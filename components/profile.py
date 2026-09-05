@@ -53,7 +53,7 @@ def render():
     st.sidebar.markdown("---")
 
     st.sidebar.markdown("### Student Profile")
-    with st.sidebar.expander("📝 Student Information", expanded=False):
+    with st.sidebar.expander("Update Information", expanded=False, icon=":material/edit:"):
         name = str(st.session_state.get("student_name") or "Student").strip().title()
         grade = st.session_state.get("grade", "Grade 1")
         age = int(st.session_state.get("age", 10))
@@ -79,18 +79,18 @@ def render():
             </div>
 
             <div class="profile-grade">
-            🎓 {grade}
+             {grade}
             </div>
 
             <hr style="opacity:.12;">
 
             <div style="font-size:14px;line-height:1.8;">
 
-            🎂 <b>Age</b> : {age}<br>
+             <b>Age</b> : {age}<br>
 
-            ⭐ <b>Favorite</b> : {favorite_subject or "Not Set"}<br>
+             <b>Favorite</b> : {favorite_subject or "Not Set"}<br>
 
-            📉 <b>Needs Help</b> : {weak_subject or "Not Set"}
+             <b>Needs Help</b> : {weak_subject or "Not Set"}
 
             </div>
             """,

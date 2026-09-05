@@ -23,7 +23,7 @@ def handle_subject_change():
 
 def render():
     st.sidebar.markdown("---")
-    st.sidebar.subheader("📚 Learning Context")
+    st.sidebar.subheader(":material/menu_book: Learning Context")
 
     grade = st.session_state.get("grade", "Grade 6")
     grade_dict = CBC.get(grade, {})

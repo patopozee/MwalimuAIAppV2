@@ -1,13 +1,13 @@
 import streamlit as st
 from services.navigation_service import navigate_to
 
-
 def render_quick_actions():
+    st.sidebar.markdown("### :material/bolt: Quick Actions")
 
-    st.sidebar.markdown("### ⚡ Quick Actions")
-
+    # --- VOICE TUTOR ACTION ---
     if st.sidebar.button(
-        "🎙️ Voice Tutor\nPractice speaking with AI",
+        label="Practice Speaking With Voice Tutor",
+        icon=":material/mic:",  # 🎙️ -> Native Material Mic
         key="voice_btn",
         use_container_width=True,
     ):
@@ -17,8 +17,10 @@ def render_quick_actions():
             "voice",
         )
 
+    # --- LEARNING DASHBOARD ACTION ---
     if st.sidebar.button(
-        "📚 Learning Dashboard\nView lessons & certificates",
+        label="Certificates/Learning Dashboard",
+        icon=":material/menu_book:",  # 📚 -> Native Material Book
         key="learning_btn",
         use_container_width=True,
     ):
