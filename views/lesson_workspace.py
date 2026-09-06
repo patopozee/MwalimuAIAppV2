@@ -77,13 +77,18 @@ def render():
         # Beautifully structured interactive milestone box card wrapper
         st.markdown("""
         <div class="milestone-card">
-            <span style="font-size: 15px; font-weight: 700; color: #ECECF1; display: flex; align-items: center; gap: 6px;">🎯 Complete Lesson Milestone</span>
+            <span style="font-size: 15px; font-weight: 700; color: #ECECF1; display: flex; align-items: center; gap: 6px;">Complete Lesson Milestone</span>
             <p style="font-size: 13px; color: #9CA3AF; margin: 6px 0 14px 0; line-height: 1.4;">Finished studying the text below? Test your knowledge to unlock the next concept level!</p>
         </div>
         """, unsafe_allow_html=True)
         
         # Pull button right below the stylized card matching container width rules
-        if st.button("📝 Start Practice Quiz", type="primary", use_container_width=True):
+        if st.button(label="Start Practice Quiz", 
+            icon=":material/quiz:",  # 📝 -> 100% Offline-safe Material Icon
+            type="primary", 
+            use_container_width=True
+        ):
+
             st.session_state.lms_active_lesson_node = active_lesson
             st.session_state.workspace_quiz_topic = active_lesson["title"]
             st.session_state.active_subject = subject
@@ -99,7 +104,7 @@ def render():
     # =====================================================================
     # 📋 STEP 2: FULL-WIDTH CORE LESSON TEXT
     # =====================================================================
-    st.subheader("📋 1. Core Lesson Text")
+    st.subheader(":material/assignment: 1. Core Lesson Text")
     
             # Pull or cache the generated lesson material using your existing services/ai.py pipeline
     lesson_cache_key = f"lesson_text_data_{lesson_id}_{uid}"

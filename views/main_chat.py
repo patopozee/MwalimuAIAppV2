@@ -50,7 +50,8 @@ def render():
     # CHAT WITH MWALIMU SECTION
     # =====================================================
     st.markdown("---")
-    st.write("### 💬 Chat with Mwalimu")
+    st.write("### :material/chat: Chat with Mwalimu")
+
 
     # Display previous chat messages
     assistant_messages_count = sum(1 for m in st.session_state.ask_mwalimu_history if m.get("role") not in ["student", "user"])

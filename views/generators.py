@@ -43,8 +43,8 @@ def render():
     learning_outcome = student["learning_outcome"]
 
     st.markdown("---")
-    st.subheader("🎯 Mwalimu AI Learning Generators Hub")
-    st.write(f"Active Context: **{subject}** ➡️ **{topic}** ({student['language']})")
+    st.subheader(":material/hub: Mwalimu AI Learning Generators Hub")
+    st.write(f"Active Context: **{subject}** :material/chevron_right: **{topic}** ({student['language']})")
 
     # Fetch student tier profile data upfront using email lookup
     user_profile_raw = get_student_data(st.session_state.user_email)
@@ -76,13 +76,14 @@ def render():
     context_target_topic = sub_topic if sub_topic else topic
 
     # Build Interactive Workspace Tabs Container
-    tab_quiz, tab_flash, tab_less, tab_plan = st.tabs(["📝 Quiz Generator", "🗂️ Flashcards Maker", "📖 Lesson Planner", "📅 Study Plan"])
+    tab_quiz, tab_flash, tab_less, tab_plan = st.tabs([":material/description: Quiz Generator", ":material/style: Flashcards Maker", ":material/menu_book: Lesson Planner", ":material/edit_calendar: Study Plan"])
+
 
     # ==========================================
     # --- 1. QUIZ GENERATOR TAB (TIER GUARDED) ---
     # ==========================================
     with tab_quiz:
-        st.subheader("Quiz Generator")
+        st.subheader(":material/description: Quiz Generator")
 
         # Get the active lesson FIRST
         active_lesson = st.session_state.get("lms_active_lesson_node")
@@ -265,18 +266,18 @@ def render():
                                 learning_outcome=student.get("learning_outcome", "General")
                             )
                             st.rerun()
-
+                #================
                 if st.session_state.get("quiz_submitted", False):
                     raw_score = st.session_state.get("quiz_raw_score", 0)
                     total_questions = len(quiz_data)
                     percentage = st.session_state.get("quiz_score", 0)
                     
-                    banner_msg = f"🎉 Umepata {raw_score}/{total_questions} ({percentage}%)" if is_swahili else f"🎉 You scored {raw_score}/{total_questions} ({percentage}%)"
-                    st.success(banner_msg)
+                    # Cleaned banner text strings completely dropping emojis
+                    banner_msg = f"Umepata {raw_score}/{total_questions} ({percentage}%)" if is_swahili else f"You scored {raw_score}/{total_questions} ({percentage}%)"
                     
-                    review_heading = "### Uhakiki wa Majibu" if is_swahili else "### Answer Review"
-                    st.markdown(review_heading)
-                    
+                    # Native container displaying a built-in offline celebration icon
+                    st.success(banner_msg, icon=":material/celebration:")
+
                     for i, q in enumerate(quiz_data):
                         student_answer = st.session_state.get(f"q_{i}")
                         correct_answer = q.get("answer")
@@ -400,7 +401,7 @@ def render():
         # SAFE DISPLAY & STRUCTURAL JSON PARSING LAYER
         # ----------------------------------------------------
         if st.session_state.flashcards:
-            st.info("💡 Click 'Show Answer' to test your active recall memory knowledge!")
+            st.info("Click 'Show Answer' to test your active recall memory knowledge!", icon=":material/lightbulb:")
             
             try:
                 cards_data = st.session_state.flashcards
@@ -431,11 +432,17 @@ def render():
                         q_text = f"Card Detail Element {idx + 1}"
                         a_text = str(card)
 
-                    st.markdown(f"### Flashcard {idx + 1}")
-                    st.write(f"**❓ Question:** {q_text}")
+                    # 1. Clear heading structure
+                    st.markdown(f"### :material/style: Flashcard {idx + 1}")
                     
-                    with st.expander("👁️ Show Answer"):
-                        st.success(f"**💡 Answer:** {a_text}")
+                    # 2. Replaced ❓ with native inline shortcode
+                    st.write(f"**:material/help: Question:** {q_text}")
+                    
+                    # 3. Replaced 👁️ with a local eye vector parameter directly on the expander component
+                    with st.sidebar.expander("Show Answer", expanded=False, icon=":material/visibility:"):
+                        # 4. Replaced 💡 inside the native green block using the icon argument
+                        st.success(f"**Answer:** {a_text}", icon=":material/lightbulb:")
+
                         
             except Exception as parse_error:
                 st.markdown(st.session_state.flashcards)
@@ -620,10 +627,16 @@ def render():
         # 4. Display & Formatting Layout
         # ----------------------------------------------------
         if st.session_state.study_plan:
-            st.info("💡 Tip: Follow the allocated time intervals for maximum focus today!")
+            # Native information block mapping the local lightbulb token
+            st.info("Tip: Follow the allocated time intervals for maximum focus today!", icon=":material/lightbulb:")
             st.markdown(st.session_state.study_plan)
             
-            if st.button("Clear Study Plan", use_container_width=True):
+            # Updated clear button leveraging an offline trash/delete symbol natively
+            if st.button(
+                label="Clear Study Plan", 
+                icon=":material/delete_sweep:", 
+                use_container_width=True
+            ):
                 st.session_state.study_plan = None
                 
                 if not verify_tier_allowance(uid, user_tier, "has_study_plan"):

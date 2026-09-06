@@ -240,7 +240,8 @@ def render_auth_portal(context="auth"):
     if "show_reset_form" not in st.session_state:
         st.session_state.show_reset_form = False
 
-    tab_login, tab_signup, tab_google = st.tabs(["🔑 Login", "✨ Sign Up", "🔵 Google"])
+    tab_login, tab_signup, tab_google = st.tabs([":material/login: Login", ":material/person_add: Sign Up", ":material/google:"])
+
 
     with tab_login:
         with st.container(border=True):
@@ -278,23 +279,49 @@ def render_auth_portal(context="auth"):
                 if st.button("Forgot Password?", key="forgot_pass_link_btn"):
                     st.session_state.show_reset_form = True
                     st.rerun()
+            #=======
             else:
-                st.markdown("### 🔄 Reset Password")
+                # 1. Swapped 🔄 for the local autorenew icon token directly inside the text string
+                st.markdown("### :material/autorenew: Reset Password")
                 reset_email = st.text_input("Enter your registered email", key="pwd_reset_email_input")
-                if st.button("Send Reset Link", use_container_width=True, key="execute_send_reset_link"):
+                
+                # 2. Enhanced the trigger button with a native mail icon
+                if st.button(
+                    label="Send Reset Link", 
+                    icon=":material/mail:",
+                    use_container_width=True, 
+                    key="execute_send_reset_link"
+                ):
                     if not reset_email.strip():
-                        st.warning("Please enter your email.")
+                        # Native warning icon injection
+                        st.warning("Please enter your email.", icon=":material/warning:")
                     else:
-                        with st.spinner("Sending email..."):
+                        # 3. Synchronized spinner layout to pull a local data-sync icon token
+                        with st.spinner(":material/sync: Sending email..."):
                             result = MwalimuAuthService.send_password_reset_email(reset_email.strip())
                             if result.get("success"):
-                                st.success("📩 **Reset link sent successfully!** Please check your email inbox.")
+                                # 4. Cleared out the 📩 emoji using the container's built-in icon flag
+                                st.success(
+                                    "**Reset link sent successfully!** Please check your email inbox.", 
+                                    icon=":material/mark_email_read:"
+                                )
                             else:
-                                st.error("If the email is registered, you will receive a reset link shortly.")
+                                # Native error icon injection
+                                st.error(
+                                    "If the email is registered, you will receive a reset link shortly.", 
+                                    icon=":material/info:"
+                                )
 
-                if st.button("⬅ Return to Login Screen", use_container_width=True, key="back_to_login_from_reset"):
+                #====
+                if st.button(
+                    label="Return to Login Screen",
+                    icon=":material/arrow_back:",  # ⬅ -> 100% Offline-safe Back Arrow
+                    use_container_width=True,
+                    key="back_to_login_from_reset"
+                ):
                     st.session_state.show_reset_form = False
                     st.rerun()
+
 
     with tab_signup:
         with st.container(border=True):
@@ -1124,9 +1151,16 @@ else:
                 st.session_state.show_auth = False
                 st.rerun()
         else:
-            if st.button("Sign Up / Access Account 🚀", use_container_width=True, type="primary"):
+           if st.button(
+                label="Sign Up / Access Account",
+                icon=":material/rocket_launch:",  # 🚀 -> 100% Offline-safe Material Icon
+                key="landing_auth_trigger_btn",   # Explicit key to maintain state continuity
+                use_container_width=True,
+                type="primary"
+            ):
                 st.session_state.show_auth = True
                 st.rerun()
+
 
 
     # ====================================================================
@@ -1173,7 +1207,7 @@ else:
             unsafe_allow_html=True
         )
 
-        st.markdown("## Join Mwalimu AI Workspace 🎓")
+        st.markdown("## Join Mwalimu AI Workspace :material/school:")
 
         st.write(
             "Access your specialized CBC study streams, interactive revision sets, "
@@ -1203,9 +1237,15 @@ else:
                 """,
                 unsafe_allow_html=True
             )
-            if st.button("Get Started For Free ✨", key="hero_center_cta_btn", type="primary"):
+            if st.button(
+                label="Get Started For Free",
+                icon=":material/auto_awesome:",  # ✨ -> 100% Offline-safe Material Spark/Magic Icon
+                key="hero_center_cta_btn",
+                type="primary"
+            ):
                 st.session_state.show_auth = True
                 st.rerun()
+
         #====        
         with hero_vis:
             # 📱 UPGRADED: Renders a real production dashboard screenshot mockup
@@ -1322,7 +1362,17 @@ else:
         
 
         st.write("##")
-
+        st.markdown("""
+            <style>
+                /* Ensure all flagship cards have the same height for alignment */
+                .card {
+                    height: 160px !important; /* Adjust this number to fit your longest card */
+                    display: flex;
+                    flex-direction: column;
+                    justify-content: flex-start;
+                }
+            </style>
+            """, unsafe_allow_html=True)
         # Row 2 & 3: Standard Sub-utilities (Balanced 3-Column Layout Grid)
             # Row 2 & 3: Standard Sub-utilities (Balanced 3-Column Layout Grid Continues)
         sub_col1, sub_col2, sub_col3 = st.columns(3)
@@ -1444,16 +1494,16 @@ else:
         #=============
         #       
         with tab_contact:
-            st.markdown("### 📞 Contact Mwalimu AI")
+            st.markdown("### :material/contact_support: Contact Mwalimu AI")
 
             st.info("""
-        📧 **Email:** info@mwalimuaiapp.com
+            :material/mail: **Email:** info@mwalimuaiapp.com
 
-        📞 **Call:** +254 710 694 297
+            :material/call: **Call / WhatsApp:** +254 710 694 297
 
-        💬 𝑾𝒉𝒂𝒕𝒔𝑨pp: +254 710 694 297    (𝕏Twitter𝕏: @mwalimuaiapp)  (ⓕ Facebook: @mwalimuaiapp)  (【ꚠ】TikTok: @mwalimuaiapp)
+            :material/chat: **Socials:** @mwalimuaiapp (X/Twitter, Facebook, TikTok)
+            """)
 
-        """)
 
             with st.form("contact_form", clear_on_submit=True):
 
@@ -1488,9 +1538,11 @@ else:
                 )
 
                 submitted = st.form_submit_button(
-                    "📩 Send Message",
-                    use_container_width=True
-                )
+                label="Send Message",
+                icon=":material/send:",  # 📩 -> 100% Offline-safe Material Send Icon
+                use_container_width=True
+            )
+
                 if submitted:
 
                     success = send_support_email(

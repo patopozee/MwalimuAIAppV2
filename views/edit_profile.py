@@ -7,7 +7,11 @@ db = firestore.client()
 
 def render():  
     st.markdown("---")
-    if st.button("⬅ Back to Main Chat Dashboard", use_container_width=True):
+    if st.button(
+        label="Back to Main Chat Dashboard", 
+        icon=":material/arrow_back:",  # ⬅ -> 100% Offline-safe back arrow
+        use_container_width=True
+    ):
         navigate_to(
             st.session_state.ROUTE_CHAT,
             "Main Chat",
@@ -15,7 +19,9 @@ def render():
         )
         st.rerun()
         
-    st.subheader("⚙ Edit Student Profile")
+    # Native shortcode injected cleanly into the subheader title text string
+    st.subheader(":material/settings: Edit Student Profile")
+
     st.write("Keep your academic milestones up to date. Changing your profile details or baseline grade helps Mwalimu AI adjust the difficulty of quizzes and voice tasks automatically.")
 
     # ============================================================
@@ -44,7 +50,12 @@ def render():
     # 🚨 ISOLATION LAYER: CREATE A DETACHED COPY FOR THE FORM
     # ============================================================
     # This prevents typing inside the fields from mutating the live sidebar state prematurely!
-    if "form_temp_profile" not in st.session_state or st.button("🔄 Reset Form Fields", help="Click to pull latest database data"):
+    if "form_temp_profile" not in st.session_state or st.button(
+        label="Reset Form Fields",
+        icon=":material/autorenew:",  # 🔄 -> 100% Offline-safe Material Icon
+        help="Click to pull latest database data"
+    ):
+
         st.session_state.form_temp_profile = {
             "name": db_profile.get("name", st.session_state.get("student_name", "Student")),
             "grade": db_profile.get("grade", st.session_state.get("grade", "Grade 1")),

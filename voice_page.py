@@ -86,7 +86,7 @@ def clean_math_transcript(text: str) -> str:
 
 
 def render_voice_tutor_page(client):
-    st.title("🎙️ Mwalimu AI - Voice Tutor")
+    st.title(":material/mic: Mwalimu AI - Voice Tutor")
     st.write("Click the microphone below to talk with your AI Teacher. Speak clearly!")
 
     # 1. State Machine Initialization
@@ -204,7 +204,7 @@ def render_voice_tutor_page(client):
             # into the recorder component's internal processing state, so
             # it can't show a live "transcribing..." spinner for that gap.
             # What it CAN do is stop that silent wait from looking broken.
-            st.caption("💡 After you stop recording, transcription can take a few seconds — please wait, don't click again.")
+            st.caption(":material/lightbulb: After you stop recording, transcription can take a few seconds — please wait, don't click again.")
 
         if transcribed_text:
             cleaned_text = str(transcribed_text).strip()
@@ -285,7 +285,7 @@ def render_voice_tutor_page(client):
 
         if ai_response_text:
             with interaction_holder:
-                with st.spinner("🔊 Generating Mwalimu's voice file..."):
+                with st.spinner(":material/volume_up: Generating Mwalimu's voice file..."):
                     try:
                         voice_target = "sw-KE-RafikiNeural" if "swahili" in str(language).lower() else "en-KE-AsiliaNeural"
                         audio_bytes_payload = generate_edge_tts_audio(ai_response_text, voice_target)
@@ -339,13 +339,13 @@ def render_voice_tutor_page(client):
                     st.audio(last_msg["audio_bytes"], format="audio/mp3", autoplay=True)
 
             # Display a passive loader indicator while timer ticks down
-            st.caption("⏳ Input locked until Mwalimu finishes reading context aloud.")
+            st.caption(":material/hourglass_top: Input locked until Mwalimu finishes reading context aloud.")
 
         time.sleep(1.0)  # 🚀 Increased checking sleep interval for stability
         st.rerun()
 
     # --- DEDICATED CONFIRMATION DIALOG MODAL ---
-    @st.dialog("🗑️ Clear Voice Data")
+    @st.dialog(":material/delete: Clear Voice Data")
     def confirm_clear_voice_dialog():
         current_subject = st.session_state.get("active_subject", "General Studies")
         st.warning(f"You are about to permanently delete all Voice Tutor conversations for **{current_subject}**.\n\nThis action cannot be undone.")
@@ -370,5 +370,9 @@ def render_voice_tutor_page(client):
 
     if len(st.session_state.voice_chat_history) > 0:
         st.write("")
-        if st.button("🗑️ Permanently Delete Voice DB Logs", type="secondary"):
+        if st.button(
+            label="Permanently Delete Voice DB Logs",
+            icon=":material/delete_forever:",  # 🗑️ -> 100% Offline-safe permanent delete icon
+            type="secondary"
+        ):
             confirm_clear_voice_dialog()

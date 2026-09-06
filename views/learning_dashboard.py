@@ -49,7 +49,7 @@ def render():
         all_lessons_list = course_structure.get("lessons", [])
         #current_lesson = None
         
-        st.markdown("### 🏫 Your Learning Path (Get Certificate Upon Completion)")
+        st.markdown("### :material/school: Your Learning Path (Get Certificate Upon Completion)")
 
         # --------------------------------------------------------------------
         # 🚨 Gatekeeper Banner UI Elements (Only visible if limit is tripped)
@@ -76,10 +76,10 @@ def render():
 
             with col_lbl:
                 if current_lesson:
-                    st.markdown(f"🎯 **Today's Goal:** `{active_subject}`")
+                    st.markdown(f":material/ads_click: **Today's Goal:** `{active_subject}`")
                     st.markdown(f"↳ Current Lesson: **{current_lesson['title']}** (Lesson {current_lesson['order_index']} of {len(all_lessons_list)})")
                 else:
-                    st.markdown("🎉 **Course Completed!** Excellent job mastering this subject profile.")
+                    st.markdown(":material/celebration: **Course Completed!** Excellent job mastering this subject profile.")
                     
             with col_progress:
                 completed_count = 0
@@ -96,7 +96,14 @@ def render():
                 
             with col_btn:
                 if current_lesson:
-                    if st.button("🚀 Continue Learning", key="lms_dash_continue_learning_action_btn", use_container_width=True, type="primary"):
+                   if st.button(
+                        label="Continue Learning",
+                        icon=":material/rocket_launch:",  # 🚀 -> 100% Offline-safe Material Icon
+                        key="lms_dash_continue_learning_action_btn",
+                        use_container_width=True,
+                        type="primary"
+                    ):
+
                         if not ("premium" in user_tier.lower() or "plus" in user_tier.lower()):
                             st.session_state.lms_limit_reached = True
                             st.rerun()
@@ -124,7 +131,8 @@ def render():
                     )
 
                     st.download_button(
-                        label="📜 Download Completion Certificate",
+                        label="Download Completion Certificate",
+                        icon=":material/card_membership:",  # 📜 -> 100% Offline-safe Certificate/Membership Icon
                         data=cert_bytes,
                         file_name=f"Certificate_{student_name.replace(' ', '_')}_{active_subject}.pdf",
                         mime="application/pdf",
@@ -133,8 +141,9 @@ def render():
                     )
 
 
+
         #================================            
-        st.markdown("## 📈 Learning Statistics")
+        st.markdown("## :material/trending_up: Learning Statistics")
         with st.container(border=True):
             col1, col2, col3, col4 = st.columns(4)
 
@@ -171,7 +180,7 @@ def render():
 
         st.markdown("---")
 
-        st.subheader("📊 Performance Trend")
+        st.subheader(":material/monitoring: Performance Trend")
 
         # 🎯 FIXED: Removed the incorrect 3-argument function call and kept only the valid lms history call
         history_scores = get_lms_quiz_history(
@@ -192,26 +201,33 @@ def render():
         left, right = st.columns(2)
 
         with left:
+            # Native expander icon argument handles firewall restrictions beautifully
             with st.expander(
-                f"❌ Needs Improvement ({len(analysis['weak_topics'])})",
-                expanded=False
+                f"Needs Improvement ({len(analysis['weak_topics'])})",
+                expanded=False,
+                icon=":material/cancel:"  # ❌ -> Completely offline error ring symbol
             ):
                 if analysis["weak_topics"]:
                     for topic in analysis["weak_topics"]:
                         st.markdown(f"• {topic}")
                 else:
-                    st.success("No weak topics 🎉")
+                    # Native container alert processing the local celebration token
+                    st.success("No weak topics", icon=":material/celebration:")
 
         with right:
+            # Native expander icon argument handles firewall restrictions beautifully
             with st.expander(
-                f"✅ Mastered Areas ({len(analysis['strong_topics'])})",
-                expanded=False
+                f"Mastered Areas ({len(analysis['strong_topics'])})",
+                expanded=False,
+                icon=":material/check_circle:"  # ✅ -> Completely offline success check ring symbol
             ):
                 if analysis["strong_topics"]:
                     for topic in analysis["strong_topics"]:
                         st.markdown(f"• {topic}")
                 else:
-                    st.info("Complete lessons to unlock mastery.")
+                    # Native container alert processing a local information token
+                    st.info("Complete lessons to unlock mastery.", icon=":material/info:")
+
 
     except Exception as e:
         st.error("⚠️ Unable to load your Learning Dashboard right now. Please refresh the page or contact support.")
