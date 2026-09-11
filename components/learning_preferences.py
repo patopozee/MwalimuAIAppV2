@@ -26,18 +26,33 @@ def render():
             key="learning_style_select",
         )
 
-        # 2. Languages Configuration
+        # -------------------------------------------------------------
+        # 2. AUTOMATED TWO-WAY LANGUAGE SWITCHER ENGINE
+        # -------------------------------------------------------------
         languages = ["English", "Kiswahili", "Sheng"]
-        saved_lang = st.session_state.get("language", languages[0])
-        lang_idx = languages.index(saved_lang) if saved_lang in languages else 0
+        
+        # Capture the active subject chosen from your main curriculum tree
+        active_subject = str(st.session_state.get("active_subject", "General")).lower()
+        
+        # 🚀 THE TWO-WAY AUTOMATIC SWITCHER:
+        if "kiswahili" in active_subject or "swahili" in active_subject:
+            # If the subject is Kiswahili, force the dropdown to select "Kiswahili"
+            lang_idx = languages.index("Kiswahili")
+        else:
+            # 🚀 FIX: If they switch to ANY other subject, force it to snap back to "English"
+            # (Or fallback to English if no language is active in session yet)
+            lang_idx = languages.index("English")
 
+        # Use a dynamic subject-based key to force Streamlit to redraw the widget 
+        # and drop its old cache the millisecond the subject changes.
         language = st.selectbox(
             "Preferred Language",
             options=languages,
             index=lang_idx,
-            key="language_select",
+            key=f"language_select_sync_{active_subject}",
         )
 
         # 3. Update State Directly Without Forcing st.rerun()
         st.session_state.learning_style = learning_style
         st.session_state.language = language
+        st.session_state.preferred_language = language  # Updates both system memory variables

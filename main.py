@@ -640,6 +640,7 @@ if st.session_state.get("user_authenticated") and "user_email" in st.session_sta
     
         
     # GLOBAL UI & CSS LAYOUT SETTINGS
+    # GLOBAL UI & CSS LAYOUT SETTINGS
     st.html("""
         <style>
         html {
@@ -717,16 +718,99 @@ if st.session_state.get("user_authenticated") and "user_email" in st.session_sta
             opacity: 0.5 !important;
         }
 
+        div[data-testid="stChatInput"] {
+            width: 50% !important;
+            max-width: 800px !important;
+            margin: 0 auto !important;
+            background: transparent !important;
+        }
+        div[data-testid="stChatInput"] > div {
+            border: 1px solid rgba(128, 128, 128, 0.25) !important;
+            border-radius: 24px !important;
+            padding: 4px 14px !important;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05) !important;
+        }
+
+        div[data-testid="stChatInput"] textarea {
+            line-height: 1.5 !important;
+            font-size: 16px !important;
+            padding-top: 8px !important;
+        }
+        div[data-testid="stChatInputSubmitButton"] {
+            border-radius: 50% !important;
+            width: 32px !important;
+            height: 32px !important;
+            margin-top: 4px !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+        }
+
+        div[data-testid="stChatInput"] textarea::placeholder {
+            opacity: 0.5 !important;
+        }
+
+        /* 💻 PC/DESKTOP SPECIFIC FLOATING GEOMETRY */
         /* 💻 PC/DESKTOP SPECIFIC FLOATING GEOMETRY */
         @media (min-width: 769px) {
-            div[data-testid="stChatInput"] {
+            div[data-testid="stBottom"] {
                 position: fixed !important;
-                bottom: 65px !important;
-                z-index: 999999;
-                transition: left .25s ease, width .25s ease;
+                bottom: 15px !important;
+                left: 320px !important; /* Starts AFTER the 320px sidebar */
+                right: 0 !important;
+                width: auto !important;
+                background: transparent !important;
+                z-index: 99 !important; /* Lower than sidebar z-index so it doesn't overlap */
+                padding: 0 1rem !important;
+                transition: left 0.25s cubic-bezier(0.2, 0, 0, 1) !important;
+            }
+
+            /* Target inner container to remove native background overlays */
+            /* ⌨️ FLOATING CHAT INPUT CONTAINER */
+            div[data-testid="stBottom"] {
+                background: transparent !important;
+                background-color: transparent !important;
+                border: none !important;
+                box-shadow: none !important;
                 padding: 0 !important;
             }
-            
+
+            div[data-testid="stBottom"] > div {
+                background: transparent !important;
+                background-color: transparent !important;
+            }
+
+            /* Fix stable width to match the main chat content area (800px) */
+            div[data-testid="stChatInput"] {
+                width: min(800px, calc(100vw - 360px)) !important;
+                max-width: 800px !important;
+                min-width: 300px !important;
+                margin: 0 auto !important;
+                background: transparent !important;
+            }
+
+            /* Theme Pill Box Container */
+            div[data-testid="stChatInput"] > div {
+                border: 1px solid rgba(128, 128, 128, 0.25) !important; 
+                border-radius: 28px !important; 
+                padding: 4px 14px !important;
+                background-color: #1E1F25 !important;
+                box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2) !important;
+            }
+
+            /* Mobile Screen Boundary Override */
+            @media (max-width: 768px) {
+                div[data-testid="stChatInput"] {
+                    width: calc(100vw - 32px) !important;
+                    max-width: 100% !important;
+                }
+            }
+
+            /* Shift back to left: 0 when sidebar is collapsed */
+            body:has(section[data-testid="stSidebar"][aria-expanded="false"]) div[data-testid="stBottom"] {
+                left: 0px !important;
+            }
+
             div[data-testid="stChatInput"] textarea {
                 font-size: 16px !important;
                 padding-top: 8px !important;
@@ -752,10 +836,10 @@ if st.session_state.get("user_authenticated") and "user_email" in st.session_sta
         @media (max-width: 768px) {
             div[data-testid="stChatInput"] {
                 position: relative !important;
-                bottom: 20px !important;
+                bottom: 60px !important;
                 width: 100% !important;
                 left: 0px !important;
-                padding: 10px 0px !important;
+                padding: 0px 0px !important;
             }
             
             button[data-testid="stChatInputSubmitButton"] {
@@ -767,41 +851,6 @@ if st.session_state.get("user_authenticated") and "user_email" in st.session_sta
         unsafe_allow_html=True,
     )
 
-
-
-
-
-
-    # Position-tracking JavaScript Bridge
-    st.iframe(
-        """
-        <script>
-        function updateChatInput(){
-            const sidebar = window.parent.document.querySelector('section[data-testid="stSidebar"]');
-            const chat = window.parent.document.querySelector('div[data-testid="stChatInput"]');
-            const main = window.parent.document.querySelector('[data-testid="stMainBlockContainer"]');
-
-            if(!sidebar || !chat || !main) return;
-
-            const mainRect = main.getBoundingClientRect();
-            chat.style.left = mainRect.left + "px";
-            chat.style.width = mainRect.width + "px";
-            chat.style.transform = "none";
-        }
-
-        updateChatInput();
-        const resizeObserver = new ResizeObserver(updateChatInput);
-        const targetSidebar = window.parent.document.querySelector('section[data-testid="stSidebar"]');
-        if (targetSidebar) {
-            resizeObserver.observe(targetSidebar);
-        }
-
-        window.parent.addEventListener("resize", updateChatInput);
-        setInterval(updateChatInput, 300);
-        </script>
-        """,
-        height=1,
-    )
 
     #========================================================
     # RENDER VIEWS

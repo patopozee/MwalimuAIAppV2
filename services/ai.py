@@ -58,6 +58,7 @@ def ask_mwalimu(question, student, messages, adaptive_context="", attachment=Non
     
     # Context Extractors
     preferred_language = student.get("preferred_language", student.get("language", "English"))
+    # Context Extractors
     student_name = student.get("student_name") or student.get("name", "Student")
     student_grade = student.get("grade", "Grade 6")
     student_age = student.get("age", "12")
@@ -67,14 +68,23 @@ def ask_mwalimu(question, student, messages, adaptive_context="", attachment=Non
     sub_topic = student.get('sub_topic', 'Place Value')
     learning_style = student.get("learning_style", "General")
     
+    # 🚀 AUTOMATIC LANGUAGE INTERCEPTOR:
+    # If the active classroom subject is Kiswahili, override the student profile preference
+    # to enforce immediate automatic Swahili communication.
+    if "kiswahili" in str(subject).lower() or "swahili" in str(subject).lower():
+        preferred_language = "Kiswahili"
+    else:
+        preferred_language = student.get("preferred_language", student.get("language", "English"))
+    
     kicd_data = knowledge_base.get_curriculum_context(subject, topic, sub_topic)
     admin_provided_text = get_admin_material_context(subject, topic, sub_topic)
 
     language_rules = {
         "English": "Respond naturally and directly in grammatically correct English like an empathetic Kenyan classroom teacher.",
-        "Kiswahili": "Andika majibu yako yote kwa Kiswahili sanifu, fasaha, na safi kabisa kinachofaa mazingira ya shule za Kenya. Usitumie Kiingereza.",
+        "Kiswahili": "Andika majibu yako yote kwa Kiswahili sanifu, fasaha, na safi kabisa kinachofaa mazingira ya shule za Kenya. Ni marufuku kutumia lugha ya Kiingereza.",
         "Sheng": "Tumia lugha ya kirafiki ya Sheng iliyochanganywa na maelezo ya kimasomo ili kumfanya mwanafunzi achangamke, lakini hakikisha ukweli wa kimasomo unabaki sahihi na rahisi kuelewa."
     }
+
     
     # Build conversation history context string safely
     history = ""
@@ -181,9 +191,17 @@ def generate_quiz(topic, student, difficulty="Medium"):
     # 1. Unpack properties safely from the unified user state map
     subject = student.get("subject", "General")
     sub_topic = student.get("sub_topic", "General")
-    language = student.get("preferred_language", "English")
     grade = student.get("grade", "General")
     learning_outcome = student.get("learning_outcome", "General Mastery")
+    
+    # 🚀 AUTOMATIC LANGUAGE INTERCEPTOR:
+    # If the subject is Kiswahili, force the payload output language to Kiswahili
+    # to override any general student account profile preferences.
+    subject_lower = subject.lower()
+    if "kiswahili" in subject_lower or "swahili" in subject_lower:
+        language = "Kiswahili"
+    else:
+        language = student.get("preferred_language", "English")
     
     difficulty_rules = {
         "Easy": "Use very simple language. Focus on one core concept per question. No trick questions.",
@@ -191,6 +209,68 @@ def generate_quiz(topic, student, difficulty="Medium"):
         "Hard": "Incorporate complex application questions, critical thinking scenarios, and higher-order reasoning."
     }
     
+    # ------------------------------------------------====================
+    # SUBJECT-SPECIFIC RULES ENGINE (FIXES MATH LEAKAGE IN OTHER SUBJECTS)
+    # ----------------------------------------------------------------====
+    subject_lower = subject.lower()
+    
+    if "math" in subject_lower:
+        composition_rules = """
+1. Conceptual/Vocabulary (Max 1 question): Test core terminology (e.g., identifying terms, shapes, placeholders, fractions, or mathematical definitions).
+2. Pure Numerical Calculations (2 questions): Standard equation problems evaluating arithmetic mastery (e.g., long operations, decimals, place values, or conversions).
+3. Localized Real-World Word Problems (2 questions): Multi-step word problems requiring computation set within authentic scenarios.
+"""
+        constraint_rules = """
+1. Every math calculation or word problem MUST contain all necessary numerical data to be fully solvable.
+2. Every element in the "options" array MUST be a fully computed, single final value (e.g., use "48 shillings" or "12 R 4", NEVER expressions like "40 + 8 shillings").
+3. Create realistic distractors based on plausible mathematical errors (e.g., forgetting a remainder, misplacing a decimal place, or step-errors).
+"""
+        
+    elif "science" in subject_lower or "technology" in subject_lower:
+        composition_rules = """
+1. Conceptual/Factual (2 questions): Test core terminology, structural identification, characteristics, functions, or classifications (e.g., cell parts, living organism traits).
+2. Application/Scenario-Based (2 questions): Real-world situations testing environmental interactions, cause-and-effect, or practical applications of science.
+3. Experimental/Inquiry (1 question): Scenario testing observation analysis, laboratory apparatus use, safety precautions, or hypothesis testing.
+"""
+        constraint_rules = """
+1. Focus entirely on scientific literacy, inquiry, biological/physical facts, and experimental observations. Do NOT include math calculation equations.
+2. Distractors should represent common scientific misconceptions or closely related but incorrect scientific terms/phenomena.
+"""
+
+    elif "english" in subject_lower:
+        composition_rules = """
+1. Grammar & Mechanics (2 questions): Test parts of speech, tense harmony, syntax patterns, sentence construction, punctuation, or active/passive configurations.
+2. Vocabulary & Context (2 questions): Textual application testing synonyms, antonyms, idiom meanings, phrasal verbs, or contextual word choices.
+3. Reading/Sentence Comprehension (1 question): Short semantic scenario testing inferencing or textual alignment.
+"""
+        constraint_rules = """
+1. Focus entirely on grammatical structure, spelling precision, contextual vocabulary, and language fluency. Do NOT include numerical calculation equations.
+2. Options must feature grammatically plausible choices that test specific mechanics errors (e.g., wrong subject-verb agreement or incorrect tense matching).
+"""
+
+    elif "kiswahili" in subject_lower:
+        composition_rules = """
+1. Sarufi na Matumizi ya Lugha (Swali 2): Angazia ngeli, viambishi, nyakati, uakifishaji, au muundo sahihi wa sentensi.
+2. Msamiati na Istilahi (Swali 2): Pima uelewa wa msamiati maalumu (mf. wa ukoo, mavazi, vifaa, mazingira) au semi na vitendawili.
+3. Ufahamu wa Sentensi (Swali 1): Swali la kuelewa ujumbe mfupi wa muktadha au utumizi sahihi wa lugha.
+"""
+        constraint_rules = """
+1. Kila kitu ikiwemo maswali na majibu lazima kiandikwe kwa Kiswahili fasaha chenye sanifu ya KICD. Usiweke hesabu wala nambari za kukokotoa.
+2. Chaguzi zote (options) zifuate ngeli au kanuni za kisarufi zilizoulizwa ili kupima umakini wa mwanafunzi.
+"""
+
+    else:
+        # Generic fallback for any other subject (Social Studies, Creative Arts, etc.)
+        composition_rules = """
+1. Conceptual/Factual (2 questions): Test core definitions, facts, historical settings, or institutional features of the subject domain.
+2. Scenario/Practical Application (2 questions): Situations demonstrating how these facts manifest in local Kenyan communities or civic duties.
+3. Critical Thinking (1 question): Analytical questions focusing on evaluation, matching attributes, or sorting situational conditions.
+"""
+        constraint_rules = """
+1. Focus entirely on the target subject context rules and content facts. Do NOT include raw mathematical computations.
+2. Options must reflect clear subject-domain definitions and plausible alternative distractors.
+"""
+
     # Extract ground truth from the Local Knowledge Layer
     kicd_data = knowledge_base.get_curriculum_context(subject, topic, sub_topic)
     past_papers = knowledge_base.get_past_papers_context(subject, topic)
@@ -224,10 +304,8 @@ If 'ADMIN UPLOADED REFERENCE MATERIALS' are present above, prioritize them over 
 =======================================================
  QUIZ COMPOSITION & MIXTURE RULES
 =======================================================
-The 5 questions MUST be an engaging mixture of the following styles:
-1. Conceptual/Vocabulary (Max 1 question): Test core terminology (e.g., Identifying the dividend, divisor, quotient, or what a remainder represents).
-2. Pure Numerical Calculations (2 questions): Standard equation problems evaluating arithmetic mastery (e.g., long division operations, division with decimal quotients, or dividing by decimals).
-3. Localized Real-World Word Problems (2 questions): Word problems requiring calculation steps set within authentic scenarios.
+The 5 questions MUST be an engaging mixture of the following styles for the domain [{subject}]:
+{composition_rules}
 
 =======================================================
  LOCALIZATION & DIFFICULTY RULES
@@ -235,20 +313,19 @@ The 5 questions MUST be an engaging mixture of the following styles:
 - Target Difficulty Level: {difficulty}
 - Difficulty Context Rules: {difficulty_rules.get(difficulty, "")}
 - Preferred Learning Style: {student.get('learning_style', 'General')}
-- Word problems MUST feature Kenyan names (e.g., Mwangi, Amina, Atieno), currencies (shillings), locations, and relatable local context (e.g., M-Pesa transactions, market stalls, matatu fares, harvesting maize/mangoes).
+- Questions MUST feature Kenyan names (e.g., Mwangi, Amina, Atieno), currencies (shillings), locations, and relatable local context (e.g., environmental situations, community projects, market setups, local transport, or home scenarios) appropriate for this specific subject.
 
 =======================================================
  CRITICAL OPTION CONSTRAINT RULES
 =======================================================
-1. Every math calculation or word problem MUST contain all necessary numerical data to be fully solvable.
-2. For Numerical/Word Problems, every element in the "options" array MUST be a fully computed, single final value (e.g., use "48 shillings" or "12 R 4", NEVER expressions like "40 + 8 shillings").
-3. Ensure all choices share consistent units matching the question context (e.g., "shillings", "box of mangoes", "passengers").
-4. Realistic Distractors: Create plausible mathematical errors for incorrect options (e.g., forgetting a remainder, misplacing a decimal place value by one spot, or omitting a zero place-holder in long division).
+{constraint_rules}
+3. Ensure all choices share consistent formatting and units matching the question context.
+4. Every option in the array must be unique. No repeating answers or placeholder strings.
 
 =======================================================
  STRICT OUTPUT FORMATTING RULES
 =======================================================
-- Output ALL JSON keys, question values, structural text, and options answers entirely inside this language: {language}.
+- Output ALL JSON keys, question values, structural text, and options answers entirely inside this language: {language}. (Note: If subject is Kiswahili, write content in Kiswahili).
 - Return ONLY a single valid raw JSON array matching this exact map structure without markdown code blocks (```json ... ```):
 
 [
@@ -269,7 +346,7 @@ The 5 questions MUST be an engaging mixture of the following styles:
     try:
         response = client.chat.completions.create(
             extra_headers={
-                "HTTP-Referer": "https://mwalimu-ai.streamlit.app",
+                "HTTP-Referer": "https://streamlit.app",
                 "X-Title": "Mwalimu AI App Quiz",
             },
             model="gemini-3.6-flash",
@@ -416,7 +493,7 @@ If 'ADMIN UPLOADED REFERENCE MATERIALS' are provided above, your study schedule 
             },
             model="gemini-3.6-flash",
             messages=[{"role": "user", "content": prompt}],
-            max_tokens=3000
+            max_tokens=3500
         )
         
         raw_content = response.choices[0].message.content
@@ -427,52 +504,95 @@ If 'ADMIN UPLOADED REFERENCE MATERIALS' are provided above, your study schedule 
 
 
 def generate_flashcards(topic, student, difficulty="Medium"):
-    difficulty_rules = {
-        "Beginner": "Focus on foundational recognition, recalling basic definitions, direct matching, and basic counting with explicit hints.",
-        "Intermediate": "Focus on application scenarios, multi-step problem solving, simple comparative relationships, and foundational word problems.",
-        "Advanced": "Focus on critical thinking, complex contextual word problems, combining cross-topic parameters, and logical reasoning structures."
-    }
     subject = student.get('subject', 'Mathematics')
     topic = student.get('topic', 'Whole Numbers')
     sub_topic = student.get('sub_topic', 'Place Value')
     
+    # ----------------------------------------------------------------====
+    # SUBJECT-SPECIFIC DIFFICULTY RULES ENGINE (STOPS MATH IN OTHER SUBJECTS)
+    # ----------------------------------------------------------------====
+    subject_lower = subject.lower()
+    
+    if "math" in subject_lower:
+        difficulty_rules = {
+            "Beginner": "Focus on foundational recognition, recalling basic definitions, simple mathematical matching, and direct counting with explicit hints.",
+            "Intermediate": "Focus on application scenarios, multi-step problem solving, simple comparative numerical relationships, and foundational word problems.",
+            "Advanced": "Focus on critical thinking, complex contextual mathematical word problems, combining cross-topic formulas/parameters, and logical reasoning structures."
+        }
+        subject_constraints = "Focus entirely on arithmetic operations, formulas, spatial logic, or numerical mastery data."
+
+    elif "science" in subject_lower or "technology" in subject_lower:
+        difficulty_rules = {
+            "Beginner": "Focus on basic term recognition, identifying core parts/components, listing traits, or recalling direct scientific facts.",
+            "Intermediate": "Focus on identifying cause-and-effect relationships, environmental application scenarios, and understanding simple scientific processes.",
+            "Advanced": "Focus on critical analysis of experimental setups, handling scientific troubleshooting, safety protocols, and complex environmental impact reasoning."
+        }
+        subject_constraints = "Focus entirely on scientific inquiry, biological/physical facts, definitions, and experimental setups. Do NOT include math calculation strings or word problems requiring arithmetic computation."
+
+    elif "english" in subject_lower:
+        difficulty_rules = {
+            "Beginner": "Focus on basic spelling identification, parts of speech matching, simple vocabulary recall, and direct sentence structural rules.",
+            "Intermediate": "Focus on applying proper tenses, contextual vocabulary placement, understanding idioms, or identifying basic grammar errors.",
+            "Advanced": "Focus on advanced semantic inferencing, compound sentence structure configurations, passive/active voice transformations, and reading analysis."
+        }
+        subject_constraints = "Focus entirely on grammatical structural flow, sentence mechanics, spelling precision, and comprehension. Do NOT include numerical problems or calculation equations."
+
+    elif "kiswahili" in subject_lower:
+        difficulty_rules = {
+            "Beginner": "Angazia utambuzi wa msamiati wa msingi, kulinganisha ngeli za kawaida, matumizi ya moja kwa moja ya maneno, na tahajia sahihi.",
+            "Intermediate": "Angazia upatanisho wa kisarufi (ngeli na viambishi), matumizi sahihi ya nyakati mbalimbali, na kuelewa maana ya methali au vitendawili rahisi.",
+            "Advanced": "Angazia uchanganuzi tata wa sentensi, usemi wa taarifa/halisi, mabadiliko ya sauti (tenda/tendwa), na matumizi ya semi ngumu katika muktadha wa KICD."
+        }
+        subject_constraints = "Kadi zote (maswali na majibu) LAZIMA ziandikwe kwa Kiswahili sanifu pekee. Usijumuishe maswali ya kukokotoa hesabu."
+
+    else:
+        # Fallback general block for other subjects (Social Studies, Creative Arts, etc.)
+        difficulty_rules = {
+            "Beginner": "Focus on foundational fact recall, identifying basic core entities, dates, places, or simple definitions.",
+            "Intermediate": "Focus on community application scenarios, structural connections, and descriptive local real-world conditions.",
+            "Advanced": "Focus on high-order analytical reasoning, evaluating multi-layered local situations, or assessing civic/cultural responsibilities."
+        }
+        subject_constraints = "Focus strictly on the domain-specific definitions and institutional facts of the subject. Avoid any mathematical equation constructs."
+
+    # Extract ground truth context layers
     verified_deck = knowledge_base.get_flashcards_context(subject, topic, sub_topic)
     kicd_data = knowledge_base.get_curriculum_context(subject, topic, sub_topic)
     
-    # 🆕 FETCH GLOBAL ADMIN MATERIALS FOR THIS SPECIFIC FLASHCARD CONTAINER
+    # FETCH GLOBAL ADMIN MATERIALS FOR THIS SPECIFIC FLASHCARD CONTAINER
     admin_provided_text = get_admin_material_context(subject, topic, sub_topic)
 
-    # CLEANED PROMPT: Focuses 100% on flashcards and explicitly requests a clean parent object
+    # REFACTORED PROMPT: Fully modularized subject inputs
     prompt = f"""
 {SYSTEM_GUARD}
 You are Mwalimu AI, an elite educational system and expert curriculum designer under the Kenyan KICD Competency-Based Curriculum (CBC) framework.
 Your task is to generate a highly contextual set of study flashcards for a student in {student.get('grade')} ({student.get('age')} years old).
 
 === ACTIVE CBC CURRICULUM CONTEXT ===
-- Subject: {subject}
+- Subject Domain: {subject}
 - Topic: {topic}
-- Sub-topic: {sub_topic}
+- Sub-topic Focus: {sub_topic}
 - Core Baseline Definition: {kicd_data.get('definition', 'Standard parameters apply.')}
 - Pre-approved Deck Context: {json.dumps(verified_deck, ensure_ascii=False)}
 {admin_provided_text}
 
 === CORE RECOGNITION RULES ===
 - Target Difficulty Level: {difficulty}
-- Difficulty Rules: {difficulty_rules.get(difficulty, "")}
+- Subject Domain Rules: {difficulty_rules.get(difficulty, "")}
 - Preferred Learning Style: {student.get('learning_style', 'General')}
-- Preferred Delivery Language: {student.get('language', 'English')}
+- Preferred Delivery Language: {student.get('language', 'English')} (Note: If subject is Kiswahili, generate card contents entirely in Kiswahili).
+
+=== SUBJECT-SPECIFIC DOMAIN CONSTRAINT ===
+{subject_constraints}
 
 ⚠️ ADMINISTRATIVE OVERRIDE:
 If 'ADMIN UPLOADED REFERENCE MATERIALS' are provided above, extract key terms, facts, formulae, or core definitions from them to construct your question/answer flashcard pairings.
 
 === CRITICAL BOUNDARY COUNT RULE ===
 You MUST generate EXACTLY 10 distinct flashcard pairs in total. No more, no less.
-=== CRITICAL BOUNDARY COUNT RULE ===
-You MUST generate EXACTLY 10 distinct flashcard pairs in total. No more, no less.
 Count your array meticulously before returning the final text payload.
 
 === REAL-WORLD SCENARIOS ===
-Use Kenyan context, local real-world examples, Kenyan currency (KES), towns, and popular local names (e.g., Juma, Wanjiku, Amina, Mwangi) to make the cards relatable and interactive.
+Use Kenyan context, local real-world examples, Kenyan currency (KES) where relevant, towns, and popular local names (e.g., Juma, Wanjiku, Amina, Mwangi) to make the cards relatable and interactive.
 
 === OUTPUT VALIDATION FORMAT ===
 Return ONLY a raw, valid JSON object containing an array list of exactly 10 question-and-answer pairs. Do not include any markdown backticks or filler text. Follow this schema layout:
@@ -520,7 +640,6 @@ Return ONLY a raw, valid JSON object containing an array list of exactly 10 ques
         return flashcard_list[:10]
         
     except Exception as e:
-    
         # Return fallback deck block if generation fails completely
         return [
             {"question": f"What is the core baseline definition behind {topic}?", "answer": f"{kicd_data.get('definition')}"},
@@ -530,7 +649,6 @@ Return ONLY a raw, valid JSON object containing an array list of exactly 10 ques
 
 def generate_lesson(topic, student):
     """Generates full structural markdown lessons backed by the local KICD Knowledge Base and Admin Context."""
-    lang = student.get("preferred_language", student.get("language", "English"))
     subject = student.get("subject", "General")
     sub_topic = student.get("sub_topic", "General")
     learning_style = student.get("learning_style", "Visual")
@@ -538,63 +656,90 @@ def generate_lesson(topic, student):
     outcome = student.get("learning_outcome", "General Mastery")
     name = student.get("name", "Student")
     
-    is_swahili = "swahili" in str(lang).lower()
-    title_lesson = "Somo" if is_swahili else "Lesson"
+    # 🚀 STEP 1: AUTOMATIC TWO-WAY LANGUAGE INTERCEPTOR
+    # If the active classroom subject is Kiswahili, force the language variables to Kiswahili
+    subject_lower = str(subject).lower()
+    if "kiswahili" in subject_lower or "swahili" in subject_lower:
+        lang = "Kiswahili"
+        is_swahili = True
+    else:
+        lang = student.get("preferred_language", student.get("language", "English"))
+        is_swahili = "swahili" in str(lang).lower()
+
+    # 🚀 STEP 2: DYNAMIC LOCALIZED MARKDOWN HEADERS MATRIX
+    # We map these exact variables straight into the prompt template layout structure below.
+    title_lesson = "Jina la Somo" if is_swahili else "Lesson Title"
     h_objectives = "Malengo ya Somo" if is_swahili else "Learning Objectives"
     h_intro = "Utangulizi wa Mada" if is_swahili else "Introduction"
-    h_explain = "Maelezo na Uchambuzi wa Kina" if is_swahili else "Main Lesson Content & Explanation"
-    h_summary = "Muhtasari" if is_swahili else "Summary"
+    h_explain = "Maelezo na Uchambuzi wa Kina wa Mada" if is_swahili else "Main Lesson Content & Explanation"
+    h_kenya = "Mifano Halisi ya Maisha Nchini Kenya" if is_swahili else "Real-life Kenyan Examples"
+    h_worked = "Mifano Iliyotatuliwa" if is_swahili else "Worked Examples"
+    h_practice = "Maswali ya Mazoezi" if is_swahili else "Practice Questions"
+    h_summary = "Muhtasari na Ukweli wa Kufurahisha" if is_swahili else "Summary & Fun Fact"
     h_homework = "Kazi ya Nyumbani" if is_swahili else "Homework Assignment"
     
     style_translation = {
         "Visual": "Mwanafunzi wa Kielelezo (Visual Learner)",
-        "Auditory": "Mwanafunzi wa Kusikia (Auditory Learner)",
-        "Kinesthetic": "Mwanafunzi wa Kitendo (Kinesthetic Learner)",
-        "Reading/Writing": "Mwanafunzi wa Kusoma na Kuandika"
+        "Practical": "Mwanafunzi wa Kitendo/Majaribio (Practical Learner)",
+        "Reading/Writing": "Mwanafunzi wa Kusoma na Kuandika (Reading/Writing Learner)",
+        "Interactive": "Mwanafunzi wa Kushirikiana (Interactive Learner)",
+        "Story-based": "Mwanafunzi wa Hadithi (Story-based Learner)"
     }
     local_style = style_translation.get(learning_style, learning_style)
     
+    # Specialized prompt directives based on language mode
+    if is_swahili:
+        language_directive = """
+- MAAGIZO YA LUGHA: Andika somo hili lote kuanzia vichwa vya habari (Headers), maelezo, mifano, na maswali kwa Kiswahili sanifu, fasaha, na safi kabisa cha KICD. Ni marufuku kabisa kutumia lugha ya Kiingereza katika sehemu yoyote ya somo hili.
+- Hakikisha msamiati unaotumika unalingana na kiwango cha darasa kilichochaguliwa.
+"""
+    else:
+        language_directive = f"""
+- LANGUAGE DIRECTIVE: Write the entire lesson, headings, examples, and questions exclusively in grammatically correct and polished English.
+- Always match the vocabulary to {grade} expectations.
+"""
+
     verified_deck = knowledge_base.get_flashcards_context(subject, topic, sub_topic)
     kicd_data = knowledge_base.get_curriculum_context(subject, topic, sub_topic)
     
-    # 🆕 FETCH GLOBAL ADMIN MATERIALS FOR THIS SPECIFIC MARKOOWN LESSON PLAN
+    # FETCH GLOBAL ADMIN MATERIALS FOR THIS SPECIFIC MARKDOWN LESSON PLAN
     admin_provided_text = get_admin_material_context(subject, topic, sub_topic)
 
+    # 🚀 STEP 3: CONSTRUCT FULLY LOCALIZED MARKDOWN ARCHITECTURE TEMPLATE Prompt
     prompt = f"""
 {SYSTEM_GUARD}
-You are Mwalimu AI, an elite teacher specialized in Kenya's CBC Curriculum design matrix.
-Generate a complete, comprehensive, and highly engaging markdown educational lesson plan.
+You are Mwalimu AI, an elite teacher specialized in Kenya's CBC Curriculum framework and instructional lesson design.
+Your task is to generate a complete, comprehensive, and highly engaging markdown educational lesson plan.
 
 LESSON ENVIRONMENT METRICS:
-- Academic Subject: {subject}
+- Academic Subject Domain: {subject}
 - Main Topic Focus: {topic}
 - Sub-Topic Focus: {sub_topic}
 - Target Learning Outcome: {outcome}
 - Target Grade Level: {grade}
-- Student Learner Profile Style: {learning_style}
+- Student Learner Profile Style: {local_style}
 - Assigned Student Name: {name}
 {admin_provided_text}
 
 === LESSON ARCHITECTURE RULES ===
-Please construct the lesson using clean Markdown headers. The lesson MUST include the following 9 numbered sections in order:
-## 1. Lesson Title
-## 2. Learning Objectives
-## 3. Introduction
-## 4. Main Explanation
-- Breakdown the core concepts clearly. Adapt the explanation explicitly to a {student.get('learning_style')} learning style.
-- If 'ADMIN UPLOADED REFERENCE MATERIALS' are supplied, use their structured contents as your primary source of explanations, definitions, and theories.
-## 5. Real-life Kenyan Examples
-## 6. Worked Examples
-## 7. Practice Questions
-## 8. Summary & Fun Fact
-## 9. Homework
+Please construct the complete lesson using clean Markdown headers. The generated text payload MUST include these exact 9 numbered markdown sections in this precise order:
+## 1. {title_lesson}
+## 2. {h_objectives}
+## 3. {h_intro}
+## 4. {h_explain}
+- Breakdown the core educational concepts clearly. Adapt the explanation explicitly to a {local_style} framework footprint.
+- If 'ADMIN UPLOADED REFERENCE MATERIALS' are supplied above, prioritize them over all else. Formulate your explanations directly from those facts and theories.
+## 5. {h_kenya}
+## 6. {h_worked}
+## 7. {h_practice}
+## 8. {h_summary}
+## 9. {h_homework}
 
 === STRICT GUIDELINES ===
-- Always match the vocabulary to {student.get('grade')} expectations.
-- Write primarily in the preferred language: {student.get('language')}.
-- Do not append any meta-commentary, safety labels ("User Safety: safe"), or extra prompt diagnostics. Output only the complete lesson content starting directly from the Lesson Title.
+{language_directive}
+- Connect concepts to authentic Kenyan contexts (e.g., local names, local agricultural practices, environmental conditions, M-Pesa setups, community scenarios).
+- Do not append any meta-commentary, safety labels ("User Safety: safe"), or extra prompt diagnostics. Output only the complete lesson content starting directly from the Section 1 Header.
 """
-
 
     try:
         response = client.chat.completions.create(
@@ -602,15 +747,16 @@ Please construct the lesson using clean Markdown headers. The lesson MUST includ
                 "HTTP-Referer": "https://mwalimu-ai.streamlit.app",
                 "X-Title": "Mwalimu AI Lesson Plan Engine",
             },
-            model="gemini-3.6-flash",  # 👈 DIRECT SPEED ROUTING BYPASS
+            model="gemini-3.6-flash",  # DIRECT SPEED ROUTING BYPASS
             messages=[{"role": "user", "content": prompt}],
-            max_tokens=2900  # 👈 GENEROUS ROOM FOR EXTENSIVE CBC LESSON STEPS & SCHEMES
+            max_tokens=4000  # GENEROUS ROOM FOR EXTENSIVE CBC LESSON STEPS & SCHEMES
         )
-        # CRITICAL FIX: Safe indexing using standard array retrieval syntax
         return response.choices[0].message.content
     except Exception as e:
-        
+        if is_swahili:
+            return f"Mwalimu amepata tatizo wakati wa kuandaa somo lako: {e}. Tafadhali bofya kitufe cha 'Generate' tena!"
         return f"Mwalimu encountered an issue preparing your lesson roadmap: {e}. Please click generate again!"
+
 
 def ask_mwalimu_voice(question, student, messages, adaptive_context="", attachment=None, client=None):
     """Dedicated text-driven voice streaming engine with dynamic RouterService model selection."""
@@ -628,16 +774,24 @@ def ask_mwalimu_voice(question, student, messages, adaptive_context="", attachme
     mode = route_info.get("mode", "FAST_VOICE")
     
     # Context Extractors
-    preferred_language = student.get("preferred_language", student.get("language", "English"))
     student_name = student.get("student_name") or student.get("name", "Student")
     subject = student.get('subject', 'Science')
     topic = student.get('topic', 'Living Things')
     sub_topic = student.get('sub_topic', 'Plants')
     learning_style = student.get("learning_style", "General")
     
+    # 🚀 AUTOMATIC LANGUAGE INTERCEPTOR:
+    # If the active classroom subject is Kiswahili, force preferred_language to "Kiswahili"
+    # to override general student account profile preferences.
+    subject_lower = str(subject).lower()
+    if "kiswahili" in subject_lower or "swahili" in subject_lower:
+        preferred_language = "Kiswahili"
+    else:
+        preferred_language = student.get("preferred_language", student.get("language", "English"))
+    
     language_rules = {
         "English": "Respond naturally and directly in grammatically correct English like an empathetic Kenyan classroom teacher.",
-        "Kiswahili": "Andika majibu yako yote kwa Kiswahili sanifu, fasaha, na safi kabisa kinachofaa mazingira ya shule za Kenya. Usitumie Kiingereza.",
+        "Kiswahili": "Andika majibu yako yote kwa Kiswahili sanifu, fasaha, na safi kabisa kinachofaa mazingira ya shule za Kenya. Ni marufuku kabisa kutumia lugha ya Kiingereza.",
         "Sheng": "Tumia lugha ya kirafiki ya Sheng iliyochanganywa na maelezo ya kimasomo ili kumfanya mwanafunzi achangamke, lakini hakikisha ukweli wa kimasomo unabaki sahihi."
     }
     
@@ -645,6 +799,7 @@ def ask_mwalimu_voice(question, student, messages, adaptive_context="", attachme
     
     # 🏎️ TIGHT SLIDING WINDOW: Limit context to last 4 messages to minimize latency
     recent_messages = messages[-4:] if messages else []
+
     
     voice_history_string = ""
     for msg in recent_messages:

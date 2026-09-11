@@ -1,4 +1,4 @@
-streamlit
+streamlit>=1.35.0
 openai
 python-dotenv
 streamlit_mic_recorder
@@ -22,3 +22,4 @@ streamlit-cookies-manager
 reportlab
 qrcode
 mutagen
+nest-asyncio
