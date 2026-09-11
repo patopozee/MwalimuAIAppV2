@@ -440,79 +440,88 @@ def render_auth_portal(context="auth"):
 # ====================================================================
 # STEP 2: TOP-LEVEL GOOGLE OAUTH INTERCEPTOR (FIXED FOR MOBILE REFRESHES)
 # ====================================================================
-if "code" in st.query_params and not st.session_state.get("user_authenticated", False):
-    auth_code = st.query_params["code"]
-    current_redirect = resolve_redirect_uri()
+# ============================================================
+# STEP 2: TOP-LEVEL GOOGLE OAUTH INTERCEPTOR
+# ============================================================
+if "code" in st.query_params:
+    # If user is already authenticated in state, silently strip the stale code from URL
+    if st.session_state.get("user_authenticated", False):
+        st.query_params.clear()
+        st.rerun()
+    else:
+        auth_code = st.query_params["code"]
+        current_redirect = resolve_redirect_uri()
 
-    try:
-        cid = st.secrets["google_oauth"]["client_id"]
-        csecret = st.secrets["google_oauth"]["client_secret"]
+        try:
+            cid = st.secrets["google_oauth"]["client_id"]
+            csecret = st.secrets["google_oauth"]["client_secret"]
 
-        response = requests.post(
-            "https://oauth2.googleapis.com/token",
-            data={
-                "code": auth_code,
-                "client_id": cid,
-                "client_secret": csecret,
-                "redirect_uri": current_redirect,
-                "grant_type": "authorization_code",
-            },
-            headers={"Content-Type": "application/x-www-form-urlencoded"},
-            timeout=10,
-        )
-
-        token_response = response.json()
-
-        if response.status_code == 200 and "access_token" in token_response:
-            user_info = requests.get(
-                "https://www.googleapis.com/oauth2/v2/userinfo",
-                headers={"Authorization": f"Bearer {token_response['access_token']}"},
+            response = requests.post(
+                "https://oauth2.googleapis.com/token",
+                data={
+                    "code": auth_code,
+                    "client_id": cid,
+                    "client_secret": csecret,
+                    "redirect_uri": current_redirect,
+                    "grant_type": "authorization_code",
+                },
+                headers={"Content-Type": "application/x-www-form-urlencoded"},
                 timeout=10,
-            ).json()
+            )
 
-            email_val = user_info.get("email", "").strip().lower()
-            name_val = user_info.get("name", "Student").strip().title()
+            token_response = response.json()
 
-            try:
-                firebase_user = auth.get_user_by_email(email_val)
-                firebase_uid = firebase_user.uid
-            except auth.UserNotFoundError:
-                firebase_user = auth.create_user(email=email_val, display_name=name_val)
-                firebase_uid = firebase_user.uid
+            if response.status_code == 200 and "access_token" in token_response:
+                user_info = requests.get(
+                    "https://www.googleapis.com/oauth2/v2/userinfo",
+                    headers={"Authorization": f"Bearer {token_response['access_token']}"},
+                    timeout=10,
+                ).json()
 
-            profile = get_or_create_user_profile(firebase_uid, email_val, name_val)
-            create_session(profile["uid"], profile["email"])
+                email_val = user_info.get("email", "").strip().lower()
+                name_val = user_info.get("name", "Student").strip().title()
 
-            st.session_state.user_authenticated = True
-            st.session_state.session_checked = True
-            st.session_state.uid = profile["uid"]
-            st.session_state.user_email = profile["email"]
-            st.session_state.student_name = profile["name"]
-            st.session_state.grade = profile.get("grade", "Grade 1")
-            st.session_state.age = int(profile.get("age", 10))
-            st.session_state.user_profile = profile
-            st.session_state.current_page = "Main Chat"
-            st.session_state.active_view = "main"
+                try:
+                    firebase_user = auth.get_user_by_email(email_val)
+                    firebase_uid = firebase_user.uid
+                except auth.UserNotFoundError:
+                    firebase_user = auth.create_user(email=email_val, display_name=name_val)
+                    firebase_uid = firebase_user.uid
 
-            # 🎯 THE FIX: Explicitly clear the entire address bar variables 
-            # to guarantee mobile browsers pull down a clean URL on fresh refreshes.
-            st.query_params.clear()
+                profile = get_or_create_user_profile(firebase_uid, email_val, name_val)
 
-            update_session()
-            st.rerun()
-        else:
-            # 💡 SAFEGUARD: If a spent code is processed due to mobile page pull-to-refresh,
-            # bypass the error banner if the session profile context is already active.
-            if st.session_state.get("user_authenticated") or st.session_state.get("uid"):
+                # 1. Create session (writes the persistent cookie)
+                create_session(profile["uid"], profile["email"])
+
+                # 2. Populate session_state
+                st.session_state.user_authenticated = True
+                st.session_state.session_checked = True
+                st.session_state.uid = profile["uid"]
+                st.session_state.user_email = profile["email"]
+                st.session_state.student_name = profile["name"]
+                st.session_state.grade = profile.get("grade", "Grade 1")
+                st.session_state.age = int(profile.get("age", 10))
+                st.session_state.user_profile = profile
+                st.session_state.current_page = "Main Chat"
+                st.session_state.active_view = "main"
+
+                update_session()
+
+                # 3. CRITICAL: Clear query params to clean up the browser address bar
+                st.query_params.clear()
+
+                # 4. Refresh app state to enter authenticated workspace cleanly
                 st.rerun()
-                
 
-                
-            error_desc = token_response.get("error_description", token_response.get("error", "Unknown Token Error"))
-            st.error(f"Google OAuth Token Exchange Failed ({response.status_code}): {error_desc}")
+            else:
+                # If code is invalid or spent, clean up URL and display warning
+                st.query_params.clear()
+                error_desc = token_response.get("error_description", token_response.get("error", "Unknown Token Error"))
+                st.error(f"Google Sign-In expired or invalid ({response.status_code}): {error_desc}")
 
-    except Exception as e:
-        st.error(f"Authentication background sync failed: {str(e)}")
+        except Exception as e:
+            st.query_params.clear()
+            st.error(f"Authentication background sync failed: {str(e)}")
 
 
 
