@@ -436,10 +436,6 @@ def render_auth_portal(context="auth"):
                 st.info("🔒 Please check the agreement box above to activate Google Sign-In.")
 
 
-
-# ====================================================================
-# STEP 2: TOP-LEVEL GOOGLE OAUTH INTERCEPTOR (FIXED FOR MOBILE REFRESHES)
-# ====================================================================
 # ============================================================
 # STEP 2: TOP-LEVEL GOOGLE OAUTH INTERCEPTOR
 # ============================================================
@@ -502,16 +498,24 @@ if "code" in st.query_params:
                 st.session_state.grade = profile.get("grade", "Grade 1")
                 st.session_state.age = int(profile.get("age", 10))
                 st.session_state.user_profile = profile
+                # ✅ PASTE THIS IMPROVED PRODUCTION FRAGMENT INSTEAD (Page 20):
                 st.session_state.current_page = "Main Chat"
                 st.session_state.active_view = "main"
-
+                
+                # 1. Update your persistent server data arrays
                 update_session()
-
-                # 3. CRITICAL: Clear query params to clean up the browser address bar
+                
+                # 2. Clear query parameters to wipe out the ?code= string from the URL
                 st.query_params.clear()
-
-                # 4. Refresh app state to enter authenticated workspace cleanly
+                
+                # 3. 🚀 CRITICAL FIX: Grant the browser client 0.4 seconds to securely write 
+                # the authentication cookies to disk before the server clears the frame.
+                import time
+                time.sleep(0.4)
+                
+                # 4. Safe rerun straight into your instant workspace panels
                 st.rerun()
+
 
             else:
                 # If code is invalid or spent, clean up URL and display warning
