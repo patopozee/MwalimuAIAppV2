@@ -998,14 +998,41 @@ if st.session_state.get("user_authenticated") and "user_email" in st.session_sta
     # ======================================================
     # RESTORE SAVED WORKSPACE — ONCE PER SESSION
     # ======================================================
-    if st.session_state.user_authenticated:
-        if not st.session_state.get("workspace_restored", False):
-            saved_page = st.session_state.get("current_page", "Main Chat")
-            target_page = route_mapper.get(saved_page, chat_page)
-            st.session_state.workspace_restored = True
-            if router.url_path != target_page.url_path:
-                st.switch_page(target_page)
+    # ✅ REPLACE THE RESTORE SAVED WORKSPACE LAYER AT THE BOTTOM WITH THIS CODE:
 
+    # ======================================================
+    # RESTORE SAVED WORKSPACE — ONCE PER SESSION
+    # ======================================================
+    is_oauth_callback = "code" in st.query_params
+
+    # 🚀 OAUTH SECURITY BARRIER: Skip layout redirection routing adjustments 
+    # entirely if the browser is currently executing a processing handshake return!
+    if st.session_state.user_authenticated and not is_oauth_callback:
+        if not st.session_state.get("workspace_restored", False):
+            st.session_state.workspace_restored = True
+            
+            # Check if the user is on the raw root home path or localhost:8501 without sub-extensions
+            current_path = getattr(router, "url_path", "").strip("/")
+            
+            if current_path == "":
+                # Fresh entry landing zone: safe to route them to their saved workspace preference
+                saved_page = st.session_state.get("current_page", "Main Chat")
+                target_page = route_mapper.get(saved_page, chat_page)
+                if router.url_path != target_page.url_path:
+                    st.switch_page(target_page)
+            else:
+                # Hard refresh on a subpage (e.g. /voice): Lock onto the subpage title instantly
+                url_to_page_name = {
+                    "chat": "Main Chat", "voice": "Voice Tutor", "generators": "AI Generators",
+                    "learning": "Learning Dashboard", "leaderboard": "Leaderboard",
+                    "admin": "Admin Dashboard", "lesson": "Lesson Workspace", "edit-profile": "Edit Profile"
+                }
+                if current_path in url_to_page_name:
+                    st.session_state.current_page = url_to_page_name[current_path]
+
+    # -------------------------------------------------------------
+    # RUN WORKSPACE APP MODULE VIEWS AFTER VERIFICATION
+    # -------------------------------------------------------------
     if st.session_state.get("user_authenticated", False):
         try:
             load_theme()
@@ -1022,12 +1049,17 @@ if st.session_state.get("user_authenticated") and "user_email" in st.session_sta
                 from services.upgrade_modal import upgrade_modal
                 upgrade_modal()
                 
-            # 🚀 THIS IS WHERE THE VIEW CODE ACTUALLY EXECUTES
+            # 🚀 EXECUTE ACTIVE WORKSPACE PANEL VIEW
             router.run()
+            
+            # 🚀 SYNC BACKEND: Update session metrics dynamically when tabs change
+            if st.session_state.current_page != router.title and not is_oauth_callback:
+                st.session_state.current_page = router.title
+                update_session()
 
         except Exception as e:
-            # Prevent Streamlit red traceback screen completely
             st.error("⚠️ Something went wrong while loading the app. Please refresh or try again.")
+
 
 
 
