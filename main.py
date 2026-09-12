@@ -998,13 +998,33 @@ if st.session_state.get("user_authenticated") and "user_email" in st.session_sta
     # ======================================================
     # RESTORE SAVED WORKSPACE — ONCE PER SESSION
     # ======================================================
+        # ======================================================
+    # RESTORE SAVED WORKSPACE — ONCE PER SESSION
+    # ======================================================
     if st.session_state.user_authenticated:
+        # NAVIGATION PATH LOCK: Check where the browser address bar is sitting right now
         if not st.session_state.get("workspace_restored", False):
-            saved_page = st.session_state.get("current_page", "Main Chat")
-            target_page = route_mapper.get(saved_page, chat_page)
             st.session_state.workspace_restored = True
-            if router.url_path != target_page.url_path:
-                st.switch_page(target_page)
+            
+            # Clean up the path string by stripping out outer framing slashes
+            current_url_path = getattr(router, "url_path", "").strip("/")
+            
+            # Recompile page mapping tokens using clean, unslashed keys
+            url_to_page_name = {
+                p.url_path.strip("/"): p.title for p in [chat_page, voice_page, generator_page, learning_page, leaderboard_page, admin_page, lesson_page, edit_profile_page]
+            }
+            
+            # ✅ FIX: If sitting on a sub-path page (like voice, generators), lock onto it
+            if current_url_path in url_to_page_name and current_url_path != "":
+                detected_page_title = url_to_page_name[current_url_path]
+                st.session_state.current_page = detected_page_title
+            else:
+                # ✅ FIX: If sitting on the base root homepage ("" or "/"), restore their previous session page!
+                saved_page = st.session_state.get("current_page", "Main Chat")
+                target_page = route_mapper.get(saved_page, chat_page)
+                if router.url_path != target_page.url_path:
+                    st.switch_page(target_page)
+
 
     if st.session_state.get("user_authenticated", False):
         try:
@@ -1022,11 +1042,15 @@ if st.session_state.get("user_authenticated") and "user_email" in st.session_sta
                 from services.upgrade_modal import upgrade_modal
                 upgrade_modal()
                 
-            # 🚀 THIS IS WHERE THE VIEW CODE ACTUALLY EXECUTES
+            # Execute the active view page workspace
             router.run()
+            
+            # 🚀 SYNC BACKEND: Update session variables when a user clicks onto a new page view
+            if st.session_state.get("current_page") != router.title:
+                st.session_state.current_page = router.title
+                update_session()
 
         except Exception as e:
-            # Prevent Streamlit red traceback screen completely
             st.error("⚠️ Something went wrong while loading the app. Please refresh or try again.")
 
 
