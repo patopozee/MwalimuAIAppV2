@@ -125,7 +125,6 @@ if cookies_controller is not None:
     if not st.session_state.get("user_authenticated", False) and not st.session_state.session_checked:
         session_data = validate_session()
 
-        # ✅ REPLACE ONLY THE INNER DATA INGESTION LAYERS ON PAGES 5 & 6 WITH THIS CODE:
         if session_data:
             uid = session_data.get("uid")
             if uid:
@@ -138,30 +137,8 @@ if cookies_controller is not None:
                     st.session_state.grade = profile.get("grade", "Grade 1")
                     st.session_state.age = int(profile.get("age", 10))
                     st.session_state.user_profile = profile
-                    
-                    # 🚀 HARDENED OVERRIDE: Prioritize browser path coordinates over stale database snapshots
                     workspace = session_data.get("workspace") or {}
-                    
-                    # Read context parameters to see if the user is refreshing inside a nested subpage path
-                    ctx_headers = {}
-                    if hasattr(st, "context") and hasattr(st.context, "headers"):
-                        ctx_headers = st.context.headers or {}
-                    
-                    # Target Streamlit's custom internal forward-routing header parameter mapping strings
-                    raw_path_string = ctx_headers.get("x-streamlit-url-path", "").strip("/")
-                    
-                    url_to_page_name_registry = {
-                        "chat": "Main Chat", "voice": "Voice Tutor", "generators": "AI Generators",
-                        "learning": "Learning Dashboard", "leaderboard": "Leaderboard",
-                        "admin": "Admin Dashboard", "lesson": "Lesson Workspace", "edit-profile": "Edit Profile"
-                    }
-                    
-                    if raw_path_string in url_to_page_name_registry:
-                        # Secure the current position string directly matching the window route location
-                        st.session_state.current_page = url_to_page_name_registry[raw_path_string]
-                    else:
-                        st.session_state.current_page = workspace.get("current_page", "Main Chat")
-                        
+                    st.session_state.current_page = workspace.get("current_page", "Main Chat")
                     st.session_state.active_view = workspace.get("active_view", "main")
                     st.session_state.session_checked = True
                 else:
@@ -170,7 +147,6 @@ if cookies_controller is not None:
                 st.session_state.session_checked = True
         else:
             st.session_state.session_checked = True
-
 else:
     # If it is an OAuth callback, don't let cookie restoration block the execution path
     pass
@@ -1019,37 +995,17 @@ if st.session_state.get("user_authenticated") and "user_email" in st.session_sta
         position="hidden"
     )
 
-    # ====================================================
+    # ======================================================
     # RESTORE SAVED WORKSPACE — ONCE PER SESSION
-    # ==================================================== 
-
-    # 🚀 OAUTH SECURITY BARRIER: Skip structural navigation overrides during redirect frames
-    if st.session_state.user_authenticated and not is_oauth_callback:
+    # ======================================================
+    if st.session_state.user_authenticated:
         if not st.session_state.get("workspace_restored", False):
+            saved_page = st.session_state.get("current_page", "Main Chat")
+            target_page = route_mapper.get(saved_page, chat_page)
             st.session_state.workspace_restored = True
-            
-            # Clean up framing forward slashes from the current location track token
-            current_path = getattr(router, "url_path", "").strip("/")
-            
-            if current_path == "":
-                # Fresh homepage entry: safe to route them using their profile preference metrics
-                saved_page = st.session_state.get("current_page", "Main Chat")
-                target_page = route_mapper.get(saved_page, chat_page)
-                if router.url_path != target_page.url_path:
-                    st.switch_page(target_page)
-            else:
-                # User hard-refreshed inside a subpage layout: snap the session state string variable
-                url_to_page_name = {
-                    "chat": "Main Chat", "voice": "Voice Tutor", "generators": "AI Generators",
-                    "learning": "Learning Dashboard", "leaderboard": "Leaderboard",
-                    "admin": "Admin Dashboard", "lesson": "Lesson Workspace", "edit-profile": "Edit Profile"
-                }
-                if current_path in url_to_page_name:
-                    st.session_state.current_page = url_to_page_name[current_path]
+            if router.url_path != target_page.url_path:
+                st.switch_page(target_page)
 
-    # -------------------------------------------------------------
-    # RUN WORKSPACE APP MODULE VIEWS AFTER VERIFICATION
-    # -------------------------------------------------------------
     if st.session_state.get("user_authenticated", False):
         try:
             load_theme()
@@ -1065,18 +1021,13 @@ if st.session_state.get("user_authenticated") and "user_email" in st.session_sta
             if st.session_state.show_upgrade_modal:
                 from services.upgrade_modal import upgrade_modal
                 upgrade_modal()
-            
-            # 🚀 EXECUTE ACTIVE PANEL VIEW VIEWPORT
-            router.run()
-            
-            # 🚀 SYNC BACKEND: Capture workspace shifts instantly when a student clicks sidebar options
-            if st.session_state.current_page != router.title and not is_oauth_callback:
-                st.session_state.current_page = router.title
-                update_session()
                 
-        except Exception as e:
-            st.error("⚠️ Something went wrong while loading the app. Please refresh or try again.")
+            # 🚀 THIS IS WHERE THE VIEW CODE ACTUALLY EXECUTES
+            router.run()
 
+        except Exception as e:
+            # Prevent Streamlit red traceback screen completely
+            st.error("⚠️ Something went wrong while loading the app. Please refresh or try again.")
 
 
 
