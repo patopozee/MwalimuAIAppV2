@@ -1,7 +1,14 @@
 # config.py
 import os
 
-DATABASE_NAME = "mwalimu.db"
+
+if os.environ.get("RAILWAY_ENVIRONMENT") is not None or os.path.exists("/data"):
+    # PRODUCTION: Forces all files to read from your true 37MB file in the persistent volume
+    DATABASE_NAME = "/data/mwalimu.db"
+else:
+    # LOCAL DEVELOPMENT: Uses your local project directory
+    DATABASE_NAME = "mwalimu.db"
+
 
 # Helper loader function to safely import and enforce dictionary types
 def load_grade_data(module_path, variable_name):

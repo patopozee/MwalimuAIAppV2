@@ -1,6 +1,6 @@
 # services/database.py
 import sqlite3
-from config import DATABASE_NAME
+# from config import DATABASE_NAME
 import firebase_admin
 from firebase_admin import credentials, firestore
 import os
@@ -46,11 +46,11 @@ if not firebase_admin._apps:
 
 db = firestore.client()
 
-if os.environ.get("RAILWAY_ENVIRONMENT") or os.path.exists("/data"):
-    # PRODUCTION ENVIRONMENT: Safely locks onto the permanent hard disk volume mount path
+if os.environ.get("RAILWAY_ENVIRONMENT") is not None or os.path.exists("/data"):
+    # PRODUCTION: Force the absolute volume container mount path
     DATABASE_NAME = "/data/mwalimu.db"
 else:
-    # LOCAL DEVELOPMENT: Uses the local directory so your test logs don't overwrite production data
+    # LOCAL: Use your localized development repository directory
     DATABASE_NAME = "mwalimu.db"
 
 # ---------------------------------------------------------------------
