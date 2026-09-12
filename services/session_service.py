@@ -104,11 +104,10 @@ def create_session(uid: str, email: str) -> str:
     user_controller.set(
         COOKIE_NAME, 
         cookie, 
-        max_age=2592000,
+        max_age=2592000, 
+        path="/",
         secure=True,
-        same_site="lax",
-        path="/"
-        
+        same_site="lax"
     )
     return session_id
 
