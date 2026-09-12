@@ -32,7 +32,7 @@ def render():
             margin-bottom: 25px;
         ">
             <h3 style="margin-top: 0; color: #FFFFFF; font-size: 1.3rem; margin-bottom: 8px;">
-                Welcome to Mwalimu AI – Your Adaptive Learning Partner
+                Hello Welcome to Mwalimu AI – Your Adaptive Learning Partner
             </h3>
             <p style="color: #94A3B8; font-size: 14px; line-height: 1.5; margin-bottom: 15px;">
                 Start by setting up your student profile in the sidebar. Explore your interactive learning hubs below:
