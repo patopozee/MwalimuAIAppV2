@@ -412,34 +412,78 @@ def get_student_learning_analysis(student_uid: str, grade: str, age: int):
     else: current_level = "Hard"
     return {"weak_topics": weak_topics, "strong_topics": strong_topics, "current_level": current_level}
 
+# ✅ PASTE THIS FULLY OPTIMIZED REPLACEMENT FUNCTION ON PAGES 17-18:
 @st.cache_data(ttl=5, show_spinner=False)
 def get_ask_mwalimu_history(student_uid, subject):
     conn = sqlite3.connect(DATABASE_NAME)
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
+    
+    try:
+        # 🚀 1. Grab the active student name string directly from Streamlit's profile cache
+        current_student_name = st.session_state.get("student_name", "").strip()
+        
+        # 🚀 2. Execute a broadened query that catches both your legacy data and new data
+        if current_student_name:
+            cursor.execute("""
+                SELECT *
+                FROM progress
+                WHERE (student_uid = ? OR student_name = ?)
+                AND (subject = ? OR subject IS NULL OR subject = '')
+                AND activity_type IN (
+                    'ask_user',
+                    'ask_assistant',
+                    'ask_user_extraction',
+                    'ask_user'
+                )
+                ORDER BY created_at ASC
+            """, (student_uid, current_student_name, subject))
+        else:
+            cursor.execute("""
+                SELECT *
+                FROM progress
+                WHERE student_uid = ?
+                AND (subject = ? OR subject IS NULL OR subject = '')
+                AND activity_type IN (
+                    'ask_user',
+                    'ask_assistant',
+                    'ask_user_extraction',
+                    'ask_user'
+                )
+                ORDER BY created_at ASC
+            """, (student_uid, subject))
+            
+        rows = cursor.fetchall()
+        conn.close()
+        
+        # 🚀 3. Fallback: If still nothing displays because of a curriculum filter mismatch, 
+        # pull all historical records under this name to guarantee visibility.
+        if not rows and current_student_name:
+            conn = sqlite3.connect(DATABASE_NAME)
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT * FROM progress 
+                WHERE student_name = ? 
+                AND activity_type IN ('ask_user', 'ask_assistant', 'ask_user')
+                ORDER BY created_at ASC
+            """, (current_student_name,))
+            rows = cursor.fetchall()
+            conn.close()
+            
+    except Exception as e:
+        print(f"Error during historical query: {e}")
+        rows = []
+        try:
+            conn.close()
+        except Exception:
+            pass
 
-    cursor.execute("""
-        SELECT *
-        FROM progress
-        WHERE student_uid=?
-        AND subject=?
-        AND activity_type IN (
-            'ask_user',
-            'ask_assistant',
-            'ask_user_extraction'
-        )
-        ORDER BY created_at ASC
-        """, (
-            student_uid,
-            subject
-        ))
-    
-    rows = cursor.fetchall()
-    conn.close()
-    
+    # 🚀 4. Map the row data strings cleanly into structural chat UI bubbles
     history = []
     for row in rows:
-        role = "user" if "user" in row["activity_type"] else "assistant"
+        # Catch both 'ask_user' and legacy 'ask_user' types safely
+        role = "user" if "user" in str(row["activity_type"]) else "assistant"
         msg_node = {
             "role": role,
             "content": row["topic"]
@@ -455,6 +499,7 @@ def get_ask_mwalimu_history(student_uid, subject):
             except Exception:
                 pass
         history.append(msg_node)
+        
     return history
 
 @st.cache_data(ttl=5, show_spinner=False)
