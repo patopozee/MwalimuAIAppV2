@@ -971,9 +971,6 @@ if st.session_state.get("user_authenticated") and "user_email" in st.session_sta
     # ======================================================
     # STREAMLIT MULTI-PAGE DESERIALIZATION ROUTER (FIXED)
     # ======================================================
-    # ======================================================
-    # STREAMLIT MULTI-PAGE DESERIALIZATION ROUTER (FIXED)
-    # ======================================================
     route_mapper = {
         "Main Chat": chat_page,
         "Voice Tutor": voice_page,
@@ -984,18 +981,6 @@ if st.session_state.get("user_authenticated") and "user_email" in st.session_sta
         "Lesson Workspace": lesson_page,
         "Edit Profile": edit_profile_page
     }
-
-    url_to_page = {
-        "chat": chat_page,
-        "voice": voice_page,
-        "generators": generator_page,
-        "learning": learning_page,
-        "leaderboard": leaderboard_page,
-        "admin": admin_page,
-        "lesson": lesson_page,
-        "edit-profile": edit_profile_page
-    }
-
     router = st.navigation(
         [
             chat_page,
@@ -1011,24 +996,16 @@ if st.session_state.get("user_authenticated") and "user_email" in st.session_sta
     )
 
     # ======================================================
-    # RESTORE SAVED WORKSPACE — URL PRIORITY RESTORATION
+    # RESTORE SAVED WORKSPACE — ONCE PER SESSION
     # ======================================================
-    if st.session_state.get("user_authenticated", False):
-        # 1. Read URL parameter or current router selection first
-        current_url_path = router.url_path.strip("/")
-        
-        # 2. Sync cookie / session state ONLY if URL has no route
-        if not current_url_path and not st.session_state.get("workspace_restored", False):
-            saved_page = st.session_state.get("current_page")
-            if saved_page in route_mapper:
-                target_page = route_mapper[saved_page]
-                st.session_state.workspace_restored = True
-                if router.url_path != target_page.url_path:
-                    st.switch_page(target_page)
-        else:
-            # Mark workspace restored once URL route is confirmed
-            st.session_state.workspace_restored = True
+    if st.session_state.user_authenticated and not st.session_state.get("workspace_restored", False):
+        saved_page = st.session_state.get("current_page", "Main Chat")
+        target_page = route_mapper.get(saved_page, chat_page)
+        st.session_state.workspace_restored = True
+        if router.url_path != target_page.url_path:
+            st.switch_page(target_page)
 
+    if st.session_state.get("user_authenticated", False):
         try:
             load_theme()
             from styles.sidebar import load as load_sidebar_style
@@ -1044,10 +1021,11 @@ if st.session_state.get("user_authenticated") and "user_email" in st.session_sta
                 from services.upgrade_modal import upgrade_modal
                 upgrade_modal()
                 
-            # 🚀 EXECUTE THE ROUTED VIEW
+            # 🚀 THIS IS WHERE THE VIEW CODE ACTUALLY EXECUTES
             router.run()
 
         except Exception as e:
+            # Prevent Streamlit red traceback screen completely
             st.error("⚠️ Something went wrong while loading the app. Please refresh or try again.")
 
 
