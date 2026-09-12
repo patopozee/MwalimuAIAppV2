@@ -147,10 +147,10 @@ def upgrade_modal():
     # Payment Section
     # -------------------------------------------------------
     if st.session_state.selected_plan == "plus":
-        amount = 5
+        amount = 499
         plan_display = "Mwalimu AI Plus"
     else:
-        amount = 10
+        amount = 999
         plan_display = "Mwalimu AI Premium"
 
     col_info, col_input = st.columns([1, 1.3])
