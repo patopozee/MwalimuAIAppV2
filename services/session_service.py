@@ -1,3 +1,4 @@
+
 #services/session_service.py
 import base64
 import hashlib
@@ -46,6 +47,7 @@ def _verify_token(signed_value: str) -> str | None:
         pass
     return None
 
+# ✅ REPLACE ONLY THE GET_TOKEN_FROM_BROWSER FUNCTION WITH THIS FRAGMENT:
 def get_token_from_browser() -> str | None:
     """Reads raw cookies scoped ONLY to the current active user context."""
     # 1. ALWAYS check native st.context first (instant, headers-based, no frame lag)
@@ -53,7 +55,8 @@ def get_token_from_browser() -> str | None:
         if hasattr(st, "context") and hasattr(st.context, "cookies"):
             raw_cookie = st.context.cookies.get(COOKIE_NAME)
             if raw_cookie:
-                clean_cookie = urllib.parse.unquote(raw_cookie).strip('"')
+                # Decode "%22" first, then completely strip away double and single literal quotes
+                clean_cookie = urllib.parse.unquote(str(raw_cookie)).replace('"', '').replace("'", "").strip()
                 verified = _verify_token(clean_cookie)
                 if verified:
                     return verified
@@ -65,14 +68,14 @@ def get_token_from_browser() -> str | None:
         user_controller = CookieController()
         raw_cookie = user_controller.get(COOKIE_NAME)
         if raw_cookie:
-            clean_cookie = urllib.parse.unquote(str(raw_cookie)).strip('"')
+            # Decode "%22" first, then completely strip away double and single literal quotes
+            clean_cookie = urllib.parse.unquote(str(raw_cookie)).replace('"', '').replace("'", "").strip()
             verified = _verify_token(clean_cookie)
             if verified:
                 return verified
     except Exception:
         pass
     return None
-
 
 # =====================================================
 # State & Database Session Managers
@@ -101,7 +104,9 @@ def create_session(uid: str, email: str) -> str:
         COOKIE_NAME, 
         cookie, 
         max_age=2592000, 
-        path="/"
+        path="/",
+        secure=True,
+        same_site="lax",
     )
     return session_id
 
