@@ -50,7 +50,7 @@ def render():
     # CHAT WITH MWALIMU SECTION
     # =====================================================
     st.markdown("---")
-    st.write("### :material/chat: Chat with Mwalimu")
+    #st.write("### :material/chat: Chat with Mwalimu")
 
 
     # Display previous chat messages
