@@ -46,11 +46,11 @@ if not firebase_admin._apps:
 
 db = firestore.client()
 
-if os.path.exists("/data"):
-    # PRODUCTION SERVER LINK (Locks directly to your secure GCP Bucket)
+if os.environ.get("RAILWAY_ENVIRONMENT") or os.path.exists("/data"):
+    # PRODUCTION ENVIRONMENT: Safely locks onto the permanent hard disk volume mount path
     DATABASE_NAME = "/data/mwalimu.db"
 else:
-    # LOCAL DEVELOPMENT FALLBACK (Saves safely inside your local root project folder)
+    # LOCAL DEVELOPMENT: Uses the local directory so your test logs don't overwrite production data
     DATABASE_NAME = "mwalimu.db"
 
 # ---------------------------------------------------------------------
