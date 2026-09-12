@@ -49,9 +49,9 @@ db = firestore.client()
 if os.path.exists("/data"):
     # PRODUCTION SERVER LINK (Locks directly to your secure GCP Bucket)
     DATABASE_NAME = "/data/mwalimu.db"
-else:
-    # LOCAL DEVELOPMENT FALLBACK (Saves safely inside your local root project folder)
-    DATABASE_NAME = "mwalimu.db"
+# else:
+#     # LOCAL DEVELOPMENT FALLBACK (Saves safely inside your local root project folder)
+#     DATABASE_NAME = "mwalimu.db"
 
 # ---------------------------------------------------------------------
 # PERFORMANCE ENGINE CACHE CLEAR IMPLEMENTATION AUTOMATION
