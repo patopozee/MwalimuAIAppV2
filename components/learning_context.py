@@ -1,6 +1,7 @@
 import streamlit as st
 from config import CBC
 from services.database import get_ask_mwalimu_history
+from services.session_service import update_session  # 🚀 Added for immediate cloud saves
 
 
 def render():
@@ -31,9 +32,10 @@ def render():
         options=subjects,
         index=sub_idx,
         key="master_subject_selector_widget",
+        on_change=update_session,  # 🚀 Auto-saves to Firebase on direct widget change
     )
 
-    # 🚨 TRIGGER RESET: If the user clicked a new subject, wipe child selections instantly
+    # 🚨 TRIGGER RESET: Force a cloud sync BEFORE st.rerun destroys the thread!
     if subject != st.session_state.active_subject:
         st.session_state.active_subject = subject
         st.session_state.pop("active_topic", None)
@@ -41,6 +43,9 @@ def render():
         st.session_state.pop("active_learning_outcome", None)
         st.session_state.pop("active_curriculum", None)
         st.cache_data.clear()
+        
+        # 🚀 CRITICAL FIX: Push new data to the cloud first, then refresh layout frame
+        update_session()
         st.rerun()
 
     subject_dict = grade_dict.get(subject, {})
@@ -64,12 +69,17 @@ def render():
         options=topics,
         index=top_idx,
         key=f"topic_select_dynamic_{subject}", 
+        on_change=update_session,  # 🚀 Auto-saves to Firebase on direct widget change
     )
 
+    # 🚨 TRIGGER RESET: Force a cloud sync BEFORE st.rerun destroys the thread!
     if topic != st.session_state.active_topic:
         st.session_state.active_topic = topic
         st.session_state.pop("active_sub_topic", None)
         st.session_state.pop("active_learning_outcome", None)
+        
+        # 🚀 CRITICAL FIX: Push new data to the cloud first, then refresh layout frame
+        update_session()
         st.rerun()
 
     topic_dict = subject_dict.get(topic, {})
@@ -94,11 +104,16 @@ def render():
         options=sub_topics,
         index=subtop_idx,
         key=f"subtopic_select_dynamic_{subject}_{topic}",
+        on_change=update_session,  # 🚀 Auto-saves to Firebase on direct widget change
     )
 
+    # 🚨 TRIGGER RESET: Force a cloud sync BEFORE st.rerun destroys the thread!
     if sub_topic != st.session_state.active_sub_topic:
         st.session_state.active_sub_topic = sub_topic
         st.session_state.pop("active_learning_outcome", None)
+        
+        # 🚀 CRITICAL FIX: Push new data to the cloud first, then refresh layout frame
+        update_session()
         st.rerun()
 
     # Gather matching outcomes
@@ -129,10 +144,15 @@ def render():
         options=outcomes,
         index=out_idx,
         key=f"outcome_select_dynamic_{subject}_{topic}_{sub_topic}",
+        on_change=update_session,  # 🚀 Auto-saves to Firebase on direct widget change
     )
 
+    # 🚨 TRIGGER RESET: Force a cloud sync BEFORE st.rerun destroys the thread!
     if learning_outcome != st.session_state.active_learning_outcome:
         st.session_state.active_learning_outcome = learning_outcome
+        
+        # 🚀 CRITICAL FIX: Push new data to the cloud first, then refresh layout frame
+        update_session()
         st.rerun()
 
     # -------------------------------------------------------------

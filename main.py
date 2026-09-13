@@ -140,6 +140,13 @@ if cookies_controller is not None:
                     workspace = session_data.get("workspace") or {}
                     st.session_state.current_page = workspace.get("current_page", "Main Chat")
                     st.session_state.active_view = workspace.get("active_view", "main")
+                    st.session_state.active_subject = workspace.get("active_subject", "subject")
+                    st.session_state.active_topic = workspace.get("active_topic", "topic")
+                    st.session_state.active_sub_topic = workspace.get("active_sub_topic", "sub topic")
+                    st.session_state.active_learning_outcome = workspace.get("active_learning_outcome", "learning outcome")
+                    
+                    st.session_state.selected_generator = workspace.get("selected_generator", "generator")
+                    st.session_state.lesson_id = workspace.get("lesson_id", "lesson")
                     st.session_state.session_checked = True
                 else:
                     st.session_state.session_checked = True
@@ -501,6 +508,7 @@ if "code" in st.query_params:
                 # ✅ PASTE THIS IMPROVED PRODUCTION FRAGMENT INSTEAD (Page 20):
                 st.session_state.current_page = "Main Chat"
                 st.session_state.active_view = "main"
+               
                 
                 # 1. Update your persistent server data arrays
                 update_session()

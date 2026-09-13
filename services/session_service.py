@@ -152,10 +152,15 @@ def update_session() -> None:
     workspace = {
         "current_page": st.session_state.get("current_page", "Main Chat"),
         "active_view": st.session_state.get("active_view", "main"),
-        "selected_subject": st.session_state.get("selected_subject"),
-        "selected_topic": st.session_state.get("selected_topic"),
-        "selected_generator": st.session_state.get("selected_generator"),
-        "lesson_id": st.session_state.get("lesson_id"),
+        
+        # 🚀 ALIGNED STRUCTURAL SYNC KEYS: Match your exact learning_context variables!
+        "active_subject": st.session_state.get("active_subject", "subject"),
+        "active_topic": st.session_state.get("active_topic", "topic"),
+        "active_sub_topic": st.session_state.get("active_sub_topic", "sub topic"),
+        "active_learning_outcome": st.session_state.get("active_learning_outcome", "learning outcome"),
+        
+        "selected_generator": st.session_state.get("selected_generator", "generator"),
+        "lesson_id": st.session_state.get("lesson_id", "lesson"),
     }
 
     db.collection(SESSION_COLLECTION).document(session_id).update({
