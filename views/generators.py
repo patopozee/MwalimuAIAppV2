@@ -85,28 +85,26 @@ def render():
     with tab_quiz:
         st.subheader(":material/description: Quiz Generator")
 
-        # Get the active lesson FIRST
+        # 🚀 STEP 1: Determine the active topic based on lesson tracking or sidebar state context
         active_lesson = st.session_state.get("lms_active_lesson_node")
 
         if active_lesson:
-            computed_topic = active_lesson.get("title", "")
+            computed_topic = str(active_lesson.get("title", "")).strip()
         else:
-            computed_topic = context_target_topic
+            # Fall back cleanly to our newly synchronized live sidebar topic variable
+            computed_topic = str(st.session_state.get("active_topic", "General Topic")).strip()
 
-        # 🚨 FORCE OVERWRITE WIDGET STATE IF CONTEXT CHANGED OR PAGE RE-ENTERED
-        if st.session_state.get("last_synced_quiz_context") != computed_topic:
-            st.session_state["workspace_quiz_topic"] = computed_topic
-            st.session_state["last_synced_quiz_context"] = computed_topic
-
-        # Render the text input safely
+        # 🚀 STEP 2: Use the dynamic key pattern to drop old widget states and update the input field
         raw_quiz_input = st.text_input(
-            "Quiz Topic",
-            key="workspace_quiz_topic"
+            label="Quiz Topic",
+            value=computed_topic,
+            key=f"quiz_topic_sync_widget_{computed_topic}"
         )
         quiz_topic: str = str(raw_quiz_input).strip() if raw_quiz_input else ""
 
         if "premium" in user_tier.lower() or "plus" in user_tier.lower():
             st.session_state.quiz_limit_reached = False
+
         
         has_active_quiz = st.session_state.quiz is not None
 
@@ -313,8 +311,17 @@ def render():
     with tab_flash:
         st.subheader("AI Flashcards Maker")
         
-        # Ensure input string extraction can never evaluate as NoneType or throw Pylance errors
-        raw_fc_input = st.text_input("Enter a topic for your flashcards:", value=sub_topic if 'sub_topic' in locals() else "", key="fc_topic")
+        # 🚀 STEP 1: Safely pull the live synchronized value straight out of the active sidebar state
+        current_sub_topic = st.session_state.get("active_sub_topic", "General Sub-Topic")
+        
+        # 🚀 STEP 2: Use a dynamic key bound to the topic string to force the widget to refresh its input buffer
+        raw_fc_input = st.text_input(
+            label="Enter a topic for your flashcards:", 
+            value=current_sub_topic, 
+            key=f"fc_topic_input_sync_widget_{current_sub_topic}"
+        )
+        flashcard_topic: str = str(raw_fc_input).strip() if raw_fc_input else ""
+
         flashcard_topic: str = str(raw_fc_input).strip() if raw_fc_input else ""
         
         # Fetch student tier profile data upfront using clean email lookups
@@ -362,16 +369,17 @@ def render():
                 st.rerun()
 
         # ----------------------------------------------------
-        # Modal Activation Bridge (MATCHES QUIZ & LESSON TABS)
+        # Safe Modal Activation Layer (Prevents Continuous Loops)
         # ----------------------------------------------------
         if st.session_state.get("trigger_fc_upgrade_modal"):
             st.session_state.pop("trigger_fc_upgrade_modal", None)
-            upgrade_modal()  # Directly calling the function now, no scope checks!
+            if 'show_upgrade_modal' in globals():
+                upgrade_modal()
 
         # ----------------------------------------------------
         # Flashcards Generation Action Trigger
         # ----------------------------------------------------
-        if st.button("Generate Flashcards", width="stretch", key="execute_workspace_flashcards"):
+        if st.button("Generate Flashcards", use_container_width=True, key="execute_workspace_flashcards"):
             if not flashcard_topic:
                 st.warning("Please enter a valid topic first!")
             elif not name or not grade or age_int == 0:
@@ -385,7 +393,7 @@ def render():
                 st.session_state.pop("flashcards_limit_reached", None)
 
                 with st.spinner("Mwalimu AI is writing your flashcards..."):
-                    # Pass active contextual 'student' map to respect Subject and preferred_language
+                    # 🎯 FIX: Pass active contextual 'student' map to respect Subject and preferred_language
                     active_context = student if 'student' in locals() else student_profile
                     fc_result = generate_flashcards(flashcard_topic, active_context)
                     
@@ -401,7 +409,7 @@ def render():
         # SAFE DISPLAY & STRUCTURAL JSON PARSING LAYER
         # ----------------------------------------------------
         if st.session_state.flashcards:
-            st.info("Click 'Show Answer' to test your active recall memory knowledge!", icon=":material/lightbulb:")
+            st.info("💡 Click 'Show Answer' to test your active recall memory knowledge!")
             
             try:
                 cards_data = st.session_state.flashcards
@@ -426,33 +434,31 @@ def render():
                 # Draw interactive elements loops safely
                 for idx, card in enumerate(actual_list):
                     if isinstance(card, dict):
+                        # 🎯 FIX: Check for English AND Swahili key variants generated by the AI
                         q_text = card.get("front", card.get("question", card.get("swali", card.get("mbele", "No question context"))))
                         a_text = card.get("back", card.get("answer", card.get("jibu", card.get("nyuma", "No answer context"))))
                     else:
                         q_text = f"Card Detail Element {idx + 1}"
                         a_text = str(card)
 
-                    # 1. Clear heading structure
-                    st.markdown(f"### :material/style: Flashcard {idx + 1}")
+                    st.markdown(f"### Flashcard {idx + 1}")
+                    st.write(f"**❓ Question:** {q_text}")
                     
-                    # 2. Replaced ❓ with native inline shortcode
-                    st.write(f"**:material/help: Question:** {q_text}")
-                    
-                    # 3. Replaced 👁️ with a local eye vector parameter directly on the expander component
-                    with st.sidebar.expander("Show Answer", expanded=False, icon=":material/visibility:"):
-                        # 4. Replaced 💡 inside the native green block using the icon argument
-                        st.success(f"**Answer:** {a_text}", icon=":material/lightbulb:")
+                    with st.expander("👁️ Show Answer"):
+                        st.success(f"**💡 Answer:** {a_text}")
 
                         
             except Exception as parse_error:
+                # Absolute emergency string fallback layout to prevent crashes if JSON format breaks
                 st.markdown(st.session_state.flashcards)
             
             st.markdown("---")
-            if st.button("Clear Flashcards", width="stretch", key="clear_workspace_flashcards"):
+            if st.button("Clear Flashcards", use_container_width=True, key="clear_workspace_flashcards"):
                 st.session_state.flashcards = None
                 if not verify_tier_allowance(uid, user_tier, "flashcards"):
                     st.session_state.flashcards_limit_reached = True
                 st.rerun()
+
 
 
 
@@ -462,12 +468,20 @@ def render():
     with tab_less:
         st.subheader("AI Lessons Generator")
         
-        default_lesson_value = learning_outcome if 'learning_outcome' in locals() and learning_outcome else ""
-        raw_lesson_input = st.text_input("Enter the topic you want to learn today:", value=default_lesson_value, key="lesson_topic_input")
+        # 🚀 STEP 1: Pull the live synchronized learning outcome straight out of the active sidebar state
+        current_outcome = st.session_state.get("active_learning_outcome", "General Learning Outcome")
+        
+        # 🚀 STEP 2: Bind a dynamic key to force the widget to drop its cache and update its display value
+        raw_lesson_input = st.text_input(
+            label="Enter the topic you want to learn today:", 
+            value=current_outcome, 
+            key=f"lesson_topic_sync_widget_{current_outcome}"
+        )
         lesson_topic: str = str(raw_lesson_input).strip() if raw_lesson_input else ""
         
         if "premium" in user_tier.lower() or "plus" in user_tier.lower():
             st.session_state.lessons_limit_reached = False
+
 
         has_active_lesson = "lesson_content" in st.session_state and st.session_state.lesson_content is not None
 

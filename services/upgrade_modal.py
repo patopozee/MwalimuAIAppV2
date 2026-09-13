@@ -220,7 +220,7 @@ def upgrade_modal():
                 st.rerun()
             else:
                 st.info("Entered PIN but account not updated?")
-                if st.button("🔄 Refresh Subscription Status", use_container_width=True):
+                if st.button("🔄 Refresh The page for Subscription status to update", use_container_width=True):
                     check_again = MpesaPaymentService.check_transaction_status(checkout_request_id)
                     if check_again.get("completed"):
                         MpesaPaymentService.upgrade_user_subscription(
@@ -234,6 +234,6 @@ def upgrade_modal():
                         st.error("Transaction not confirmed yet. Please verify your PIN entry.")
         else:
             err_msg = result.get("message") or result.get("errorMessage") or "Payment failed."
-            st.error(f"❌ Payment Initialization Failed: {err_msg}")
+            st.error(f"Payment Initiated. Check Your Phone for M-Pesa Prompt: {err_msg}")
 
     st.caption("Subscription activates automatically upon successful payment.")
