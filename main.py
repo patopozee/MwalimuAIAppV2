@@ -1007,11 +1007,18 @@ if st.session_state.get("user_authenticated") and "user_email" in st.session_sta
     # RESTORE SAVED WORKSPACE — ONCE PER SESSION
     # ======================================================
     if st.session_state.user_authenticated and not st.session_state.get("workspace_restored", False):
-        saved_page = st.session_state.get("current_page", "Main Chat")
-        target_page = route_mapper.get(saved_page, chat_page)
+    # Only redirect if the browser landed on the bare root path with no
+    # specific page requested (e.g. straight after login). If the URL
+    # already names a page (a refresh on /voice, /learning, etc.), the
+    # router already has the correct page from the URL itself — trust
+    # it, don't override it with session_state.current_page, which may
+    # not have resolved from the cookie component yet on this run.
+        if router.url_path in ("", "chat"):  # adjust "chat" if that's your default url_path
+            saved_page = st.session_state.get("current_page", "Main Chat")
+            target_page = route_mapper.get(saved_page, chat_page)
+            if router.url_path != target_page.url_path:
+                st.switch_page(target_page)
         st.session_state.workspace_restored = True
-        if router.url_path != target_page.url_path:
-            st.switch_page(target_page)
 
     if st.session_state.get("user_authenticated", False):
         try:
