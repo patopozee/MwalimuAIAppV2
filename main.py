@@ -1313,14 +1313,45 @@ else:
                 """,
                 unsafe_allow_html=True
             )
+            #=========================
+            # ✅ REPLACE THE HERO BUTTON BLOCK ON PAGE 11 WITH THIS CODE:
             if st.button(
                 label="Get Started For Free",
-                icon=":material/auto_awesome:",  # ✨ -> 100% Offline-safe Material Spark/Magic Icon
+                icon=":material/auto_awesome:", # -> 100% Offline-safe Material Spark Icon
                 key="hero_center_cta_btn",
-                type="primary"
+                type="primary",# 🚀 Expanded to look great next to the APK button
             ):
                 st.session_state.show_auth = True
                 st.rerun()
+
+            # -------------------------------------------------------------
+            # 🚀 HARDENED FIX: LAZY-LOADED APK DOWNLOAD ENGINE (PREVENTS IDM AUTO-CLICK)
+            # -------------------------------------------------------------
+            apk_file_path = "assets/App-Mwalimu-AI.apk"
+            
+            # Check if the asset file exists before building the link structure
+            if os.path.exists(apk_file_path):
+                # We wrap the binary file opener inside a function so it only triggers ON CLICK
+                def stream_apk_binary_on_click():
+                    with open(apk_file_path, "rb") as file_binary:
+                        return file_binary.read()
+
+                st.download_button(
+                    label="Download Android App (.APK)",
+                    data=stream_apk_binary_on_click,  # 🚀 LAZY-LOADED: Passes the function pointer instead of raw data!
+                    file_name="App-Mwalimu-AI.apk",
+                    mime="application/vnd.android.package-archive",
+                    icon=":material/smartphone:",      # Modern vector Lucide phone icon
+                    type="secondary",
+                    use_container_width=False,         # Keeps button width tight and small
+                    key="secure_apk_download_gate_btn" # Explicit tracking key layer
+                )
+            else:
+                # Clean minimalistic text helper fallback if file processing is syncing
+                st.caption("*Android App installer (.APK) is packaging in background...*")
+
+
+
 
         #====        
         with hero_vis:
