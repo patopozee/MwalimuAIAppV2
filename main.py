@@ -238,7 +238,17 @@ def get_base64_image(image_path):
         with open(image_path, "rb") as f:
             return base64.b64encode(f.read()).decode()
     return ""
+def render_terms():
+    from views.terms_view import render_terms_and_conditions_view
+    render_terms_and_conditions_view()
 
+terms_page = st.Page(
+    render_terms,
+    title="Terms & Conditions",
+    icon=":material/gavel:",
+    url_path="terms",
+)
+st.session_state.ROUTE_TERMS = terms_page
 
 def render_auth_portal(context="auth"):
     if "selected_tier" in st.session_state:
@@ -987,7 +997,8 @@ if st.session_state.get("user_authenticated") and "user_email" in st.session_sta
         "Leaderboard": leaderboard_page,
         "Admin Dashboard": admin_page,
         "Lesson Workspace": lesson_page,
-        "Edit Profile": edit_profile_page
+        "Edit Profile": edit_profile_page,
+        "Terms & Conditions": terms_page
     }
     router = st.navigation(
         [
@@ -999,6 +1010,7 @@ if st.session_state.get("user_authenticated") and "user_email" in st.session_sta
             admin_page,
             lesson_page,
             edit_profile_page,
+            terms_page,
         ],
         position="hidden"
     )
@@ -1050,9 +1062,27 @@ if st.session_state.get("user_authenticated") and "user_email" in st.session_sta
 #===========================
 #=== LANDING PAGE ========
 #============================
-else:
 
-    
+else:
+    # 1. Define a dummy page representing the main landing page
+    main_landing_page = st.Page(
+        lambda: None,  # No-op function since landing code renders below
+        title="Home",
+        url_path="",
+        default=True,  # Set as default route for root URL "/"
+    )
+
+    # 2. Register both pages so st.navigation knows about both routes
+    landing_router = st.navigation(
+        [main_landing_page, terms_page], 
+        position="hidden"
+    )
+
+    # 3. Only run and stop if the user explicitly navigated to /terms
+    if landing_router == terms_page:
+        landing_router.run()
+        st.stop()
+
     import base64
     import json
     import streamlit as st
@@ -1091,12 +1121,111 @@ else:
     except Exception:
         sidebar_bg_style = ""
 
-    # 1. Initialize state variables
-    if "show_auth" not in st.session_state:
-        st.session_state.show_auth = False
-    if "viewing_full_terms" not in st.session_state:
-        st.session_state.viewing_full_terms = False
-    
+    # Define all session states uniquely once
+    for state_key, default_value in {
+        "cookie_consent": None,
+        "show_auth": False,
+        "viewing_full_terms": False,
+        "trigger_scroll": False
+    }.items():
+        if state_key not in st.session_state:
+            st.session_state[state_key] = default_value
+
+    # ====================================================================
+    # 2. CAPTURE BANNER CLICK ACTIONS (URL LISTENER)
+    # ====================================================================
+    query_params = st.query_params
+
+    if "action" in query_params:
+        action = query_params["action"]
+        
+        if action == "view_privacy":
+            st.session_state.viewing_full_terms = True
+            st.session_state.trigger_scroll = True
+            st.query_params.clear()
+            st.rerun()
+            
+        elif action in ["accept", "reject"]:
+            st.session_state.cookie_consent = action + "ed"
+            st.query_params.clear()
+            st.rerun()
+
+    # ====================================================================
+    # 3. PURE OVERLAY COOKIE BANNER (ZERO INLINE FLOW DISTORTION)
+    # ====================================================================
+    if st.session_state.cookie_consent is None:
+        st.markdown(
+            """
+            <style>
+            .mw-cookie-fixed-floor {
+                position: fixed !important;
+                bottom: 0px !important;
+                left: 0px !important;
+                width: 100vw !important;
+                background-color: #101622 !important;
+                border-top: 1px solid rgba(255, 255, 255, 0.08) !important;
+                padding: 14px 40px !important;
+                z-index: 999999 !important;
+                box-sizing: border-box !important;
+                display: flex !important;
+                justify-content: space-between !important;
+                align-items: center !important;
+                font-family: sans-serif !important;
+            }
+            .mw-cookie-inline-text {
+                margin: 0 !important;
+                padding: 0 !important;
+                font-size: 0.82rem !important; 
+                color: #A0AEC0 !important;
+                line-height: 1.4 !important;
+                max-width: 80% !important;
+            }
+            .mw-cookie-btn-group {
+                display: flex !important;
+                gap: 12px !important;
+            }
+            .mw-cookie-link-btn {
+                text-decoration: none !important;
+                font-size: 0.85rem !important;
+                font-weight: 600 !important;
+                padding: 8px 20px !important;
+                border-radius: 8px !important;
+                transition: background 0.2s ease !important;
+                text-align: center !important;
+            }
+            .mw-cookie-link-btn.reject {
+                background-color: transparent !important;
+                color: #E2E8F0 !important;
+                border: 1px solid rgba(255, 255, 255, 0.2) !important;
+            }
+            .mw-cookie-link-btn.reject:hover {
+                background-color: rgba(255, 255, 255, 0.05) !important;
+            }
+            .mw-cookie-link-btn.accept {
+                background-color: #FF4B4B !important; 
+                color: white !important;
+            }
+            .mw-cookie-link-btn.accept:hover {
+                background-color: #E03E3E !important;
+            }
+            </style>
+            <div class="mw-cookie-fixed-floor">
+                <p class="mw-cookie-inline-text">
+                    We use essential cookies to keep you logged in. With your permission we also use analytics 
+                    cookies to understand how the platform is used. No advertising, no data selling. 
+                    <a href="/terms" target="_self" style="color:#2473F2; text-decoration:underline;">Terms & Conditions</a>.
+                </p>
+                <div class="mw-cookie-btn-group">
+                    <a href="?action=reject" target="_self" class="mw-cookie-link-btn reject">Reject</a>
+                    <a href="?action=accept" target="_self" class="mw-cookie-link-btn accept">Accept</a>
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+
+
+
 
     # 2. POLISHED ADVANCED CSS INJECTION
     def inject_polished_css():
@@ -1601,6 +1730,7 @@ else:
         #=============
         #       
         with tab_contact:
+            
             st.markdown("### :material/contact_support: Contact Mwalimu AI")
 
             st.info("""
@@ -1664,28 +1794,50 @@ else:
                         st.success("✅ Your message has been sent successfully.")
                     else:
                         st.error("❌ Failed to send your message.")
-                    
+        #=============             
+        # Inside your Landing Page layout code:
+
         with tab_terms:
             st.markdown("<br>", unsafe_allow_html=True)
+            
             if st.session_state.get("viewing_full_terms", False):
-                st.markdown("## Standalone Terms & Conditions Center")
-                st.caption(" Last Updated: July 2026 | CBC Curriculum Engine Sync")
+                # Render inline preview if state is toggled
+                st.markdown("### Standalone Terms & Conditions Center")
+                st.caption("Last Updated: July 2026 | CBC Curriculum Engine Sync")
                 st.markdown("---")
-                try:
-                    from services.legal_text import TERMS_AND_CONDITIONS
-                    st.write(TERMS_AND_CONDITIONS)           
-                except Exception:
-                    st.write("Terms and Conditions statement content script loading from services layer...")
+                
+                with st.container(height=450, border=True):
+                    try:
+                        from services.legal_text import TERMS_AND_CONDITIONS
+                        st.markdown(TERMS_AND_CONDITIONS)
+                    except Exception:
+                        st.write("Loading terms from services layer...")
+                        
                 st.markdown("---")
-                if st.button(" Accept & Close Document (Return Home)", use_container_width=True, key="close_terms_overlay"):
+                if st.button("Close Document (Return Home)", use_container_width=True, key="close_terms_overlay"):
                     st.session_state.viewing_full_terms = False
                     st.rerun()
+                    
             else:
                 st.markdown("### Platform Terms of Service & End-User License Agreement")
-                st.write("To ensure complete transparency regarding your data protection, subscription limits, and M-Pesa non-auto-renewal policies under the Kenyan Data Protection Act, please click the button below to view our comprehensive legal agreement.")
-                if st.button(" Read Full Terms of Service", key="trigger_terms_overlay", use_container_width=True):
-                    st.session_state.viewing_full_terms = True
-                    st.rerun()
+                st.write(
+                    "To ensure complete transparency regarding your data protection, subscription limits, "
+                    "and M-Pesa non-auto-renewal policies under the Kenyan Data Protection Act, click below "
+                    "to open our comprehensive legal agreement."
+                )
+                
+                col_btn1, col_btn2 = st.columns(2)
+                
+                with col_btn1:
+                    # Direct Navigation to views/terms_view.py via router
+                    if st.button("📄 Open Full Terms Page", key="nav_to_terms_page", use_container_width=True, type="primary"):
+                        st.switch_page(st.session_state.ROUTE_TERMS)
+                        
+                with col_btn2:
+                    # Expand inside the tab directly
+                    if st.button("👁️ Preview Here", key="trigger_terms_overlay", use_container_width=True):
+                        st.session_state.viewing_full_terms = True
+                        st.rerun()
 
         # --- CLEAN LOW-PROFILE FOOTER ARCHITECTURE ---
         st.markdown("---")
