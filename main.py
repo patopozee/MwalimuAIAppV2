@@ -1063,6 +1063,9 @@ if st.session_state.get("user_authenticated") and "user_email" in st.session_sta
 #=== LANDING PAGE ========
 #============================
 
+#===========================
+#=== LANDING PAGE ========
+#============================
 else:
     # 1. Define a dummy page representing the main landing page
     main_landing_page = st.Page(
@@ -1087,73 +1090,78 @@ else:
     import json
     import streamlit as st
     from PIL import Image
+
     st.markdown(
         """
         <style>
-            section[data-testid="stSidebar"] {
-                display: none !important;
-            }
-
-            [data-testid="stSidebarCollapseButton"],
-            [data-testid="collapsedControl"] {
-                display: none !important;
-            }
-
-            [data-testid="stAppViewContainer"] {
-                margin-left: 0 !important;
-            }
-
-            [data-testid="stMain"] {
-                margin-left: 0 !important;
-            }
-
-            [data-testid="stMainBlockContainer"] {
-                max-width: 100% !important;
-            }
+            section[data-testid="stSidebar"] { display: none !important; }
+            [data-testid="stSidebarCollapseButton"], [data-testid="collapsedControl"] { display: none !important; }
+            [data-testid="stAppViewContainer"] { margin-left: 0 !important; }
+            [data-testid="stMain"] { margin-left: 0 !important; }
+            [data-testid="stMainBlockContainer"] { max-width: 100% !important; }
         </style>
         """,
         unsafe_allow_html=True,
     )
-    # Initialize image logo data assets cleanly
-    try:
-        with open("assets/logo211.png", "rb") as image_file:
-            encoded_logo = base64.b64encode(image_file.read()).decode()
-    except Exception:
-        sidebar_bg_style = ""
 
-    # Define all session states uniquely once
+    # Initialize standard session states safely
+    # AFTER — one new key added:
     for state_key, default_value in {
         "cookie_consent": None,
         "show_auth": False,
         "viewing_full_terms": False,
-        "trigger_scroll": False
+        "trigger_scroll": False,
+        "cookie_check_done": False,
     }.items():
         if state_key not in st.session_state:
             st.session_state[state_key] = default_value
 
     # ====================================================================
-    # 2. CAPTURE BANNER CLICK ACTIONS (URL LISTENER)
+    # URL QUERY & COOKIE STATE LAYER (HANDLES STATE PRE-RENDER)
     # ====================================================================
     query_params = st.query_params
 
-    if "action" in query_params:
-        action = query_params["action"]
-        
-        if action == "view_privacy":
-            st.session_state.viewing_full_terms = True
-            st.session_state.trigger_scroll = True
-            st.query_params.clear()
-            st.rerun()
-            
-        elif action in ["accept", "reject"]:
-            st.session_state.cookie_consent = action + "ed"
+    # Intercept click events immediately before drawing the UI
+    if "consent_action" in query_params:
+        action_val = query_params["consent_action"]
+        if action_val in ["accept", "reject"]:
+            resolved = action_val + "ed"
+            st.session_state.cookie_consent = resolved
+            if cookies_controller is not None:
+                cookies_controller.set("mwalimu_cookie_consent", resolved, max_age=2592000)
             st.query_params.clear()
             st.rerun()
 
+    # Read from browser memory if session state was cleared by refresh
+    # AFTER:
+    # Read from browser memory if session state was cleared by refresh.
+    # Don't trust a single .get() call on the first run — the cookie
+    # component hasn't necessarily resolved yet, so a None here could mean
+    # "no cookie" OR "component hasn't answered yet." getAll() lets us tell
+    # the difference and wait one more rerun instead of flashing the banner.
+    if (
+        st.session_state.cookie_consent is None
+        and cookies_controller is not None
+        and not st.session_state.cookie_check_done
+    ):
+        try:
+            all_cookies = cookies_controller.getAll()
+        except Exception:
+            all_cookies = None
+
+        if all_cookies is not None:
+            st.session_state.cookie_check_done = True
+            persisted = all_cookies.get("mwalimu_cookie_consent")
+            if persisted in ["accepted", "rejected"]:
+                st.session_state.cookie_consent = persisted
+            st.rerun()
+        else:
+            st.rerun()
+
     # ====================================================================
-    # 3. PURE OVERLAY COOKIE BANNER (ZERO INLINE FLOW DISTORTION)
+    # 3. PURE OVERLAY COOKIE BANNER 
     # ====================================================================
-    if st.session_state.cookie_consent is None:
+    if st.session_state.cookie_consent is None and st.session_state.cookie_check_done:
         st.markdown(
             """
             <style>
@@ -1164,7 +1172,7 @@ else:
                 width: 100vw !important;
                 background-color: #101622 !important;
                 border-top: 1px solid rgba(255, 255, 255, 0.08) !important;
-                padding: 14px 40px !important;
+                padding: 16px 40px !important;
                 z-index: 999999 !important;
                 box-sizing: border-box !important;
                 display: flex !important;
@@ -1177,21 +1185,25 @@ else:
                 padding: 0 !important;
                 font-size: 0.82rem !important; 
                 color: #A0AEC0 !important;
-                line-height: 1.4 !important;
-                max-width: 80% !important;
+                line-height: 1.5 !important;
+                max-width: 75% !important;
+                text-align: left !important;
             }
             .mw-cookie-btn-group {
                 display: flex !important;
                 gap: 12px !important;
+                align-items: center !important;
             }
             .mw-cookie-link-btn {
                 text-decoration: none !important;
                 font-size: 0.85rem !important;
                 font-weight: 600 !important;
-                padding: 8px 20px !important;
+                padding: 8px 24px !important;
                 border-radius: 8px !important;
                 transition: background 0.2s ease !important;
                 text-align: center !important;
+                display: inline-block !important;
+                line-height: 1.2 !important;
             }
             .mw-cookie-link-btn.reject {
                 background-color: transparent !important;
@@ -1202,13 +1214,16 @@ else:
                 background-color: rgba(255, 255, 255, 0.05) !important;
             }
             .mw-cookie-link-btn.accept {
-                background-color: #FF4B4B !important; 
+                background-color: #2473F2 !important; 
                 color: white !important;
+                border: 1px solid #2473F2 !important;
             }
             .mw-cookie-link-btn.accept:hover {
-                background-color: #E03E3E !important;
+                background-color: #1D4ED8 !important;
+                border-color: #1D4ED8 !important;
             }
             </style>
+            
             <div class="mw-cookie-fixed-floor">
                 <p class="mw-cookie-inline-text">
                     We use essential cookies to keep you logged in. With your permission we also use analytics 
@@ -1216,13 +1231,27 @@ else:
                     <a href="/terms" target="_self" style="color:#2473F2; text-decoration:underline;">Terms & Conditions</a>.
                 </p>
                 <div class="mw-cookie-btn-group">
-                    <a href="?action=reject" target="_self" class="mw-cookie-link-btn reject">Reject</a>
-                    <a href="?action=accept" target="_self" class="mw-cookie-link-btn accept">Accept</a>
+                    <a href="?consent_action=reject" target="_self" class="mw-cookie-link-btn reject">Reject</a>
+                    <a href="?consent_action=accept" target="_self" class="mw-cookie-link-btn accept">Accept</a>
                 </div>
             </div>
             """,
             unsafe_allow_html=True
         )
+
+    # ====================================================================
+    # URL QUERY INTERCEPT CONTINUATION (REST OF APP FLOW)
+    # ====================================================================
+    # Listen for button actions sent via URL flags like view_privacy
+    if "action" in query_params:
+        action = query_params["action"]
+        if action == "view_privacy":
+            st.session_state.viewing_full_terms = True
+            st.session_state.trigger_scroll = True
+            st.query_params.clear()
+            st.rerun()
+
+
 
 
 
