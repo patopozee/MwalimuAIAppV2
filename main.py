@@ -1517,10 +1517,16 @@ else:
             with st.container(border=True):
                 st.markdown(
                     "<p style='margin:0 0 12px 0; font-size:0.8rem; color:#64748b; "
-                    "font-weight:600; text-transform:uppercase; letter-spacing:0.05em;'>"
-                    "📱 Live Chat Dashboard Preview</p>", 
+                    "font-weight:600; text-transform:uppercase; letter-spacing:0.05em; "
+                    "display: flex; align-items: center; gap: 6px;'>"
+                    '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#2473F2" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="display: inline-block;">'
+                    '<rect x="5" y="2" width="14" height="20" rx="2" ry="2"></rect>'
+                    '<line x1="12" y1="18" x2="12.01" y2="18"></line>'
+                    '</svg>'
+                    "Live Chat Dashboard Preview</p>", 
                     unsafe_allow_html=True
                 )
+
                 
                 try:
                     # Place your screenshot image inside an assets or images folder
@@ -1559,12 +1565,21 @@ else:
         st.markdown(
             """
             <div style="text-align: center; margin-bottom: 25px;">
-                <h2 style="font-size: 2.2rem; font-weight: 800; color: #f8fafc; margin:0;">Everything You Need to Excel 🎯</h2>
+                <h2 style="font-size: 2.2rem; font-weight: 800; color: #f8fafc; margin:0; display: flex; align-items: center; justify-content: center; gap: 12px;">
+                    <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#2473F2" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle; display: inline-block;">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <circle cx="12" cy="12" r="6"></circle>
+                        <circle cx="12" cy="12" r="2"></circle>
+                    </svg>
+                    Everything You Need to Excel
+                </h2>
                 <p style="color: #94a3b8; font-size: 1.05rem; margin: 4px 0 0 0;">Powerful digital features designed to help every learner reach their full potential framework.</p>
             </div>
             """, 
             unsafe_allow_html=True
         )
+
+
         st.markdown("""
         <style>
             /* Ensure all flagship cards have the same height for alignment */
@@ -1582,7 +1597,10 @@ else:
             st.markdown(
                 """
                 <div class='flagship-card'>
-                    <h3 style='font-size:1.4rem !important; color:#60a5fa !important;'>🎙️ AI Voice Tutor</h3>
+                    <h3 style='font-size:1.4rem !important; color:#60a5fa !important; display: flex; align-items: center; gap: 10px; margin: 0;'>
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0;"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"></path><path d="M19 10v1a7 7 0 0 1-14 0v-1"></path><line x1="12" y1="19" x2="12" y2="22"></line></svg>
+                        AI Voice Tutor
+                    </h3>
                     <p style='color:#94a3b8; margin:8px 0 0 0; line-height:1.4;'>
                         Transform your fluency with hands-free, interactive voice tutoring. 
                         Engage in natural conversation, practice active listening, and get quick, 
@@ -1598,7 +1616,10 @@ else:
             st.markdown(
                 """
                 <div class='flagship-card'>
-                    <h3 style='font-size:1.4rem !important; color:#60a5fa !important;'>💻 Learning Management System</h3>
+                    <h3 style='font-size:1.4rem !important; color:#60a5fa !important; display: flex; align-items: center; gap: 10px; margin: 0;'>
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0;"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg>
+                        Learning Management System
+                    </h3>
                     <p style='color:#94a3b8; margin:8px 0 0 0; line-height:1.4;'>
                         Power your growth with our integrated Learning Management System. 
                         Test mastery through interactive quizzes, track your performance, 
@@ -1614,16 +1635,20 @@ else:
             st.markdown(
                 """
                 <div class='flagship-card'>
-                    <h3 style='font-size:1.4rem !important; color:#60a5fa !important;'>💬 Live Chat With Mwalimu AI</h3>
+                    <h3 style='font-size:1.4rem !important; color:#60a5fa !important; display: flex; align-items: center; gap: 10px; margin: 0;'>
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0;"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+                        Live Chat With Mwalimu AI
+                    </h3>
                     <p style='color:#94a3b8; margin:8px 0 0 0; line-height:1.4;'>
                         Get unstuck in seconds. Ask any academic question and receive clear, snackable, step-by-step breakdowns. 
                         Simply upload screenshots of your homework or
-                          textbook pages, and let Mwalimu AI provide verified guidance to help you master every challenge.
+                        textbook pages, and let Mwalimu AI provide verified guidance to help you master every challenge.
                     </p>
                 </div>
                 """, 
                 unsafe_allow_html=True
             )
+
         
 
         st.write("##")
@@ -1642,14 +1667,62 @@ else:
             # Row 2 & 3: Standard Sub-utilities (Balanced 3-Column Layout Grid Continues)
         sub_col1, sub_col2, sub_col3 = st.columns(3)
         with sub_col1:
-            st.markdown("<div class='card'><h3>📊 Performance Tracking</h3><p style='color:#94a3b8;'>Monitor your weakness trends, review historical quiz scores, and track your curriculum mastery growth timeline.</p></div>", unsafe_allow_html=True)
-            st.markdown("<div class='card'><h3>🎴 Flashcards Generator</h3><p style='color:#94a3b8;'>Effective active-recall memory tool cards built to make vocabulary memorization and rapid topic revision fast.</p></div>", unsafe_allow_html=True)
+            st.markdown(
+                "<div class='card'>"
+                "<h3 style='display: flex; align-items: center; gap: 8px; margin: 0 0 8px 0;'>"
+                "<svg width='20' height='20' viewBox='0 0 24 24' fill='none' stroke='#2473F2' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'><line x1='18' y1='20' x2='18' y2='10'></line><line x1='12' y1='20' x2='12' y2='4'></line><line x1='6' y1='20' x2='6' y2='14'></line></svg>"
+                "Performance Tracking</h3>"
+                "<p style='color:#94a3b8; margin: 0;'>Monitor your weakness trends, review historical quiz scores, and track your curriculum mastery growth timeline.</p>"
+                "</div>", 
+                unsafe_allow_html=True
+            )
+            st.markdown(
+                "<div class='card'>"
+                "<h3 style='display: flex; align-items: center; gap: 8px; margin: 0 0 8px 0;'>"
+                "<svg width='20' height='20' viewBox='0 0 24 24' fill='none' stroke='#2473F2' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'><rect x='3' y='3' width='18' height='18' rx='2' ry='2'></rect><line x1='3' y1='9' x2='21' y2='9'></line><line x1='9' y1='21' x2='9' y2='9'></line></svg>"
+                "Flashcards Generator</h3>"
+                "<p style='color:#94a3b8; margin: 0;'>Effective active-recall memory tool cards built to make vocabulary memorization and rapid topic revision fast.</p>"
+                "</div>", 
+                unsafe_allow_html=True
+            )
         with sub_col2:
-            st.markdown("<div class='card'><h3>📝 AI Quizzes Generator</h3><p style='color:#94a3b8;'>Instant customized evaluation practice tests on any CBC topic to challenge yourself before class assignments.</p></div>", unsafe_allow_html=True)
-            st.markdown("<div class='card'><h3>🗓️ Personalized Study Plans</h3><p style='color:#94a3b8;'>Get automated, data-driven daily study schedules mapped out specifically to help balance your learning pace.</p></div>", unsafe_allow_html=True)
+            st.markdown(
+                "<div class='card'>"
+                "<h3 style='display: flex; align-items: center; gap: 8px; margin: 0 0 8px 0;'>"
+                "<svg width='20' height='20' viewBox='0 0 24 24' fill='none' stroke='#2473F2' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'><path d='M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z'></path><polyline points='14 2 14 8 20 8'></polyline><line x1='16' y1='13' x2='8' y2='13'></line><line x1='16' y1='17' x2='8' y2='17'></line><polyline points='10 9 9 9 8 9'></polyline></svg>"
+                "AI Quizzes Generator</h3>"
+                "<p style='color:#94a3b8; margin: 0;'>Instant customized evaluation practice tests on any CBC topic to challenge yourself before class assignments.</p>"
+                "</div>", 
+                unsafe_allow_html=True
+            )
+            st.markdown(
+                "<div class='card'>"
+                "<h3 style='display: flex; align-items: center; gap: 8px; margin: 0 0 8px 0;'>"
+                "<svg width='20' height='20' viewBox='0 0 24 24' fill='none' stroke='#2473F2' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'><rect x='3' y='4' width='18' height='18' rx='2' ry='2'></rect><line x1='16' y1='2' x2='16' y2='6'></line><line x1='8' y1='2' x2='8' y2='6'></line><line x1='3' y1='10' x2='21' y2='10'></line></svg>"
+                "Personalized Study Plans</h3>"
+                "<p style='color:#94a3b8; margin: 0;'>Get automated, data-driven daily study schedules mapped out specifically to help balance your learning pace.</p>"
+                "</div>", 
+                unsafe_allow_html=True
+            )
         with sub_col3:
-            st.markdown("<div class='card'><h3>📑 AI Lessons Generator</h3><p style='color:#94a3b8;'>Receive comprehensive markdown lesson plan study summaries tailored exactly to match your personal learning style.</p></div>", unsafe_allow_html=True)
-            st.markdown("<div class='card'><h3>📤 Upload PDFs and Images</h3><p style='color:#94a3b8;'>Let Mwalimu AI read your uploaded notes, reference sheets, or textbooks to answer specialized assignment problems.</p></div>", unsafe_allow_html=True)
+            st.markdown(
+                "<div class='card'>"
+                "<h3 style='display: flex; align-items: center; gap: 8px; margin: 0 0 8px 0;'>"
+                "<svg width='20' height='20' viewBox='0 0 24 24' fill='none' stroke='#2473F2' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'><path d='M4 19.5A2.5 2.5 0 0 1 6.75 17H20'></path><path d='M4 4.5A2.5 2.5 0 0 1 6.75 2H20v20H6.75A2.5 2.5 0 0 1 4 19.5z'></path></svg>"
+                "AI Lessons Generator</h3>"
+                "<p style='color:#94a3b8; margin: 0;'>Receive comprehensive markdown lesson plan study summaries tailored exactly to match your personal learning style.</p>"
+                "</div>", 
+                unsafe_allow_html=True
+            )
+            st.markdown(
+                "<div class='card'>"
+                "<h3 style='display: flex; align-items: center; gap: 8px; margin: 0 0 8px 0;'>"
+                "<svg width='20' height='20' viewBox='0 0 24 24' fill='none' stroke='#2473F2' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'><path d='M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4'></path><polyline points='17 8 12 3 7 8'></polyline><line x1='12' y1='3' x2='12' y2='15'></line></svg>"
+                "Upload PDFs and Images</h3>"
+                "<p style='color:#94a3b8; margin: 0;'>Let Mwalimu AI read your uploaded notes, reference sheets, or textbooks to answer specialized assignment problems.</p>"
+                "</div>", 
+                unsafe_allow_html=True
+            )
 
 
         # ====================================================================
@@ -1859,14 +1932,26 @@ else:
                 
                 with col_btn1:
                     # Direct Navigation to views/terms_view.py via router
-                    if st.button("📄 Open Full Terms Page", key="nav_to_terms_page", use_container_width=True, type="primary"):
+                    if st.button(
+                        label="Open Full Terms Page", 
+                        icon=":material/description:", 
+                        key="nav_to_terms_page", 
+                        use_container_width=True, 
+                        type="primary"
+                    ):
                         st.switch_page(st.session_state.ROUTE_TERMS)
                         
                 with col_btn2:
                     # Expand inside the tab directly
-                    if st.button("👁️ Preview Here", key="trigger_terms_overlay", use_container_width=True):
+                    if st.button(
+                        label="Preview Here", 
+                        icon=":material/visibility:", 
+                        key="trigger_terms_overlay", 
+                        use_container_width=True
+                    ):
                         st.session_state.viewing_full_terms = True
                         st.rerun()
+
 
         # --- CLEAN LOW-PROFILE FOOTER ARCHITECTURE ---
         st.markdown("---")
