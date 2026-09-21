@@ -186,7 +186,8 @@ def render_voice_tutor_page(client):
     # PIPELINE STAGE 1: IDLE (Render Recorder component and await speech)
     # =========================================================================
     if st.session_state.voice_stage == "idle":
-        target_stt_lang = "sw" if "swahili" in str(language).lower() else "en"
+        lang_str = str(language).lower()
+        target_stt_lang = "sw" if ("swahili" in lang_str or "sheng" in lang_str) else "en"
 
         with interaction_holder:
             transcribed_text = speech_to_text(
@@ -287,7 +288,8 @@ def render_voice_tutor_page(client):
             with interaction_holder:
                 with st.spinner(":material/volume_up: Generating Mwalimu's voice file..."):
                     try:
-                        voice_target = "sw-KE-RafikiNeural" if "swahili" in str(language).lower() else "en-KE-AsiliaNeural"
+                        lang_str = str(language).lower()
+                        voice_target = "sw-KE-RafikiNeural" if ("swahili" in lang_str or "sheng" in lang_str) else "en-KE-AsiliaNeural"
                         audio_bytes_payload = generate_edge_tts_audio(ai_response_text, voice_target)
 
                         # Cache raw file binary mapping string content

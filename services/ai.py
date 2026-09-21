@@ -792,7 +792,16 @@ def ask_mwalimu_voice(question, student, messages, adaptive_context="", attachme
     language_rules = {
         "English": "Respond naturally and directly in grammatically correct English like an empathetic Kenyan classroom teacher.",
         "Kiswahili": "Andika majibu yako yote kwa Kiswahili sanifu, fasaha, na safi kabisa kinachofaa mazingira ya shule za Kenya. Ni marufuku kabisa kutumia lugha ya Kiingereza.",
-        "Sheng": "Tumia lugha ya kirafiki ya Sheng iliyochanganywa na maelezo ya kimasomo ili kumfanya mwanafunzi achangamke, lakini hakikisha ukweli wa kimasomo unabaki sahihi."
+        "Sheng": (
+            "Tumia lugha ya kirafiki ya Sheng kuongea na mwanafunzi. "
+            "MUHIMU SANA KWA TTS (VOICE): Usitumie maneno ya Kiingereza kwa spelling za Kiingereza. "
+            "Andika maneno yote kwa matamshi ya Kiswahili/Sheng phonetic pekee "
+            "(mfano: badala ya 'process' andika 'prosesi' au 'mchakato', "
+            "badala ya 'plant' andika 'mti' au 'mmea', "
+            "badala ya 'release' andika 'kurilise' au 'kutoa', "
+            "badala ya 'sunlight' andika 'sanlaiti' au 'mwanga wa jua'). "
+            "Hakikisha lugha ni Sheng msafi bila lafudhi ya Kiingereza."
+        )
     }
     
     selected_language_rule = language_rules.get(preferred_language, language_rules["English"])
