@@ -99,15 +99,21 @@ def create_session(uid: str, email: str) -> str:
     st.session_state.session_id = session_id
     cookie = _sign_token(session_id)
 
-    user_controller = CookieController()
-    user_controller.set(
-        COOKIE_NAME, 
-        cookie, 
-        max_age=2592000, 
-        path="/",
-        secure=True,
-        same_site="lax",
-    )
+    # Safely attempt cookie assignment without breaking script execution if component isn't ready
+    try:
+        user_controller = CookieController()
+        user_controller.set(
+            COOKIE_NAME, 
+            cookie, 
+            max_age=2592000, 
+            path="/",
+            secure=True,
+            same_site="lax",
+        )
+    except (TypeError, Exception) as err:
+        # Component isn't ready or __cookies is None — fallback to session state
+        st.warning(f"Cookie setup deferred to next turn: {err}")
+
     return session_id
 
 def validate_session() -> dict | None:
