@@ -1067,897 +1067,900 @@ if st.session_state.get("user_authenticated") and "user_email" in st.session_sta
 #=== LANDING PAGE ========
 #============================
 else:
+    try:
     # 1. Define a dummy page representing the main landing page
-    main_landing_page = st.Page(
-        lambda: None,  # No-op function since landing code renders below
-        title="Home",
-        url_path="",
-        default=True,  # Set as default route for root URL "/"
-    )
+        main_landing_page = st.Page(
+            lambda: None,  # No-op function since landing code renders below
+            title="Home",
+            url_path="",
+            default=True,  # Set as default route for root URL "/"
+        )
 
-    # 2. Register both pages so st.navigation knows about both routes
-    landing_router = st.navigation(
-        [main_landing_page, terms_page], 
-        position="hidden"
-    )
+        # 2. Register both pages so st.navigation knows about both routes
+        landing_router = st.navigation(
+            [main_landing_page, terms_page], 
+            position="hidden"
+        )
 
-    # 3. Only run and stop if the user explicitly navigated to /terms
-    if landing_router == terms_page:
-        landing_router.run()
-        st.stop()
+        # 3. Only run and stop if the user explicitly navigated to /terms
+        if landing_router == terms_page:
+            landing_router.run()
+            st.stop()
 
-    import base64
-    import json
-    import streamlit as st
-    from PIL import Image
+        import base64
+        import json
+        import streamlit as st
+        from PIL import Image
 
-    st.markdown(
-        """
-        <style>
-            section[data-testid="stSidebar"] { display: none !important; }
-            [data-testid="stSidebarCollapseButton"], [data-testid="collapsedControl"] { display: none !important; }
-            [data-testid="stAppViewContainer"] { margin-left: 0 !important; }
-            [data-testid="stMain"] { margin-left: 0 !important; }
-            [data-testid="stMainBlockContainer"] { max-width: 100% !important; }
-        </style>
-        """,
-        unsafe_allow_html=True,
-    )
-
-    # Initialize standard session states safely
-    # AFTER — one new key added:
-    for state_key, default_value in {
-        "cookie_consent": None,
-        "show_auth": False,
-        "viewing_full_terms": False,
-        "trigger_scroll": False,
-        "cookie_check_done": False,
-    }.items():
-        if state_key not in st.session_state:
-            st.session_state[state_key] = default_value
-
-    # ====================================================================
-    # URL QUERY & COOKIE STATE LAYER (HANDLES STATE PRE-RENDER)
-    # ====================================================================
-    query_params = st.query_params
-
-    # Intercept click events immediately before drawing the UI
-    if "consent_action" in query_params:
-        action_val = query_params["consent_action"]
-        if action_val in ["accept", "reject"]:
-            resolved = action_val + "ed"
-            st.session_state.cookie_consent = resolved
-            if cookies_controller is not None:
-                cookies_controller.set("mwalimu_cookie_consent", resolved, max_age=2592000)
-            st.query_params.clear()
-            st.rerun()
-
-    # Read from browser memory if session state was cleared by refresh
-    # AFTER:
-    # Read from browser memory if session state was cleared by refresh.
-    # Don't trust a single .get() call on the first run — the cookie
-    # component hasn't necessarily resolved yet, so a None here could mean
-    # "no cookie" OR "component hasn't answered yet." getAll() lets us tell
-    # the difference and wait one more rerun instead of flashing the banner.
-    if (
-        st.session_state.cookie_consent is None
-        and cookies_controller is not None
-        and not st.session_state.cookie_check_done
-    ):
-        try:
-            all_cookies = cookies_controller.getAll()
-        except Exception:
-            all_cookies = None
-
-        if all_cookies is not None:
-            st.session_state.cookie_check_done = True
-            persisted = all_cookies.get("mwalimu_cookie_consent")
-            if persisted in ["accepted", "rejected"]:
-                st.session_state.cookie_consent = persisted
-            st.rerun()
-        else:
-            st.rerun()
-
-    # ====================================================================
-    # 3. PURE OVERLAY COOKIE BANNER 
-    # ====================================================================
-    if st.session_state.cookie_consent is None and st.session_state.cookie_check_done:
         st.markdown(
             """
             <style>
-            .mw-cookie-fixed-floor {
-                position: fixed !important;
-                bottom: 0px !important;
-                left: 0px !important;
-                width: 100vw !important;
-                background-color: #101622 !important;
-                border-top: 1px solid rgba(255, 255, 255, 0.08) !important;
-                padding: 16px 40px !important;
-                z-index: 999999 !important;
-                box-sizing: border-box !important;
-                display: flex !important;
-                justify-content: space-between !important;
-                align-items: center !important;
-                font-family: sans-serif !important;
-            }
-            .mw-cookie-inline-text {
-                margin: 0 !important;
-                padding: 0 !important;
-                font-size: 0.82rem !important; 
-                color: #A0AEC0 !important;
-                line-height: 1.5 !important;
-                max-width: 75% !important;
-                text-align: left !important;
-            }
-            .mw-cookie-btn-group {
-                display: flex !important;
-                gap: 12px !important;
-                align-items: center !important;
-            }
-            .mw-cookie-link-btn {
-                text-decoration: none !important;
-                font-size: 0.85rem !important;
-                font-weight: 600 !important;
-                padding: 8px 24px !important;
-                border-radius: 8px !important;
-                transition: background 0.2s ease !important;
-                text-align: center !important;
-                display: inline-block !important;
-                line-height: 1.2 !important;
-            }
-            .mw-cookie-link-btn.reject {
-                background-color: transparent !important;
-                color: #E2E8F0 !important;
-                border: 1px solid rgba(255, 255, 255, 0.2) !important;
-            }
-            .mw-cookie-link-btn.reject:hover {
-                background-color: rgba(255, 255, 255, 0.05) !important;
-            }
-            .mw-cookie-link-btn.accept {
-                background-color: #2473F2 !important; 
-                color: white !important;
-                border: 1px solid #2473F2 !important;
-            }
-            .mw-cookie-link-btn.accept:hover {
-                background-color: #1D4ED8 !important;
-                border-color: #1D4ED8 !important;
-            }
+                section[data-testid="stSidebar"] { display: none !important; }
+                [data-testid="stSidebarCollapseButton"], [data-testid="collapsedControl"] { display: none !important; }
+                [data-testid="stAppViewContainer"] { margin-left: 0 !important; }
+                [data-testid="stMain"] { margin-left: 0 !important; }
+                [data-testid="stMainBlockContainer"] { max-width: 100% !important; }
             </style>
-            
-            <div class="mw-cookie-fixed-floor">
-                <p class="mw-cookie-inline-text">
-                    We use essential cookies to keep you logged in. With your permission we also use analytics 
-                    cookies to understand how the platform is used. No advertising, no data selling. 
-                    <a href="/terms" target="_self" style="color:#2473F2; text-decoration:underline;">Terms & Conditions</a>.
-                </p>
-                <div class="mw-cookie-btn-group">
-                    <a href="?consent_action=reject" target="_self" class="mw-cookie-link-btn reject">Reject</a>
-                    <a href="?consent_action=accept" target="_self" class="mw-cookie-link-btn accept">Accept</a>
-                </div>
-            </div>
             """,
-            unsafe_allow_html=True
+            unsafe_allow_html=True,
         )
 
-    # ====================================================================
-    # URL QUERY INTERCEPT CONTINUATION (REST OF APP FLOW)
-    # ====================================================================
-    # Listen for button actions sent via URL flags like view_privacy
-    if "action" in query_params:
-        action = query_params["action"]
-        if action == "view_privacy":
-            st.session_state.viewing_full_terms = True
-            st.session_state.trigger_scroll = True
-            st.query_params.clear()
-            st.rerun()
+        # Initialize standard session states safely
+        # AFTER — one new key added:
+        for state_key, default_value in {
+            "cookie_consent": None,
+            "show_auth": False,
+            "viewing_full_terms": False,
+            "trigger_scroll": False,
+            "cookie_check_done": False,
+        }.items():
+            if state_key not in st.session_state:
+                st.session_state[state_key] = default_value
 
+        # ====================================================================
+        # URL QUERY & COOKIE STATE LAYER (HANDLES STATE PRE-RENDER)
+        # ====================================================================
+        query_params = st.query_params
 
+        # Intercept click events immediately before drawing the UI
+        if "consent_action" in query_params:
+            action_val = query_params["consent_action"]
+            if action_val in ["accept", "reject"]:
+                resolved = action_val + "ed"
+                st.session_state.cookie_consent = resolved
+                if cookies_controller is not None:
+                    cookies_controller.set("mwalimu_cookie_consent", resolved, max_age=2592000)
+                st.query_params.clear()
+                st.rerun()
 
-
-
-
-    # 2. POLISHED ADVANCED CSS INJECTION
-    def inject_polished_css():
-        st.markdown("""
-        <style>
-        /* 1. PREMIUM APPMID GROUND MATCH (Matches the deep workspace base layer background) */
-        [data-testid="stAppViewContainer"],
-        [data-testid="stHeader"] { 
-            background-color: #0F1117 !important; 
-        }
-        
-        /* 2. THE COMPACT CARD HOVER BLOCKS (Matches your beautiful inside card metrics) */
-        .card {
-            background: #101726 !important; /* Unified dark navy container hex */
-            padding: 22px 24px !important;
-            border-radius: 12px !important; /* Smooth curved card border profiles */
-            border: 1px solid rgba(36, 115, 242, 0.12) !important; /* Faint signature blue border line */
-            transition: all 0.25s ease-in-out !important;
-            margin-bottom: 15px !important;
-            min-height: 150px !important;
-        }
-        
-        .card:hover { 
-            border-color: #2473F2 !important; /* Glows signature action blue on hover */
-            transform: translateY(-2px) !important;
-            box-shadow: 0 8px 20px rgba(36, 115, 242, 0.15) !important;
-        }
-        
-        .card h3 {
-            margin-top: 0px !important;
-            font-size: 1.15rem !important;
-            font-weight: 700 !important;
-            color: #FFFFFF !important;
-        }
-        
-        /* 3. FLAGSHIP CONTAINER INTERACTIVE LINK SECTIONS */
-        .flagship-card {
-            background: linear-gradient(135deg, #101726 0%, #1E293B 100%) !important;
-            border: 1px solid rgba(36, 115, 242, 0.2) !important;
-            border-left: 4px solid #2473F2 !important; /* Pulls your beautiful sidebar indicator strip into the grid! */
-            padding: 24px !important;
-            border-radius: 12px !important;
-            min-height: 240px !important;
-            display: flex;
-            flex-direction: column;
-            justify-content: flex-start;
-            transition: all 0.25s ease-in-out !important;
-        }
-        
-        .flagship-card:hover {
-            transform: translateY(-2px) !important;
-            border-color: #2473F2 !important;
-            box-shadow: 0 10px 22px rgba(36, 115, 242, 0.2) !important;
-        }
-        
-        /* 4. TRUST ACCREDITATION METRIC RIBBONS CONTAINER */
-        .metric-box { 
-            background: #101726 !important; /* Matches inside workspace background tracking boxes */
-            padding: 18px !important; 
-            border-radius: 12px !important; 
-            text-align: center !important;
-            border: 1px solid rgba(36, 115, 242, 0.12) !important;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1) !important;
-        }
-        
-        .metric-box h3 {
-            margin: 0px !important;
-            font-size: 1.8rem !important;
-            font-weight: 800 !important;
-            color: #2473F2 !important; /* Bold metrics turn your signature vibrant blue */
-        }
-        
-        .metric-box p {
-            margin: 6px 0 0 0 !important;
-            font-size: 0.85rem !important;
-            color: #94A3B8 !important;
-        }
-        
-        /* 5. NATIVE BUTTON LAYOUT UNIFICATION ACCENTS */
-        .stButton > button { 
-            border-radius: 10px !important; 
-            font-weight: 600 !important;
-            transition: all 0.2s ease-in-out !important;
-        }
-        
-        .stButton > button[type="primary"] {
-            background-color: #2473F2 !important;
-            border: none !important;
-        }
-        
-        .stButton > button[type="primary"]:hover {
-            background-color: #1D4ED8 !important;
-            box-shadow: 0 4px 14px rgba(36, 115, 242, 0.4) !important;
-        }
-
-        @media (max-width: 768px) {
-            .card { padding: 1px; min-height: auto; }
-            .flagship-card { padding: 1px; min-height: auto; }
-        }
-        </style>
-        """, unsafe_allow_html=True)
-
-
-    # Execute CSS styles injection immediately
-    inject_polished_css()
-
-    # ====================================================================
-    # # 2. TOP BANNER NAVIGATION & HEADER LAYOUT
-    # ====================================================================
-    left, middle, right = st.columns([6, 1, 3], vertical_alignment="center")
-    with left:
-        col1, col2 = st.columns([1, 4], vertical_alignment="center")
-        with col1:
+        # Read from browser memory if session state was cleared by refresh
+        # AFTER:
+        # Read from browser memory if session state was cleared by refresh.
+        # Don't trust a single .get() call on the first run — the cookie
+        # component hasn't necessarily resolved yet, so a None here could mean
+        # "no cookie" OR "component hasn't answered yet." getAll() lets us tell
+        # the difference and wait one more rerun instead of flashing the banner.
+        if (
+            st.session_state.cookie_consent is None
+            and cookies_controller is not None
+            and not st.session_state.cookie_check_done
+        ):
             try:
-                title_logo = Image.open("assets/logo112.png")
-                st.image(title_logo, width=120)
+                all_cookies = cookies_controller.getAll()
             except Exception:
-                pass
-        with col2:                    
-            st.markdown("<h1 style='margin:0; padding:0; line-height:1; font-weight: 10px;'>Mwalimu AI App</h1>", unsafe_allow_html=True)
-            st.markdown("<h4 style='margin:-6px 0 0 0;margin-top: 2px; padding:0; line-height:1; color: gray; font-weight: normal;'>Shaping Minds, Shifting Futures.</h4>", unsafe_allow_html=True)
-            st.markdown("<div style='margin-bottom: 3px;'></div>", unsafe_allow_html=True)
+                all_cookies = None
 
-    with right:
-        # Toggle interface view redirection flags safely
-        if st.session_state.show_auth:
-            if st.button("⬅ Return to Homepage", use_container_width=True):
-                st.session_state.show_auth = False
+            if all_cookies is not None:
+                st.session_state.cookie_check_done = True
+                persisted = all_cookies.get("mwalimu_cookie_consent")
+                if persisted in ["accepted", "rejected"]:
+                    st.session_state.cookie_consent = persisted
                 st.rerun()
-        else:
-           if st.button(
-                label="Sign Up / Access Account",
-                icon=":material/rocket_launch:",  # 🚀 -> 100% Offline-safe Material Icon
-                key="landing_auth_trigger_btn",   # Explicit key to maintain state continuity
-                use_container_width=True,
-                type="primary"
-            ):
-                st.session_state.show_auth = True
+            else:
                 st.rerun()
 
-
-
-    # ====================================================================
-    # # 3. VIEW SWITCHER DISPATCH ENGINE HOOKS
-    # ====================================================================
-    if st.session_state.show_auth:
-
-        # ============================================================
-        # AUTH PAGE
-        # ============================================================
-
-        st.markdown(
-            """
-            <style>
-
-            /* Hide authenticated sidebar */
-            section[data-testid="stSidebar"] {
-                display: none !important;
-            }
-
-            [data-testid="stSidebarCollapseButton"],
-            [data-testid="collapsedControl"] {
-                display: none !important;
-            }
-
-            /* Center authentication content */
-            [data-testid="stMainBlockContainer"] {
-                max-width: 960px !important;
-                margin-left: auto !important;
-                margin-right: auto !important;
-                padding-top: 2rem !important;
-                padding-bottom: 5rem !important;
-            }
-
-            /* Keep the actual login/signup forms narrower */
-            div[data-testid="stVerticalBlock"] > div:has(div[data-testid="stForm"]) {
-                max-width: 900px !important;
-                margin-left: auto !important;
-                margin-right: auto !important;
-            }
-
-            </style>
-            """,
-            unsafe_allow_html=True
-        )
-
-        st.markdown("## Join Mwalimu AI Workspace :material/school:")
-
-        st.write(
-            "Access your specialized CBC study streams, interactive revision sets, "
-            "and live audio tutors instantly."
-        )
-
-        st.write("---")
-
-        render_auth_portal() # Launches your existing Firebase authentication portal forms cleanly
-
-    else:
-        # --- DYNAMIC PREMIUM VISUAL LANDING PAGE VIEW HUB ---
-        
-        # 🌟 A: SPLIT HERO SECTION WITH LIVE CLASSROOM CONTEXT MOCKUP
-        hero_txt, hero_vis = st.columns([1.2, 1], gap="large", vertical_alignment="center")
-        with hero_txt:
+        # ====================================================================
+        # 3. PURE OVERLAY COOKIE BANNER 
+        # ====================================================================
+        if st.session_state.cookie_consent is None and st.session_state.cookie_check_done:
             st.markdown(
                 """
-                <h1 style="margin:0; line-height:1.15; font-size:3.2rem; font-weight:800;">
-                    Your AI Tutor.<br>Your Academic <span style="color:#3b82f6;">Advantage.</span>
-                </h1>
-                <p style="color:#94a3b8; font-size:1.1rem; margin-top:16px; margin-bottom:24px; line-height:1.5;">
-                    Mwalimu AI is your all-in-one intelligent workspace, precision-engineered for Kenya’s CBC curriculum, Grade 1 - 12. We combine empathetic, 
-                    conversational AI tutoring with a robust Learning Management System to help you master complex topics, 
-                    automate your study planning, and track your academic milestones—all in one seamless hub.
-                </p>
+                <style>
+                .mw-cookie-fixed-floor {
+                    position: fixed !important;
+                    bottom: 0px !important;
+                    left: 0px !important;
+                    width: 100vw !important;
+                    background-color: #101622 !important;
+                    border-top: 1px solid rgba(255, 255, 255, 0.08) !important;
+                    padding: 16px 40px !important;
+                    z-index: 999999 !important;
+                    box-sizing: border-box !important;
+                    display: flex !important;
+                    justify-content: space-between !important;
+                    align-items: center !important;
+                    font-family: sans-serif !important;
+                }
+                .mw-cookie-inline-text {
+                    margin: 0 !important;
+                    padding: 0 !important;
+                    font-size: 0.82rem !important; 
+                    color: #A0AEC0 !important;
+                    line-height: 1.5 !important;
+                    max-width: 75% !important;
+                    text-align: left !important;
+                }
+                .mw-cookie-btn-group {
+                    display: flex !important;
+                    gap: 12px !important;
+                    align-items: center !important;
+                }
+                .mw-cookie-link-btn {
+                    text-decoration: none !important;
+                    font-size: 0.85rem !important;
+                    font-weight: 600 !important;
+                    padding: 8px 24px !important;
+                    border-radius: 8px !important;
+                    transition: background 0.2s ease !important;
+                    text-align: center !important;
+                    display: inline-block !important;
+                    line-height: 1.2 !important;
+                }
+                .mw-cookie-link-btn.reject {
+                    background-color: transparent !important;
+                    color: #E2E8F0 !important;
+                    border: 1px solid rgba(255, 255, 255, 0.2) !important;
+                }
+                .mw-cookie-link-btn.reject:hover {
+                    background-color: rgba(255, 255, 255, 0.05) !important;
+                }
+                .mw-cookie-link-btn.accept {
+                    background-color: #2473F2 !important; 
+                    color: white !important;
+                    border: 1px solid #2473F2 !important;
+                }
+                .mw-cookie-link-btn.accept:hover {
+                    background-color: #1D4ED8 !important;
+                    border-color: #1D4ED8 !important;
+                }
+                </style>
+                
+                <div class="mw-cookie-fixed-floor">
+                    <p class="mw-cookie-inline-text">
+                        We use essential cookies to keep you logged in. With your permission we also use analytics 
+                        cookies to understand how the platform is used. No advertising, no data selling. 
+                        <a href="/terms" target="_self" style="color:#2473F2; text-decoration:underline;">Terms & Conditions</a>.
+                    </p>
+                    <div class="mw-cookie-btn-group">
+                        <a href="?consent_action=reject" target="_self" class="mw-cookie-link-btn reject">Reject</a>
+                        <a href="?consent_action=accept" target="_self" class="mw-cookie-link-btn accept">Accept</a>
+                    </div>
+                </div>
                 """,
                 unsafe_allow_html=True
             )
-            #=========================
-            # ✅ REPLACE THE HERO BUTTON BLOCK ON PAGE 11 WITH THIS CODE:
-            if st.button(
-                label="Get Started For Free",
-                icon=":material/auto_awesome:", # -> 100% Offline-safe Material Spark Icon
-                key="hero_center_cta_btn",
-                type="primary",# 🚀 Expanded to look great next to the APK button
-            ):
-                st.session_state.show_auth = True
+
+        # ====================================================================
+        # URL QUERY INTERCEPT CONTINUATION (REST OF APP FLOW)
+        # ====================================================================
+        # Listen for button actions sent via URL flags like view_privacy
+        if "action" in query_params:
+            action = query_params["action"]
+            if action == "view_privacy":
+                st.session_state.viewing_full_terms = True
+                st.session_state.trigger_scroll = True
+                st.query_params.clear()
                 st.rerun()
 
-            # -------------------------------------------------------------
-            # 🚀 HARDENED FIX: LAZY-LOADED APK DOWNLOAD ENGINE (PREVENTS IDM AUTO-CLICK)
-            # -------------------------------------------------------------
-            apk_file_path = "assets/App-Mwalimu-AI.apk"
+
+
+
+
+
+        # 2. POLISHED ADVANCED CSS INJECTION
+        def inject_polished_css():
+            st.markdown("""
+            <style>
+            /* 1. PREMIUM APPMID GROUND MATCH (Matches the deep workspace base layer background) */
+            [data-testid="stAppViewContainer"],
+            [data-testid="stHeader"] { 
+                background-color: #0F1117 !important; 
+            }
             
-            # Check if the asset file exists before building the link structure
-            if os.path.exists(apk_file_path):
-                # We wrap the binary file opener inside a function so it only triggers ON CLICK
-                def stream_apk_binary_on_click():
-                    with open(apk_file_path, "rb") as file_binary:
-                        return file_binary.read()
-
-                st.download_button(
-                    label="Download Android App (.APK)",
-                    data=stream_apk_binary_on_click,  # 🚀 LAZY-LOADED: Passes the function pointer instead of raw data!
-                    file_name="App-Mwalimu-AI.apk",
-                    mime="application/vnd.android.package-archive",
-                    icon=":material/smartphone:",      # Modern vector Lucide phone icon
-                    type="secondary",
-                    use_container_width=False,         # Keeps button width tight and small
-                    key="secure_apk_download_gate_btn" # Explicit tracking key layer
-                )
-            else:
-                # Clean minimalistic text helper fallback if file processing is syncing
-                st.caption("*Android App installer (.APK) is packaging in background...*")
-
-
-
-
-        #====        
-        with hero_vis:
-            # 📱 UPGRADED: Renders a real production dashboard screenshot mockup
-            with st.container(border=True):
-                st.markdown(
-                    "<p style='margin:0 0 12px 0; font-size:0.8rem; color:#64748b; "
-                    "font-weight:600; text-transform:uppercase; letter-spacing:0.05em; "
-                    "display: flex; align-items: center; gap: 6px;'>"
-                    '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#2473F2" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="display: inline-block;">'
-                    '<rect x="5" y="2" width="14" height="20" rx="2" ry="2"></rect>'
-                    '<line x1="12" y1="18" x2="12.01" y2="18"></line>'
-                    '</svg>'
-                    "Live Chat Dashboard Preview</p>", 
-                    unsafe_allow_html=True
-                )
-
-                
-                try:
-                    # Place your screenshot image inside an assets or images folder
-                    # (Ensure you save the screenshot file as 'chat_preview.png' inside your assets directory)
-                    preview_screenshot = Image.open("assets/chat_preview.png")
-                    
-                    st.image(
-                        preview_screenshot, 
-                        caption="Ask Mwalimu AI Workspace", 
-                        width="stretch"
-                    )
-                except Exception:
-                    # 🛡️ Fallback if the image file isn't uploaded to your directory path yet
-                    st.info("🗣️ **Mwanafunzi:** How do I find the place value of 5 in 452,100?")
-                    st.success("🧙‍♂️ **Mwalimu AI:** Ones, Tens, Hundreds... 5 is in the **Ten Thousands** place! ✨")
-
-
-        st.markdown("<br><br>", unsafe_allow_html=True)
-
-        # 📊 B: VERIFIED LOCALIZED TRUST METRICS RIBBON BANNER
-        st.markdown("<h4 style='text-align:center; color:#64748b; font-weight:700; margin-bottom:16px;'>BUILT TO THE HIGHEST ACCREDITED EDUCATION GUIDELINES</h4>", unsafe_allow_html=True)
-        metric_cols = st.columns(4)
-        metrics_data = [
-            ("4,000+", "CBC Topics Built"), 
-            ("20,000+", "Learning Outcomes"), 
-            ("100%", "KICD Aligned Standards"), 
-            ("4.8/5", "Student Satisfaction Rating")
-        ]
-        for idx, (value_str, label_str) in enumerate(metrics_data):
-            with metric_cols[idx]:
-                st.markdown(f"<div class='metric-box'><h3>{value_str}</h3><p>{label_str}</p></div>", unsafe_allow_html=True)
-
-        st.markdown("<br><br><br><br>", unsafe_allow_html=True)
-
-        # 🎯 C: EXPLORE CAPABILITIES FEATURE GRID SYSTEM (WITH VISUAL HIERARCHY)
-        st.markdown(
-            """
-            <div style="text-align: center; margin-bottom: 25px;">
-                <h2 style="font-size: 2.2rem; font-weight: 800; color: #f8fafc; margin:0; display: flex; align-items: center; justify-content: center; gap: 12px;">
-                    <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#2473F2" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle; display: inline-block;">
-                        <circle cx="12" cy="12" r="10"></circle>
-                        <circle cx="12" cy="12" r="6"></circle>
-                        <circle cx="12" cy="12" r="2"></circle>
-                    </svg>
-                    Everything You Need to Excel
-                </h2>
-                <p style="color: #94a3b8; font-size: 1.05rem; margin: 4px 0 0 0;">Powerful digital features designed to help every learner reach their full potential framework.</p>
-            </div>
-            """, 
-            unsafe_allow_html=True
-        )
-
-
-        st.markdown("""
-        <style>
-            /* Ensure all flagship cards have the same height for alignment */
+            /* 2. THE COMPACT CARD HOVER BLOCKS (Matches your beautiful inside card metrics) */
+            .card {
+                background: #101726 !important; /* Unified dark navy container hex */
+                padding: 22px 24px !important;
+                border-radius: 12px !important; /* Smooth curved card border profiles */
+                border: 1px solid rgba(36, 115, 242, 0.12) !important; /* Faint signature blue border line */
+                transition: all 0.25s ease-in-out !important;
+                margin-bottom: 15px !important;
+                min-height: 150px !important;
+            }
+            
+            .card:hover { 
+                border-color: #2473F2 !important; /* Glows signature action blue on hover */
+                transform: translateY(-2px) !important;
+                box-shadow: 0 8px 20px rgba(36, 115, 242, 0.15) !important;
+            }
+            
+            .card h3 {
+                margin-top: 0px !important;
+                font-size: 1.15rem !important;
+                font-weight: 700 !important;
+                color: #FFFFFF !important;
+            }
+            
+            /* 3. FLAGSHIP CONTAINER INTERACTIVE LINK SECTIONS */
             .flagship-card {
-                height: 280px !important; /* Adjust this number to fit your longest card */
+                background: linear-gradient(135deg, #101726 0%, #1E293B 100%) !important;
+                border: 1px solid rgba(36, 115, 242, 0.2) !important;
+                border-left: 4px solid #2473F2 !important; /* Pulls your beautiful sidebar indicator strip into the grid! */
+                padding: 24px !important;
+                border-radius: 12px !important;
+                min-height: 240px !important;
                 display: flex;
                 flex-direction: column;
                 justify-content: flex-start;
+                transition: all 0.25s ease-in-out !important;
             }
-        </style>
-        """, unsafe_allow_html=True)
-        # Row 1: Flagship Core Highlights (Split 2-Column Focus Layout)
-        flag_col1, flag_col2, flag_col3 = st.columns(3, gap="medium")
-        with flag_col1:
+            
+            .flagship-card:hover {
+                transform: translateY(-2px) !important;
+                border-color: #2473F2 !important;
+                box-shadow: 0 10px 22px rgba(36, 115, 242, 0.2) !important;
+            }
+            
+            /* 4. TRUST ACCREDITATION METRIC RIBBONS CONTAINER */
+            .metric-box { 
+                background: #101726 !important; /* Matches inside workspace background tracking boxes */
+                padding: 18px !important; 
+                border-radius: 12px !important; 
+                text-align: center !important;
+                border: 1px solid rgba(36, 115, 242, 0.12) !important;
+                box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1) !important;
+            }
+            
+            .metric-box h3 {
+                margin: 0px !important;
+                font-size: 1.8rem !important;
+                font-weight: 800 !important;
+                color: #2473F2 !important; /* Bold metrics turn your signature vibrant blue */
+            }
+            
+            .metric-box p {
+                margin: 6px 0 0 0 !important;
+                font-size: 0.85rem !important;
+                color: #94A3B8 !important;
+            }
+            
+            /* 5. NATIVE BUTTON LAYOUT UNIFICATION ACCENTS */
+            .stButton > button { 
+                border-radius: 10px !important; 
+                font-weight: 600 !important;
+                transition: all 0.2s ease-in-out !important;
+            }
+            
+            .stButton > button[type="primary"] {
+                background-color: #2473F2 !important;
+                border: none !important;
+            }
+            
+            .stButton > button[type="primary"]:hover {
+                background-color: #1D4ED8 !important;
+                box-shadow: 0 4px 14px rgba(36, 115, 242, 0.4) !important;
+            }
+
+            @media (max-width: 768px) {
+                .card { padding: 1px; min-height: auto; }
+                .flagship-card { padding: 1px; min-height: auto; }
+            }
+            </style>
+            """, unsafe_allow_html=True)
+
+
+        # Execute CSS styles injection immediately
+        inject_polished_css()
+
+        # ====================================================================
+        # # 2. TOP BANNER NAVIGATION & HEADER LAYOUT
+        # ====================================================================
+        left, middle, right = st.columns([6, 1, 3], vertical_alignment="center")
+        with left:
+            col1, col2 = st.columns([1, 4], vertical_alignment="center")
+            with col1:
+                try:
+                    title_logo = Image.open("assets/logo112.png")
+                    st.image(title_logo, width=120)
+                except Exception:
+                    pass
+            with col2:                    
+                st.markdown("<h1 style='margin:0; padding:0; line-height:1; font-weight: 10px;'>Mwalimu AI App</h1>", unsafe_allow_html=True)
+                st.markdown("<h4 style='margin:-6px 0 0 0;margin-top: 2px; padding:0; line-height:1; color: gray; font-weight: normal;'>Shaping Minds, Shifting Futures.</h4>", unsafe_allow_html=True)
+                st.markdown("<div style='margin-bottom: 3px;'></div>", unsafe_allow_html=True)
+
+        with right:
+            # Toggle interface view redirection flags safely
+            if st.session_state.show_auth:
+                if st.button("⬅ Return to Homepage", use_container_width=True):
+                    st.session_state.show_auth = False
+                    st.rerun()
+            else:
+                if st.button(
+                        label="Sign Up / Access Account",
+                        icon=":material/rocket_launch:",  # 🚀 -> 100% Offline-safe Material Icon
+                        key="landing_auth_trigger_btn",   # Explicit key to maintain state continuity
+                        use_container_width=True,
+                        type="primary"
+                    ):
+                        st.session_state.show_auth = True
+                        st.rerun()
+
+
+
+        # ====================================================================
+        # # 3. VIEW SWITCHER DISPATCH ENGINE HOOKS
+        # ====================================================================
+        if st.session_state.show_auth:
+
+            # ============================================================
+            # AUTH PAGE
+            # ============================================================
+
             st.markdown(
                 """
-                <div class='flagship-card'>
-                    <h3 style='font-size:1.4rem !important; color:#60a5fa !important; display: flex; align-items: center; gap: 10px; margin: 0;'>
-                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0;"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"></path><path d="M19 10v1a7 7 0 0 1-14 0v-1"></path><line x1="12" y1="19" x2="12" y2="22"></line></svg>
-                        AI Voice Tutor
-                    </h3>
-                    <p style='color:#94a3b8; margin:8px 0 0 0; line-height:1.4;'>
-                        Transform your fluency with hands-free, interactive voice tutoring. 
-                        Engage in natural conversation, practice active listening, and get quick, 
-                        verbal concept explanations in both English and Kiswahili—perfect for mastering languages while you are on the move.
+                <style>
+
+                /* Hide authenticated sidebar */
+                section[data-testid="stSidebar"] {
+                    display: none !important;
+                }
+
+                [data-testid="stSidebarCollapseButton"],
+                [data-testid="collapsedControl"] {
+                    display: none !important;
+                }
+
+                /* Center authentication content */
+                [data-testid="stMainBlockContainer"] {
+                    max-width: 960px !important;
+                    margin-left: auto !important;
+                    margin-right: auto !important;
+                    padding-top: 2rem !important;
+                    padding-bottom: 5rem !important;
+                }
+
+                /* Keep the actual login/signup forms narrower */
+                div[data-testid="stVerticalBlock"] > div:has(div[data-testid="stForm"]) {
+                    max-width: 900px !important;
+                    margin-left: auto !important;
+                    margin-right: auto !important;
+                }
+
+                </style>
+                """,
+                unsafe_allow_html=True
+            )
+
+            st.markdown("## Join Mwalimu AI Workspace :material/school:")
+
+            st.write(
+                "Access your specialized CBC study streams, interactive revision sets, "
+                "and live audio tutors instantly."
+            )
+
+            st.write("---")
+
+            render_auth_portal() # Launches your existing Firebase authentication portal forms cleanly
+
+        else:
+            # --- DYNAMIC PREMIUM VISUAL LANDING PAGE VIEW HUB ---
+            
+            # 🌟 A: SPLIT HERO SECTION WITH LIVE CLASSROOM CONTEXT MOCKUP
+            hero_txt, hero_vis = st.columns([1.2, 1], gap="large", vertical_alignment="center")
+            with hero_txt:
+                st.markdown(
+                    """
+                    <h1 style="margin:0; line-height:1.15; font-size:3.2rem; font-weight:800;">
+                        Your AI Tutor.<br>Your Academic <span style="color:#3b82f6;">Advantage.</span>
+                    </h1>
+                    <p style="color:#94a3b8; font-size:1.1rem; margin-top:16px; margin-bottom:24px; line-height:1.5;">
+                        Mwalimu AI is your all-in-one intelligent workspace, precision-engineered for Kenya’s CBC curriculum, Grade 1 - 12. We combine empathetic, 
+                        conversational AI tutoring with a robust Learning Management System to help you master complex topics, 
+                        automate your study planning, and track your academic milestones—all in one seamless hub.
                     </p>
+                    """,
+                    unsafe_allow_html=True
+                )
+                #=========================
+                # ✅ REPLACE THE HERO BUTTON BLOCK ON PAGE 11 WITH THIS CODE:
+                if st.button(
+                    label="Get Started For Free",
+                    icon=":material/auto_awesome:", # -> 100% Offline-safe Material Spark Icon
+                    key="hero_center_cta_btn",
+                    type="primary",# 🚀 Expanded to look great next to the APK button
+                ):
+                    st.session_state.show_auth = True
+                    st.rerun()
+
+                # -------------------------------------------------------------
+                # 🚀 HARDENED FIX: LAZY-LOADED APK DOWNLOAD ENGINE (PREVENTS IDM AUTO-CLICK)
+                # -------------------------------------------------------------
+                apk_file_path = "assets/App-Mwalimu-AI.apk"
+                
+                # Check if the asset file exists before building the link structure
+                if os.path.exists(apk_file_path):
+                    # We wrap the binary file opener inside a function so it only triggers ON CLICK
+                    def stream_apk_binary_on_click():
+                        with open(apk_file_path, "rb") as file_binary:
+                            return file_binary.read()
+
+                    st.download_button(
+                        label="Download Android App (.APK)",
+                        data=stream_apk_binary_on_click,  # 🚀 LAZY-LOADED: Passes the function pointer instead of raw data!
+                        file_name="App-Mwalimu-AI.apk",
+                        mime="application/vnd.android.package-archive",
+                        icon=":material/smartphone:",      # Modern vector Lucide phone icon
+                        type="secondary",
+                        use_container_width=False,         # Keeps button width tight and small
+                        key="secure_apk_download_gate_btn" # Explicit tracking key layer
+                    )
+                else:
+                    # Clean minimalistic text helper fallback if file processing is syncing
+                    st.caption("*Android App installer (.APK) is packaging in background...*")
+
+
+
+
+            #====        
+            with hero_vis:
+                # 📱 UPGRADED: Renders a real production dashboard screenshot mockup
+                with st.container(border=True):
+                    st.markdown(
+                        "<p style='margin:0 0 12px 0; font-size:0.8rem; color:#64748b; "
+                        "font-weight:600; text-transform:uppercase; letter-spacing:0.05em; "
+                        "display: flex; align-items: center; gap: 6px;'>"
+                        '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#2473F2" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="display: inline-block;">'
+                        '<rect x="5" y="2" width="14" height="20" rx="2" ry="2"></rect>'
+                        '<line x1="12" y1="18" x2="12.01" y2="18"></line>'
+                        '</svg>'
+                        "Live Chat Dashboard Preview</p>", 
+                        unsafe_allow_html=True
+                    )
+
+                    
+                    try:
+                        # Place your screenshot image inside an assets or images folder
+                        # (Ensure you save the screenshot file as 'chat_preview.png' inside your assets directory)
+                        preview_screenshot = Image.open("assets/chat_preview.png")
+                        
+                        st.image(
+                            preview_screenshot, 
+                            caption="Ask Mwalimu AI Workspace", 
+                            width="stretch"
+                        )
+                    except Exception:
+                        # 🛡️ Fallback if the image file isn't uploaded to your directory path yet
+                        st.info("🗣️ **Mwanafunzi:** How do I find the place value of 5 in 452,100?")
+                        st.success("🧙‍♂️ **Mwalimu AI:** Ones, Tens, Hundreds... 5 is in the **Ten Thousands** place! ✨")
+
+
+            st.markdown("<br><br>", unsafe_allow_html=True)
+
+            # 📊 B: VERIFIED LOCALIZED TRUST METRICS RIBBON BANNER
+            st.markdown("<h4 style='text-align:center; color:#64748b; font-weight:700; margin-bottom:16px;'>BUILT TO THE HIGHEST ACCREDITED EDUCATION GUIDELINES</h4>", unsafe_allow_html=True)
+            metric_cols = st.columns(4)
+            metrics_data = [
+                ("4,000+", "CBC Topics Built"), 
+                ("20,000+", "Learning Outcomes"), 
+                ("100%", "KICD Aligned Standards"), 
+                ("4.8/5", "Student Satisfaction Rating")
+            ]
+            for idx, (value_str, label_str) in enumerate(metrics_data):
+                with metric_cols[idx]:
+                    st.markdown(f"<div class='metric-box'><h3>{value_str}</h3><p>{label_str}</p></div>", unsafe_allow_html=True)
+
+            st.markdown("<br><br><br><br>", unsafe_allow_html=True)
+
+            # 🎯 C: EXPLORE CAPABILITIES FEATURE GRID SYSTEM (WITH VISUAL HIERARCHY)
+            st.markdown(
+                """
+                <div style="text-align: center; margin-bottom: 25px;">
+                    <h2 style="font-size: 2.2rem; font-weight: 800; color: #f8fafc; margin:0; display: flex; align-items: center; justify-content: center; gap: 12px;">
+                        <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#2473F2" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle; display: inline-block;">
+                            <circle cx="12" cy="12" r="10"></circle>
+                            <circle cx="12" cy="12" r="6"></circle>
+                            <circle cx="12" cy="12" r="2"></circle>
+                        </svg>
+                        Everything You Need to Excel
+                    </h2>
+                    <p style="color: #94a3b8; font-size: 1.05rem; margin: 4px 0 0 0;">Powerful digital features designed to help every learner reach their full potential framework.</p>
                 </div>
                 """, 
                 unsafe_allow_html=True
             )
 
-        #================
-        with flag_col2:
-            st.markdown(
-                """
-                <div class='flagship-card'>
-                    <h3 style='font-size:1.4rem !important; color:#60a5fa !important; display: flex; align-items: center; gap: 10px; margin: 0;'>
-                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0;"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg>
-                        Learning Management System
-                    </h3>
-                    <p style='color:#94a3b8; margin:8px 0 0 0; line-height:1.4;'>
-                        Power your growth with our integrated Learning Management System. 
-                        Test mastery through interactive quizzes, track your performance, 
-                        and benchmark progress against peers on our National Leaderboard—plus, 
-                        **earn a printable Certificate of Completion** the moment you master an entire course curriculum.
-                    </p>
-                </div>
-                """, 
-                unsafe_allow_html=True
-            )
 
-        with flag_col3:
-            st.markdown(
-                """
-                <div class='flagship-card'>
-                    <h3 style='font-size:1.4rem !important; color:#60a5fa !important; display: flex; align-items: center; gap: 10px; margin: 0;'>
-                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0;"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
-                        Live Chat With Mwalimu AI
-                    </h3>
-                    <p style='color:#94a3b8; margin:8px 0 0 0; line-height:1.4;'>
-                        Get unstuck in seconds. Ask any academic question and receive clear, snackable, step-by-step breakdowns. 
-                        Simply upload screenshots of your homework or
-                        textbook pages, and let Mwalimu AI provide verified guidance to help you master every challenge.
-                    </p>
-                </div>
-                """, 
-                unsafe_allow_html=True
-            )
-
-        
-
-        st.write("##")
-        st.markdown("""
+            st.markdown("""
             <style>
                 /* Ensure all flagship cards have the same height for alignment */
-                .card {
-                    height: 160px !important; /* Adjust this number to fit your longest card */
+                .flagship-card {
+                    height: 280px !important; /* Adjust this number to fit your longest card */
                     display: flex;
                     flex-direction: column;
                     justify-content: flex-start;
                 }
             </style>
             """, unsafe_allow_html=True)
-        # Row 2 & 3: Standard Sub-utilities (Balanced 3-Column Layout Grid)
-            # Row 2 & 3: Standard Sub-utilities (Balanced 3-Column Layout Grid Continues)
-        sub_col1, sub_col2, sub_col3 = st.columns(3)
-        with sub_col1:
-            st.markdown(
-                "<div class='card'>"
-                "<h3 style='display: flex; align-items: center; gap: 8px; margin: 0 0 8px 0;'>"
-                "<svg width='20' height='20' viewBox='0 0 24 24' fill='none' stroke='#2473F2' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'><line x1='18' y1='20' x2='18' y2='10'></line><line x1='12' y1='20' x2='12' y2='4'></line><line x1='6' y1='20' x2='6' y2='14'></line></svg>"
-                "Performance Tracking</h3>"
-                "<p style='color:#94a3b8; margin: 0;'>Monitor your weakness trends, review historical quiz scores, and track your curriculum mastery growth timeline.</p>"
-                "</div>", 
-                unsafe_allow_html=True
-            )
-            st.markdown(
-                "<div class='card'>"
-                "<h3 style='display: flex; align-items: center; gap: 8px; margin: 0 0 8px 0;'>"
-                "<svg width='20' height='20' viewBox='0 0 24 24' fill='none' stroke='#2473F2' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'><rect x='3' y='3' width='18' height='18' rx='2' ry='2'></rect><line x1='3' y1='9' x2='21' y2='9'></line><line x1='9' y1='21' x2='9' y2='9'></line></svg>"
-                "Flashcards Generator</h3>"
-                "<p style='color:#94a3b8; margin: 0;'>Effective active-recall memory tool cards built to make vocabulary memorization and rapid topic revision fast.</p>"
-                "</div>", 
-                unsafe_allow_html=True
-            )
-        with sub_col2:
-            st.markdown(
-                "<div class='card'>"
-                "<h3 style='display: flex; align-items: center; gap: 8px; margin: 0 0 8px 0;'>"
-                "<svg width='20' height='20' viewBox='0 0 24 24' fill='none' stroke='#2473F2' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'><path d='M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z'></path><polyline points='14 2 14 8 20 8'></polyline><line x1='16' y1='13' x2='8' y2='13'></line><line x1='16' y1='17' x2='8' y2='17'></line><polyline points='10 9 9 9 8 9'></polyline></svg>"
-                "AI Quizzes Generator</h3>"
-                "<p style='color:#94a3b8; margin: 0;'>Instant customized evaluation practice tests on any CBC topic to challenge yourself before class assignments.</p>"
-                "</div>", 
-                unsafe_allow_html=True
-            )
-            st.markdown(
-                "<div class='card'>"
-                "<h3 style='display: flex; align-items: center; gap: 8px; margin: 0 0 8px 0;'>"
-                "<svg width='20' height='20' viewBox='0 0 24 24' fill='none' stroke='#2473F2' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'><rect x='3' y='4' width='18' height='18' rx='2' ry='2'></rect><line x1='16' y1='2' x2='16' y2='6'></line><line x1='8' y1='2' x2='8' y2='6'></line><line x1='3' y1='10' x2='21' y2='10'></line></svg>"
-                "Personalized Study Plans</h3>"
-                "<p style='color:#94a3b8; margin: 0;'>Get automated, data-driven daily study schedules mapped out specifically to help balance your learning pace.</p>"
-                "</div>", 
-                unsafe_allow_html=True
-            )
-        with sub_col3:
-            st.markdown(
-                "<div class='card'>"
-                "<h3 style='display: flex; align-items: center; gap: 8px; margin: 0 0 8px 0;'>"
-                "<svg width='20' height='20' viewBox='0 0 24 24' fill='none' stroke='#2473F2' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'><path d='M4 19.5A2.5 2.5 0 0 1 6.75 17H20'></path><path d='M4 4.5A2.5 2.5 0 0 1 6.75 2H20v20H6.75A2.5 2.5 0 0 1 4 19.5z'></path></svg>"
-                "AI Lessons Generator</h3>"
-                "<p style='color:#94a3b8; margin: 0;'>Receive comprehensive markdown lesson plan study summaries tailored exactly to match your personal learning style.</p>"
-                "</div>", 
-                unsafe_allow_html=True
-            )
-            st.markdown(
-                "<div class='card'>"
-                "<h3 style='display: flex; align-items: center; gap: 8px; margin: 0 0 8px 0;'>"
-                "<svg width='20' height='20' viewBox='0 0 24 24' fill='none' stroke='#2473F2' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'><path d='M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4'></path><polyline points='17 8 12 3 7 8'></polyline><line x1='12' y1='3' x2='12' y2='15'></line></svg>"
-                "Upload PDFs and Images</h3>"
-                "<p style='color:#94a3b8; margin: 0;'>Let Mwalimu AI read your uploaded notes, reference sheets, or textbooks to answer specialized assignment problems.</p>"
-                "</div>", 
-                unsafe_allow_html=True
-            )
-
-
-        # ====================================================================
-        # 💳 D: FLEXIBLE TIERED MEMBERSHIP ACCESS SECTION
-        # ====================================================================
-        def render_tier_card_html(title, price, period, description, card_features, color_bg, is_premium=False, button_key=""):
-            border_accent = "#fbbf24" if is_premium else "#3b82f6"
-            badge_html = "<span style='background: #fbbf24; color: #020617; font-size: 0.7rem; font-weight: bold; padding: 3px 8px; border-radius: 20px; float: right; letter-spacing: 0.05em;'>POPULAR</span>" if is_premium else ""
-            
-            features_html = ""
-            for item in card_features:
-                features_html += f"""
-                <li style="margin-bottom: 10px; display: flex; align-items: flex-start; font-size: 0.88rem; line-height: 1.3;">
-                    <span style="color: {border_accent}; font-weight: bold; margin-right: 8px; flex-shrink: 0;">✓</span>
-                    <div>{str(item)}</div>
-                </li>
-                """
-                
-            card_html = f"""
-            <div style="background-color: {color_bg}; padding: 24px 20px; border-radius: 16px; border: 1px solid rgba(255, 255, 255, 0.05);
-            border-top: 5px solid {border_accent}; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.4); min-height: 440px; box-sizing: border-box;
-            display: flex; flex-direction: column; color: #ffffff; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
-                <div>
-                    {badge_html}
-                    <h3 style="margin: 0 0 6px 0; font-size: 1.35rem; font-weight: 700;">{title}</h3>
-                    <div style="margin: 14px 0; display: flex; align-items: baseline;">
-                        <span style="color: #ffffff; font-size: 1.9rem; font-weight: 800; letter-spacing: -0.02em;">{price}</span>
-                        <span style="color: #94a3b8; font-size: 0.85rem; margin-left: 6px;">{period}</span>
+            # Row 1: Flagship Core Highlights (Split 2-Column Focus Layout)
+            flag_col1, flag_col2, flag_col3 = st.columns(3, gap="medium")
+            with flag_col1:
+                st.markdown(
+                    """
+                    <div class='flagship-card'>
+                        <h3 style='font-size:1.4rem !important; color:#60a5fa !important; display: flex; align-items: center; gap: 10px; margin: 0;'>
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0;"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"></path><path d="M19 10v1a7 7 0 0 1-14 0v-1"></path><line x1="12" y1="19" x2="12" y2="22"></line></svg>
+                            AI Voice Tutor
+                        </h3>
+                        <p style='color:#94a3b8; margin:8px 0 0 0; line-height:1.4;'>
+                            Transform your fluency with hands-free, interactive voice tutoring. 
+                            Engage in natural conversation, practice active listening, and get quick, 
+                            verbal concept explanations in both English and Kiswahili—perfect for mastering languages while you are on the move.
+                        </p>
                     </div>
-                    <div style="color: #94a3b8; font-size: 0.88rem; margin: 0 0 14px 0; line-height: 1.4; min-height: 36px;">{description}</div>
-                </div>
-                <hr style="border: 0; border-top: 1px solid rgba(255,255,255,0.08); margin: 0 0 16px 0;">
-                <ul style="list-style: none; padding: 0; margin: 0; flex-grow: 1;">
-                    {features_html}
-                </ul>
-            </div>
-            """
-            st.html(card_html)
-            st.markdown("<div style='margin-top: 10px; margin-bottom: 20px;'>", unsafe_allow_html=True)
-            if st.button(f"Choose {title}", key=f"btn_action_{button_key}", width="stretch"):
-                st.session_state.show_auth = True
-                st.session_state.selected_tier = title
-                st.rerun()
-            st.markdown("</div>", unsafe_allow_html=True)
+                    """, 
+                    unsafe_allow_html=True
+                )
 
-        st.markdown("<br><br><br>", unsafe_allow_html=True)
-        st.markdown(
-            """
-            <div style="text-align: center; margin-bottom: 30px;">
-                <h2 style="font-size: 2.3rem; font-weight: 800; color: #f8fafc; margin: 0 0 8px 0;">Flexible Tiered Membership Access</h2>
-                <p style="color: #94a3b8; font-size: 1rem; margin: 0;">Pick the right account pace for your regular revisions and curriculum tracking tools.</p>
-            </div>
-            """, 
-            unsafe_allow_html=True
-        )
-        
-        col_free, col_basic, col_prem = st.columns(3, gap="medium")
-        with col_free:
-            render_tier_card_html(
-                title="Mwalimu AI Free", price="KES 0", period="Forever Free", 
-                description="Basic daily study toolkit for casual learners.", 
-                card_features=["15 AI Questions / day", "5 Assessment Quizzes / day", "5 Flashcards generated / day", "1 Basic CBC Lessons / day", "<span style='color: #ef4444;'> No Custom Study Plans</span>","<span style='color: #ef4444;'> No Learning Management</span>", "<span style='color: #ef4444;'> No Voice Tutor access</span>", "<span style='color: #ef4444;'> No Uploads</span>"], 
-                color_bg="#0f172a", is_premium=False, button_key="free_tier"
-            )
-        with col_basic:
-            render_tier_card_html(
-                title="Mwalimu AI Plus", price="KES 499", period="/ month", 
-                description="Enhanced toolkit built for dedicated study sessions.", 
-                card_features=["50 AI Questions / day", "15 Assessment Quizzes / day", "30 Flashcards generated / day", "5 CBC Lessons / day", "5 Personalized daily Study Plans / day", "10 Uploads / day", "Learning Management System", "<span style='color: #ef4444;'> No Voice Tutor access</span>"], 
-                color_bg="#111827", is_premium=False, button_key="plus_tier"
-            )
-        with col_prem:
-            render_tier_card_html(
-                title="Mwalimu Premium", price="KES 999", period="/ month", 
-                description="Complete school execution dashboard with full feature access.", 
-                card_features=["Unlimited Interactive Prompts", "Unlimited targeted CBC Quizzes", "Unlimited Flashcard summaries", "Full Voice Tutor Mode Enabled", "Personalized daily Study Plans", "Learning Management System","Advanced Weak-Topic Detection", "Personalized CBC Lessons"], 
-                color_bg="#030712", is_premium=True, button_key="premium_tier"
-            )
+            #================
+            with flag_col2:
+                st.markdown(
+                    """
+                    <div class='flagship-card'>
+                        <h3 style='font-size:1.4rem !important; color:#60a5fa !important; display: flex; align-items: center; gap: 10px; margin: 0;'>
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0;"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg>
+                            Learning Management System
+                        </h3>
+                        <p style='color:#94a3b8; margin:8px 0 0 0; line-height:1.4;'>
+                            Power your growth with our integrated Learning Management System. 
+                            Test mastery through interactive quizzes, track your performance, 
+                            and benchmark progress against peers on our National Leaderboard—plus, 
+                            **earn a printable Certificate of Completion** the moment you master an entire course curriculum.
+                        </p>
+                    </div>
+                    """, 
+                    unsafe_allow_html=True
+                )
 
+            with flag_col3:
+                st.markdown(
+                    """
+                    <div class='flagship-card'>
+                        <h3 style='font-size:1.4rem !important; color:#60a5fa !important; display: flex; align-items: center; gap: 10px; margin: 0;'>
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0;"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+                            Live Chat With Mwalimu AI
+                        </h3>
+                        <p style='color:#94a3b8; margin:8px 0 0 0; line-height:1.4;'>
+                            Get unstuck in seconds. Ask any academic question and receive clear, snackable, step-by-step breakdowns. 
+                            Simply upload screenshots of your homework or
+                            textbook pages, and let Mwalimu AI provide verified guidance to help you master every challenge.
+                        </p>
+                    </div>
+                    """, 
+                    unsafe_allow_html=True
+                )
 
-        # ====================================================================
-        # 📋 E: INFORMATION & FAQ SUPPORT CENTER RESOURCE SECTIONS
-        # ====================================================================
-        st.markdown("<br><br><br>", unsafe_allow_html=True)
-        st.markdown(
-            """
-            <div style="text-align: center; margin-bottom: 25px;">
-                <h2 style="font-size: 2rem; font-weight: 700; color: #f8fafc; margin: 0 0 6px 0;">Information & Support Center</h2>
-                <p style="color: #94a3b8; font-size: 0.95rem; margin: 0;">Got questions or need to review our platform policies? Explore the tabs below.</p>
-            </div>
-            """, 
-            unsafe_allow_html=True
-        )
-        
-        tab_faq, tab_contact, tab_terms = st.tabs([" Frequently Asked Questions", " Contact Support", " Terms & Conditions"])
-        
-        with tab_faq:
-            st.markdown("<br>", unsafe_allow_html=True)
-            with st.expander(" How do I pay for Mwalimu AI Plus or Premium?"):
-                st.write("Payments are securely handled via **M-Pesa STK Push** dialog request menus directly onto your registered smartphone.")
-            with st.expander(" How long does my upgraded tier access last?"):
-                st.write("All upgrade packages provide **30 days of complete access** from the payment date. No automated rolling card renewals.")
-            with st.expander(" Can I upgrade from Plus to Premium later?"):
-                st.write("Yes! You can choose to upgrade or scale your active tier levels at any time from your account panel.")
-            with st.expander(" What equipment do I need for the Voice Tutor mode?"):
-                st.write("No extra microphone gear or headsets are required! Standard built-in browser microphone access is perfectly fine.")
-        #=============
-        #       
-        with tab_contact:
             
-            st.markdown("### :material/contact_support: Contact Mwalimu AI")
 
-            st.info("""
-            :material/mail: **Email:** info@mwalimuaiapp.com
-
-            :material/call: **Call / WhatsApp:** +254 710 694 297
-
-            :material/chat: **Socials:** @mwalimuaiapp (X/Twitter, Facebook, TikTok)
-            """)
-
-
-            with st.form("contact_form", clear_on_submit=True):
-
-                col1, col2 = st.columns(2)
-
-                with col1:
-                    sender_name = st.text_input(
-                        "Your Name",
-                        placeholder="e.g. Patrick Wachira"
-                    )
-
-                with col2:
-                    sender_email = st.text_input(
-                        "Your Email",
-                        placeholder="name@gmail.com"
-                    )
-
-                phone = st.text_input(
-                    "Phone Number (Optional)",
-                    placeholder="+254712345678"
+            st.write("##")
+            st.markdown("""
+                <style>
+                    /* Ensure all flagship cards have the same height for alignment */
+                    .card {
+                        height: 160px !important; /* Adjust this number to fit your longest card */
+                        display: flex;
+                        flex-direction: column;
+                        justify-content: flex-start;
+                    }
+                </style>
+                """, unsafe_allow_html=True)
+            # Row 2 & 3: Standard Sub-utilities (Balanced 3-Column Layout Grid)
+                # Row 2 & 3: Standard Sub-utilities (Balanced 3-Column Layout Grid Continues)
+            sub_col1, sub_col2, sub_col3 = st.columns(3)
+            with sub_col1:
+                st.markdown(
+                    "<div class='card'>"
+                    "<h3 style='display: flex; align-items: center; gap: 8px; margin: 0 0 8px 0;'>"
+                    "<svg width='20' height='20' viewBox='0 0 24 24' fill='none' stroke='#2473F2' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'><line x1='18' y1='20' x2='18' y2='10'></line><line x1='12' y1='20' x2='12' y2='4'></line><line x1='6' y1='20' x2='6' y2='14'></line></svg>"
+                    "Performance Tracking</h3>"
+                    "<p style='color:#94a3b8; margin: 0;'>Monitor your weakness trends, review historical quiz scores, and track your curriculum mastery growth timeline.</p>"
+                    "</div>", 
+                    unsafe_allow_html=True
+                )
+                st.markdown(
+                    "<div class='card'>"
+                    "<h3 style='display: flex; align-items: center; gap: 8px; margin: 0 0 8px 0;'>"
+                    "<svg width='20' height='20' viewBox='0 0 24 24' fill='none' stroke='#2473F2' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'><rect x='3' y='3' width='18' height='18' rx='2' ry='2'></rect><line x1='3' y1='9' x2='21' y2='9'></line><line x1='9' y1='21' x2='9' y2='9'></line></svg>"
+                    "Flashcards Generator</h3>"
+                    "<p style='color:#94a3b8; margin: 0;'>Effective active-recall memory tool cards built to make vocabulary memorization and rapid topic revision fast.</p>"
+                    "</div>", 
+                    unsafe_allow_html=True
+                )
+            with sub_col2:
+                st.markdown(
+                    "<div class='card'>"
+                    "<h3 style='display: flex; align-items: center; gap: 8px; margin: 0 0 8px 0;'>"
+                    "<svg width='20' height='20' viewBox='0 0 24 24' fill='none' stroke='#2473F2' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'><path d='M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z'></path><polyline points='14 2 14 8 20 8'></polyline><line x1='16' y1='13' x2='8' y2='13'></line><line x1='16' y1='17' x2='8' y2='17'></line><polyline points='10 9 9 9 8 9'></polyline></svg>"
+                    "AI Quizzes Generator</h3>"
+                    "<p style='color:#94a3b8; margin: 0;'>Instant customized evaluation practice tests on any CBC topic to challenge yourself before class assignments.</p>"
+                    "</div>", 
+                    unsafe_allow_html=True
+                )
+                st.markdown(
+                    "<div class='card'>"
+                    "<h3 style='display: flex; align-items: center; gap: 8px; margin: 0 0 8px 0;'>"
+                    "<svg width='20' height='20' viewBox='0 0 24 24' fill='none' stroke='#2473F2' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'><rect x='3' y='4' width='18' height='18' rx='2' ry='2'></rect><line x1='16' y1='2' x2='16' y2='6'></line><line x1='8' y1='2' x2='8' y2='6'></line><line x1='3' y1='10' x2='21' y2='10'></line></svg>"
+                    "Personalized Study Plans</h3>"
+                    "<p style='color:#94a3b8; margin: 0;'>Get automated, data-driven daily study schedules mapped out specifically to help balance your learning pace.</p>"
+                    "</div>", 
+                    unsafe_allow_html=True
+                )
+            with sub_col3:
+                st.markdown(
+                    "<div class='card'>"
+                    "<h3 style='display: flex; align-items: center; gap: 8px; margin: 0 0 8px 0;'>"
+                    "<svg width='20' height='20' viewBox='0 0 24 24' fill='none' stroke='#2473F2' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'><path d='M4 19.5A2.5 2.5 0 0 1 6.75 17H20'></path><path d='M4 4.5A2.5 2.5 0 0 1 6.75 2H20v20H6.75A2.5 2.5 0 0 1 4 19.5z'></path></svg>"
+                    "AI Lessons Generator</h3>"
+                    "<p style='color:#94a3b8; margin: 0;'>Receive comprehensive markdown lesson plan study summaries tailored exactly to match your personal learning style.</p>"
+                    "</div>", 
+                    unsafe_allow_html=True
+                )
+                st.markdown(
+                    "<div class='card'>"
+                    "<h3 style='display: flex; align-items: center; gap: 8px; margin: 0 0 8px 0;'>"
+                    "<svg width='20' height='20' viewBox='0 0 24 24' fill='none' stroke='#2473F2' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'><path d='M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4'></path><polyline points='17 8 12 3 7 8'></polyline><line x1='12' y1='3' x2='12' y2='15'></line></svg>"
+                    "Upload PDFs and Images</h3>"
+                    "<p style='color:#94a3b8; margin: 0;'>Let Mwalimu AI read your uploaded notes, reference sheets, or textbooks to answer specialized assignment problems.</p>"
+                    "</div>", 
+                    unsafe_allow_html=True
                 )
 
-                subject = st.text_input(
-                    "Subject",
-                    placeholder="How can we help you?"
-                )
 
-                message = st.text_area(
-                    "Message",
-                    height=150,
-                    placeholder="Type your message here..."
-                )
-
-                submitted = st.form_submit_button(
-                label="Send Message",
-                icon=":material/send:",  # 📩 -> 100% Offline-safe Material Send Icon
-                use_container_width=True
-            )
-
-                if submitted:
-
-                    success = send_support_email(
-                        sender_name,
-                        sender_email,
-                        phone,
-                        subject,
-                        message
-                    )
-
-                    if success:
-                        st.success("✅ Your message has been sent successfully.")
-                    else:
-                        st.error("❌ Failed to send your message.")
-        #=============             
-        # Inside your Landing Page layout code:
-
-        with tab_terms:
-            st.markdown("<br>", unsafe_allow_html=True)
-            
-            if st.session_state.get("viewing_full_terms", False):
-                # Render inline preview if state is toggled
-                st.markdown("### Standalone Terms & Conditions Center")
-                st.caption("Last Updated: July 2026 | CBC Curriculum Engine Sync")
-                st.markdown("---")
+            # ====================================================================
+            # 💳 D: FLEXIBLE TIERED MEMBERSHIP ACCESS SECTION
+            # ====================================================================
+            def render_tier_card_html(title, price, period, description, card_features, color_bg, is_premium=False, button_key=""):
+                border_accent = "#fbbf24" if is_premium else "#3b82f6"
+                badge_html = "<span style='background: #fbbf24; color: #020617; font-size: 0.7rem; font-weight: bold; padding: 3px 8px; border-radius: 20px; float: right; letter-spacing: 0.05em;'>POPULAR</span>" if is_premium else ""
                 
-                with st.container(height=450, border=True):
-                    try:
-                        from services.legal_text import TERMS_AND_CONDITIONS
-                        st.markdown(TERMS_AND_CONDITIONS)
-                    except Exception:
-                        st.write("Loading terms from services layer...")
-                        
-                st.markdown("---")
-                if st.button("Close Document (Return Home)", use_container_width=True, key="close_terms_overlay"):
-                    st.session_state.viewing_full_terms = False
-                    st.rerun()
+                features_html = ""
+                for item in card_features:
+                    features_html += f"""
+                    <li style="margin-bottom: 10px; display: flex; align-items: flex-start; font-size: 0.88rem; line-height: 1.3;">
+                        <span style="color: {border_accent}; font-weight: bold; margin-right: 8px; flex-shrink: 0;">✓</span>
+                        <div>{str(item)}</div>
+                    </li>
+                    """
                     
-            else:
-                st.markdown("### Platform Terms of Service & End-User License Agreement")
-                st.write(
-                    "To ensure complete transparency regarding your data protection, subscription limits, "
-                    "and M-Pesa non-auto-renewal policies under the Kenyan Data Protection Act, click below "
-                    "to open our comprehensive legal agreement."
+                card_html = f"""
+                <div style="background-color: {color_bg}; padding: 24px 20px; border-radius: 16px; border: 1px solid rgba(255, 255, 255, 0.05);
+                border-top: 5px solid {border_accent}; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.4); min-height: 440px; box-sizing: border-box;
+                display: flex; flex-direction: column; color: #ffffff; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
+                    <div>
+                        {badge_html}
+                        <h3 style="margin: 0 0 6px 0; font-size: 1.35rem; font-weight: 700;">{title}</h3>
+                        <div style="margin: 14px 0; display: flex; align-items: baseline;">
+                            <span style="color: #ffffff; font-size: 1.9rem; font-weight: 800; letter-spacing: -0.02em;">{price}</span>
+                            <span style="color: #94a3b8; font-size: 0.85rem; margin-left: 6px;">{period}</span>
+                        </div>
+                        <div style="color: #94a3b8; font-size: 0.88rem; margin: 0 0 14px 0; line-height: 1.4; min-height: 36px;">{description}</div>
+                    </div>
+                    <hr style="border: 0; border-top: 1px solid rgba(255,255,255,0.08); margin: 0 0 16px 0;">
+                    <ul style="list-style: none; padding: 0; margin: 0; flex-grow: 1;">
+                        {features_html}
+                    </ul>
+                </div>
+                """
+                st.html(card_html)
+                st.markdown("<div style='margin-top: 10px; margin-bottom: 20px;'>", unsafe_allow_html=True)
+                if st.button(f"Choose {title}", key=f"btn_action_{button_key}", width="stretch"):
+                    st.session_state.show_auth = True
+                    st.session_state.selected_tier = title
+                    st.rerun()
+                st.markdown("</div>", unsafe_allow_html=True)
+
+            st.markdown("<br><br><br>", unsafe_allow_html=True)
+            st.markdown(
+                """
+                <div style="text-align: center; margin-bottom: 30px;">
+                    <h2 style="font-size: 2.3rem; font-weight: 800; color: #f8fafc; margin: 0 0 8px 0;">Flexible Tiered Membership Access</h2>
+                    <p style="color: #94a3b8; font-size: 1rem; margin: 0;">Pick the right account pace for your regular revisions and curriculum tracking tools.</p>
+                </div>
+                """, 
+                unsafe_allow_html=True
+            )
+            
+            col_free, col_basic, col_prem = st.columns(3, gap="medium")
+            with col_free:
+                render_tier_card_html(
+                    title="Mwalimu AI Free", price="KES 0", period="Forever Free", 
+                    description="Basic daily study toolkit for casual learners.", 
+                    card_features=["15 AI Questions / day", "5 Assessment Quizzes / day", "5 Flashcards generated / day", "1 Basic CBC Lessons / day", "<span style='color: #ef4444;'> No Custom Study Plans</span>","<span style='color: #ef4444;'> No Learning Management</span>", "<span style='color: #ef4444;'> No Voice Tutor access</span>", "<span style='color: #ef4444;'> No Uploads</span>"], 
+                    color_bg="#0f172a", is_premium=False, button_key="free_tier"
                 )
+            with col_basic:
+                render_tier_card_html(
+                    title="Mwalimu AI Plus", price="KES 499", period="/ month", 
+                    description="Enhanced toolkit built for dedicated study sessions.", 
+                    card_features=["50 AI Questions / day", "15 Assessment Quizzes / day", "30 Flashcards generated / day", "5 CBC Lessons / day", "5 Personalized daily Study Plans / day", "10 Uploads / day", "Learning Management System", "<span style='color: #ef4444;'> No Voice Tutor access</span>"], 
+                    color_bg="#111827", is_premium=False, button_key="plus_tier"
+                )
+            with col_prem:
+                render_tier_card_html(
+                    title="Mwalimu Premium", price="KES 999", period="/ month", 
+                    description="Complete school execution dashboard with full feature access.", 
+                    card_features=["Unlimited Interactive Prompts", "Unlimited targeted CBC Quizzes", "Unlimited Flashcard summaries", "Full Voice Tutor Mode Enabled", "Personalized daily Study Plans", "Learning Management System","Advanced Weak-Topic Detection", "Personalized CBC Lessons"], 
+                    color_bg="#030712", is_premium=True, button_key="premium_tier"
+                )
+
+
+            # ====================================================================
+            # 📋 E: INFORMATION & FAQ SUPPORT CENTER RESOURCE SECTIONS
+            # ====================================================================
+            st.markdown("<br><br><br>", unsafe_allow_html=True)
+            st.markdown(
+                """
+                <div style="text-align: center; margin-bottom: 25px;">
+                    <h2 style="font-size: 2rem; font-weight: 700; color: #f8fafc; margin: 0 0 6px 0;">Information & Support Center</h2>
+                    <p style="color: #94a3b8; font-size: 0.95rem; margin: 0;">Got questions or need to review our platform policies? Explore the tabs below.</p>
+                </div>
+                """, 
+                unsafe_allow_html=True
+            )
+            
+            tab_faq, tab_contact, tab_terms = st.tabs([" Frequently Asked Questions", " Contact Support", " Terms & Conditions"])
+            
+            with tab_faq:
+                st.markdown("<br>", unsafe_allow_html=True)
+                with st.expander(" How do I pay for Mwalimu AI Plus or Premium?"):
+                    st.write("Payments are securely handled via **M-Pesa STK Push** dialog request menus directly onto your registered smartphone.")
+                with st.expander(" How long does my upgraded tier access last?"):
+                    st.write("All upgrade packages provide **30 days of complete access** from the payment date. No automated rolling card renewals.")
+                with st.expander(" Can I upgrade from Plus to Premium later?"):
+                    st.write("Yes! You can choose to upgrade or scale your active tier levels at any time from your account panel.")
+                with st.expander(" What equipment do I need for the Voice Tutor mode?"):
+                    st.write("No extra microphone gear or headsets are required! Standard built-in browser microphone access is perfectly fine.")
+            #=============
+            #       
+            with tab_contact:
                 
-                col_btn1, col_btn2 = st.columns(2)
+                st.markdown("### :material/contact_support: Contact Mwalimu AI")
+
+                st.info("""
+                :material/mail: **Email:** info@mwalimuaiapp.com
+
+                :material/call: **Call / WhatsApp:** +254 710 694 297
+
+                :material/chat: **Socials:** @mwalimuaiapp (X/Twitter, Facebook, TikTok)
+                """)
+
+
+                with st.form("contact_form", clear_on_submit=True):
+
+                    col1, col2 = st.columns(2)
+
+                    with col1:
+                        sender_name = st.text_input(
+                            "Your Name",
+                            placeholder="e.g. Patrick Wachira"
+                        )
+
+                    with col2:
+                        sender_email = st.text_input(
+                            "Your Email",
+                            placeholder="name@gmail.com"
+                        )
+
+                    phone = st.text_input(
+                        "Phone Number (Optional)",
+                        placeholder="+254712345678"
+                    )
+
+                    subject = st.text_input(
+                        "Subject",
+                        placeholder="How can we help you?"
+                    )
+
+                    message = st.text_area(
+                        "Message",
+                        height=150,
+                        placeholder="Type your message here..."
+                    )
+
+                    submitted = st.form_submit_button(
+                    label="Send Message",
+                    icon=":material/send:",  # 📩 -> 100% Offline-safe Material Send Icon
+                    use_container_width=True
+                )
+
+                    if submitted:
+
+                        success = send_support_email(
+                            sender_name,
+                            sender_email,
+                            phone,
+                            subject,
+                            message
+                        )
+
+                        if success:
+                            st.success("✅ Your message has been sent successfully.")
+                        else:
+                            st.error("❌ Failed to send your message.")
+            #=============             
+            # Inside your Landing Page layout code:
+
+            with tab_terms:
+                st.markdown("<br>", unsafe_allow_html=True)
                 
-                with col_btn1:
-                    # Direct Navigation to views/terms_view.py via router
-                    if st.button(
-                        label="Open Full Terms Page", 
-                        icon=":material/description:", 
-                        key="nav_to_terms_page", 
-                        use_container_width=True, 
-                        type="primary"
-                    ):
-                        st.switch_page(st.session_state.ROUTE_TERMS)
-                        
-                with col_btn2:
-                    # Expand inside the tab directly
-                    if st.button(
-                        label="Preview Here", 
-                        icon=":material/visibility:", 
-                        key="trigger_terms_overlay", 
-                        use_container_width=True
-                    ):
-                        st.session_state.viewing_full_terms = True
+                if st.session_state.get("viewing_full_terms", False):
+                    # Render inline preview if state is toggled
+                    st.markdown("### Standalone Terms & Conditions Center")
+                    st.caption("Last Updated: July 2026 | CBC Curriculum Engine Sync")
+                    st.markdown("---")
+                    
+                    with st.container(height=450, border=True):
+                        try:
+                            from services.legal_text import TERMS_AND_CONDITIONS
+                            st.markdown(TERMS_AND_CONDITIONS)
+                        except Exception:
+                            st.write("Loading terms from services layer...")
+                            
+                    st.markdown("---")
+                    if st.button("Close Document (Return Home)", use_container_width=True, key="close_terms_overlay"):
+                        st.session_state.viewing_full_terms = False
                         st.rerun()
+                        
+                else:
+                    st.markdown("### Platform Terms of Service & End-User License Agreement")
+                    st.write(
+                        "To ensure complete transparency regarding your data protection, subscription limits, "
+                        "and M-Pesa non-auto-renewal policies under the Kenyan Data Protection Act, click below "
+                        "to open our comprehensive legal agreement."
+                    )
+                    
+                    col_btn1, col_btn2 = st.columns(2)
+                    
+                    with col_btn1:
+                        # Direct Navigation to views/terms_view.py via router
+                        if st.button(
+                            label="Open Full Terms Page", 
+                            icon=":material/description:", 
+                            key="nav_to_terms_page", 
+                            use_container_width=True, 
+                            type="primary"
+                        ):
+                            st.switch_page(st.session_state.ROUTE_TERMS)
+                            
+                    with col_btn2:
+                        # Expand inside the tab directly
+                        if st.button(
+                            label="Preview Here", 
+                            icon=":material/visibility:", 
+                            key="trigger_terms_overlay", 
+                            use_container_width=True
+                        ):
+                            st.session_state.viewing_full_terms = True
+                            st.rerun()
 
 
-        # --- CLEAN LOW-PROFILE FOOTER ARCHITECTURE ---
-        st.markdown("---")
-        st.markdown("<p style='text-align: center; color: #64748b; font-size: 0.85rem;'>© 2026 Mwalimu AI App. All Rights Reserved. CBC Curriculum Engine.</p>", unsafe_allow_html=True)
+            # --- CLEAN LOW-PROFILE FOOTER ARCHITECTURE ---
+            st.markdown("---")
+            st.markdown("<p style='text-align: center; color: #64748b; font-size: 0.85rem;'>© 2026 Mwalimu AI App. All Rights Reserved. CBC Curriculum Engine.</p>", unsafe_allow_html=True)
 
-
+    except Exception as err:
+        st.error(f"An unexpected error occurred: refresh the page and try again")
+        st.stop()
 
 
 
