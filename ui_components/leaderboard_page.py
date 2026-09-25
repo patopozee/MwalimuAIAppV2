@@ -151,18 +151,26 @@ def render_student_leaderboard_page():
         conn = sqlite3.connect(DATABASE_NAME)
         conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
+        
+        # CHANGED: Ordered by total_score DESC instead of score DESC
         cursor.execute("""
-            SELECT student_name, score, count(id) as activity_count, sum(score) as total_score, student_grade
+            SELECT 
+                student_name, 
+                score, 
+                count(id) as activity_count, 
+                sum(score) as total_score, 
+                student_grade
             FROM leaderboard 
             WHERE student_grade = ? 
             GROUP BY student_uid
-            ORDER BY score DESC 
+            ORDER BY total_score DESC 
             LIMIT 100
         """, (selected_grade,))
         raw_leaderboard_records = cursor.fetchall()
         conn.close()
     except sqlite3.OperationalError:
         raw_leaderboard_records = []
+
 
     if not raw_leaderboard_records:
         st.info(f"No rank scores recorded for {selected_grade} students yet. Be the first to claim the top spot!")
