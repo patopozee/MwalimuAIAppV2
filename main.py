@@ -718,55 +718,28 @@ if st.session_state.get("user_authenticated") and "user_email" in st.session_sta
         div[data-testid="stChatMessage"] {
             background-color: transparent !important;
             padding: 1.5rem 0rem !important;
-            border-bottom: 1px solid rgba(128, 128, 128, 0.08);
+            border-bottom: 1px solid rgba(128, 128, 128, 0.12);
         }
         
-        div[data-testid="stChatMessage"] p, div[data-testid="stChatMessage"] li {
+        div[data-testid="stChatMessage"] p, 
+        div[data-testid="stChatMessage"] li {
             font-size: 16px !important;
             line-height: 1.6 !important;
         }
 
-        /* ⌨️ FLOATING CHAT INPUT WORKINGS */
+        /* ⌨️️ BASE FLOATING CHAT INPUT */
         div[data-testid="stChatInput"] {
             background: transparent !important;
         }
 
-        /* Professional Theme-Aware Pill Box Wrapper */
-        div[data-testid="stChatInput"] > div {
-            border: 1px solid rgba(128, 128, 128, 0.25) !important; 
-            border-radius: 24px !important; 
-            padding: 4px 14px !important;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05) !important; 
-        }
-
-        /* Input Textarea Field */
-        div[data-testid="stChatInput"] textarea {
-            line-height: 1.5 !important;
-        }
-
-        /* Placeholder Style */
-        div[data-testid="stChatInput"] textarea::placeholder {
-            opacity: 0.5 !important;
-        }
-
-        div[data-testid="stChatInput"] {
-            width: 50% !important;
-            max-width: 800px !important;
-            margin: 0 auto !important;
-            background: transparent !important;
-        }
-        div[data-testid="stChatInput"] > div {
-            border: 1px solid rgba(128, 128, 128, 0.25) !important;
-            border-radius: 24px !important;
-            padding: 4px 14px !important;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05) !important;
-        }
-
+        /* Input Textarea & Button Formatting */
         div[data-testid="stChatInput"] textarea {
             line-height: 1.5 !important;
             font-size: 16px !important;
             padding-top: 8px !important;
+            color: inherit !important;
         }
+
         div[data-testid="stChatInputSubmitButton"] {
             border-radius: 50% !important;
             width: 32px !important;
@@ -778,40 +751,29 @@ if st.session_state.get("user_authenticated") and "user_email" in st.session_sta
         }
 
         div[data-testid="stChatInput"] textarea::placeholder {
-            opacity: 0.5 !important;
+            opacity: 0.6 !important;
         }
 
-        /* 💻 PC/DESKTOP SPECIFIC FLOATING GEOMETRY */
-        /* 💻 PC/DESKTOP SPECIFIC FLOATING GEOMETRY */
+        /* 💻 DESKTOP FLOATING GEOMETRY & THEME ADAPTATION */
         @media (min-width: 769px) {
             div[data-testid="stBottom"] {
                 position: fixed !important;
                 bottom: 15px !important;
-                left: 320px !important; /* Starts AFTER the 320px sidebar */
+                left: 320px !important; /* Starts after 320px sidebar */
                 right: 0 !important;
                 width: auto !important;
                 background: transparent !important;
-                z-index: 99 !important; /* Lower than sidebar z-index so it doesn't overlap */
+                z-index: 99 !important;
                 padding: 0 1rem !important;
                 transition: left 0.25s cubic-bezier(0.2, 0, 0, 1) !important;
-            }
-
-            /* Target inner container to remove native background overlays */
-            /* ⌨️ FLOATING CHAT INPUT CONTAINER */
-            div[data-testid="stBottom"] {
-                background: transparent !important;
-                background-color: transparent !important;
                 border: none !important;
                 box-shadow: none !important;
-                padding: 0 !important;
             }
 
             div[data-testid="stBottom"] > div {
                 background: transparent !important;
-                background-color: transparent !important;
             }
 
-            /* Fix stable width to match the main chat content area (800px) */
             div[data-testid="stChatInput"] {
                 width: min(800px, calc(100vw - 360px)) !important;
                 max-width: 800px !important;
@@ -820,68 +782,57 @@ if st.session_state.get("user_authenticated") and "user_email" in st.session_sta
                 background: transparent !important;
             }
 
-            /* Theme Pill Box Container */
-            div[data-testid="stChatInput"] > div {
-                border: 1px solid rgba(128, 128, 128, 0.25) !important; 
-                border-radius: 28px !important; 
-                padding: 4px 14px !important;
-                background-color: #1E1F25 !important;
-                box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2) !important;
-            }
-
-            /* Mobile Screen Boundary Override */
-            @media (max-width: 768px) {
-                div[data-testid="stChatInput"] {
-                    width: calc(100vw - 32px) !important;
-                    max-width: 100% !important;
-                }
-            }
-
-            /* Shift back to left: 0 when sidebar is collapsed */
+            /* Shift back when sidebar is collapsed */
             body:has(section[data-testid="stSidebar"][aria-expanded="false"]) div[data-testid="stBottom"] {
                 left: 0px !important;
             }
 
-            div[data-testid="stChatInput"] textarea {
-                font-size: 16px !important;
-                padding-top: 8px !important;
-            }
-
-            /* Premium Rounded Send Action Button Grid Layout */
-            div[data-testid="stChatInputSubmitButton"] {
-                border-radius: 50% !important;
-                width: 32px !important;
-                height: 32px !important;
-                margin-top: 4px !important;
-                display: flex !important;
-                align-items: center !important;
-                justify-content: center !important;
-            }
-            
             div[data-testid="stChatInput"] button svg {
                 transform: scale(1.1) !important;
             }
         }
 
-        /* 📱 MOBILE PHONE SAFETY BOUNDARY CODE */
+        /* ☀️ LIGHT MODE STYLES (Default / Fallback) */
+        div[data-testid="stChatInput"] > div {
+            border: 1px solid rgba(0, 0, 0, 0.15) !important;
+            border-radius: 28px !important;
+            padding: 4px 14px !important;
+            background-color: #FFFFFF !important;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08) !important;
+        }
+
+        /* 🌙 DARK MODE OVERRIDES */
+        @media (prefers-color-scheme: dark) {
+            div[data-testid="stChatInput"] > div {
+                border: 1px solid rgba(255, 255, 255, 0.15) !important;
+                background-color: #1E1F25 !important;
+                box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4) !important;
+            }
+        }
+
+        /* Explicit Streamlit Dark Theme Class Override */
+        [data-theme="dark"] div[data-testid="stChatInput"] > div,
+        .stApp[data-test-script-state="running"] div[data-testid="stChatInput"] > div {
+            border: 1px solid rgba(255, 255, 255, 0.15) !important;
+            background-color: #1E1F25 !important;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4) !important;
+        }
+
+        /* 📱 MOBILE SPECIFIC GEOMETRY */
         @media (max-width: 768px) {
             div[data-testid="stChatInput"] {
                 position: relative !important;
                 bottom: 60px !important;
-                width: 100% !important;
+                width: calc(100vw - 32px) !important;
+                max-width: 100% !important;
                 left: 0px !important;
-                padding: 0px 0px !important;
-            }
-            
-            button[data-testid="stChatInputSubmitButton"] {
-                border-radius: 50% !important;
+                margin: 0 auto !important;
             }
         }
         </style>
         """,
         unsafe_allow_html=True,
     )
-
 
     #========================================================
     # RENDER VIEWS
