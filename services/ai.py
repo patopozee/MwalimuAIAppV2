@@ -168,7 +168,7 @@ Mwalimu AI response:
         response_stream = client.chat.completions.create(
             model=selected_model,
             messages=api_messages,  # type: ignore
-            max_tokens=2048,  
+            max_tokens=3000,  
             stream=True  
         )
         return response_stream  
@@ -493,7 +493,7 @@ If 'ADMIN UPLOADED REFERENCE MATERIALS' are provided above, your study schedule 
             },
             model="gemini-3.6-flash",
             messages=[{"role": "user", "content": prompt}],
-            max_tokens=3500
+            max_tokens=4000
         )
         
         raw_content = response.choices[0].message.content
@@ -749,7 +749,7 @@ Please construct the complete lesson using clean Markdown headers. The generated
             },
             model="gemini-3.6-flash",  # DIRECT SPEED ROUTING BYPASS
             messages=[{"role": "user", "content": prompt}],
-            max_tokens=4000  # GENEROUS ROOM FOR EXTENSIVE CBC LESSON STEPS & SCHEMES
+            max_tokens=5000  # GENEROUS ROOM FOR EXTENSIVE CBC LESSON STEPS & SCHEMES
         )
         return response.choices[0].message.content
     except Exception as e:
