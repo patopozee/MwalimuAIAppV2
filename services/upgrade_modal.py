@@ -171,12 +171,32 @@ def upgrade_modal():
         type="primary",
         use_container_width=True
     ):
-        phone = phone.strip()
+        # ------------------------------------------------------------------
+        # 📲 SMART M-PESA NUMBER SANITIZER & FORMATTER
+        # ------------------------------------------------------------------
+        # Clean text by removing any accidental spaces, dashes, or plus signs
+        clean_phone = phone.strip().replace("+", "").replace("-", "").replace(" ", "")
 
-        if not phone.startswith("254") or len(phone) != 12:
-            st.error("Enter a valid phone number (2547XXXXXXXX).")
+        # Scenario A: User types starting with local digit patterns e.g., 07... or 01...
+        if clean_phone.startswith("0"):
+            clean_phone = "254" + clean_phone[1:]
+            
+        # Scenario B: User typed starting with just 7... or 1... directly
+        elif clean_phone.startswith("7") or clean_phone.startswith("1"):
+            if len(clean_phone) == 9:
+                clean_phone = "254" + clean_phone
+
+        # Final Validation Rule check: Ensure the formatted value contains exactly 12 international digits
+        if not clean_phone.startswith("254") or len(clean_phone) != 12 or not clean_phone.isdigit():
+            st.error("⚠️ Invalid Number! Please enter a valid Safaricom phone number (e.g. 07XXXXXXXX or 01XXXXXXXX).")
             return
 
+        # Assign the formatted international number block parameter back to your payment handler
+        phone = clean_phone
+
+        # ------------------------------------------------------------------
+        # INITIATE STK PUSH (Unchanged payment pipeline)
+        # ------------------------------------------------------------------
         with st.spinner("Initiating payment request..."):
             try:
                 result = MpesaPaymentService.initiate_stk_push(
@@ -235,5 +255,6 @@ def upgrade_modal():
         else:
             err_msg = result.get("message") or result.get("errorMessage") or "Payment failed."
             st.error(f"Payment Initiated. Check Your Phone for M-Pesa Prompt: {err_msg}")
+
 
     st.caption("Subscription activates automatically upon successful payment.")
