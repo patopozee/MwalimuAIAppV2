@@ -165,6 +165,10 @@ def upgrade_modal():
             placeholder="2547XXXXXXXX",
             label_visibility="collapsed"
         )
+    #-------------------------------------------------------
+    # Ensure our check request tracker status is initialized safely in session state
+    if "active_checkout_id" not in st.session_state:
+        st.session_state.active_checkout_id = None
 
     if st.button(
         f"Pay KES {amount} via M-Pesa",
@@ -174,28 +178,22 @@ def upgrade_modal():
         # ------------------------------------------------------------------
         # 📲 SMART M-PESA NUMBER SANITIZER & FORMATTER
         # ------------------------------------------------------------------
-        # Clean text by removing any accidental spaces, dashes, or plus signs
         clean_phone = phone.strip().replace("+", "").replace("-", "").replace(" ", "")
 
-        # Scenario A: User types starting with local digit patterns e.g., 07... or 01...
         if clean_phone.startswith("0"):
             clean_phone = "254" + clean_phone[1:]
-            
-        # Scenario B: User typed starting with just 7... or 1... directly
         elif clean_phone.startswith("7") or clean_phone.startswith("1"):
             if len(clean_phone) == 9:
                 clean_phone = "254" + clean_phone
 
-        # Final Validation Rule check: Ensure the formatted value contains exactly 12 international digits
         if not clean_phone.startswith("254") or len(clean_phone) != 12 or not clean_phone.isdigit():
             st.error("⚠️ Invalid Number! Please enter a valid Safaricom phone number (e.g. 07XXXXXXXX or 01XXXXXXXX).")
             return
 
-        # Assign the formatted international number block parameter back to your payment handler
         phone = clean_phone
 
         # ------------------------------------------------------------------
-        # INITIATE STK PUSH (Unchanged payment pipeline)
+        # INITIATE STK PUSH 
         # ------------------------------------------------------------------
         with st.spinner("Initiating payment request..."):
             try:
@@ -203,58 +201,81 @@ def upgrade_modal():
                     phone_number=phone,
                     amount=int(amount),
                     uid=st.session_state.get("uid"),
-                    plan=st.session_state.selected_plan  # Sends "plus" or "premium"
+                    plan=st.session_state.selected_plan  
                 )
             except Exception as err:
                 result = {"success": False, "message": f"Backend Error: {str(err)}"}
 
         if result.get("success"):
-            checkout_request_id = result.get("checkout_request_id")
-            status_result = MpesaPaymentService.check_transaction_status(checkout_request_id)
+            st.session_state.active_checkout_id = result.get("checkout_request_id")
+            checkout_request_id = st.session_state.active_checkout_id
+            
             payment_successful = False
             
-            # Clean progress status container
+            # 🎯 THE CRITICAL FIX FOR PYLANCE: Pre-declare the variable structure
+            status_result = {"completed": False, "failed": False}
+            
+            # The loop status indicator block
             with st.status("📲 STK Push sent! Waiting for M-Pesa PIN entry...", expanded=True) as status_box:
-                for i in range(12):  # Check status over 60s
+                for i in range(24):  # Check status over 120s
                     time.sleep(5)                    
+                    
+                    # Re-fetch the live status matching your database records inside the loop
+                    status_result = MpesaPaymentService.check_transaction_status(checkout_request_id)
                     
                     if status_result.get("completed"):
                         payment_successful = True
                         status_box.update(label="✅ Payment confirmed!", state="complete", expanded=False)
                         break
                     elif status_result.get("failed"):
-                        status_box.update(label="❌ Payment cancelled or failed.", state="error", expanded=False)
+                        status_box.update(label="❌ Payment cancelled or failed. If paid, refresh Subscription Status then refresh the page", state="error", expanded=False)
                         break
                 
-                if not payment_successful and not status_result.get("failed"):
+                # Pylance is now guaranteed that status_result is bound here
+                if not payment_successful and not status_result.get("completed") and not status_result.get("failed"):
                     status_box.update(label="⏱️ Payment pending verification...", state="running", expanded=False)
 
             if payment_successful:
                 MpesaPaymentService.upgrade_user_subscription(
                     uid=st.session_state.get("uid"), 
-                    tier_name=st.session_state.selected_plan  # STRICTLY "plus" OR "premium"
+                    tier_name=st.session_state.selected_plan  
                 )
                 st.success("✅ Payment successful! Account upgraded.")
                 st.balloons()
                 time.sleep(2)
+                st.session_state.active_checkout_id = None 
                 st.rerun()
             else:
-                st.info("Entered PIN but account not updated?")
-                if st.button("🔄 Refresh The page for Subscription status to update", use_container_width=True):
-                    check_again = MpesaPaymentService.check_transaction_status(checkout_request_id)
-                    if check_again.get("completed"):
-                        MpesaPaymentService.upgrade_user_subscription(
-                            uid=st.session_state.get("uid"), 
-                            tier_name=st.session_state.selected_plan  # STRICTLY "plus" OR "premium"
-                        )
-                        st.success("✅ Payment confirmed! Account upgraded.")
-                        time.sleep(1)
-                        st.rerun()
-                    else:
-                        st.error("Transaction not confirmed yet. Please verify your PIN entry.")
+                final_status = MpesaPaymentService.check_transaction_status(checkout_request_id)
+                if final_status.get("failed"):
+                    st.error("❌ Payment cancelled or failed.")
+                else:
+                    st.warning("⏱️ The request timed out on our screen, but it might still be processing on your phone. Click the refresh button below if you just finished entering your PIN.")
         else:
             err_msg = result.get("message") or result.get("errorMessage") or "Payment failed."
-            st.error(f"Payment Initiated. Check Your Phone for M-Pesa Prompt: {err_msg}")
+            st.error(f"Payment Failed. Check Your Phone for M-Pesa Prompt: {err_msg}")
 
+    # ------------------------------------------------------------------
+    # 🔄 FALLBACK OUT-OF-FLOW REFRESH BUTTON (Fixed Streamlit Button Bug)
+    # ------------------------------------------------------------------
+    # Placing this out here allows students to click refresh stably without losing state references!
+    if st.session_state.active_checkout_id is not None:
+        st.write("---")
+        st.info("Entered your PIN but your account screen hasn't updated yet? Click below to check again.")
+        if st.button("🔄 Refresh Subscription Status", use_container_width=True, key="fallback_manual_refresh_btn"):
+            with st.spinner("Re-checking transaction status ledger logs..."):
+                check_again = MpesaPaymentService.check_transaction_status(st.session_state.active_checkout_id)
+                if check_again.get("completed"):
+                    MpesaPaymentService.upgrade_user_subscription(
+                        uid=st.session_state.get("uid"), 
+                        tier_name=st.session_state.selected_plan  
+                    )
+                    st.success("✅ Payment confirmed! Account upgraded successfully.")
+                    st.balloons()
+                    time.sleep(2)
+                    st.session_state.active_checkout_id = None # Clear state tracker reference
+                    st.rerun()
+                else:
+                    st.error("Transaction not confirmed yet. Please verify your PIN entry or wait a few seconds before trying again.")
 
     st.caption("Subscription activates automatically upon successful payment.")
