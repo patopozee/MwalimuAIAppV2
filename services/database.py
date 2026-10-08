@@ -4,6 +4,9 @@ from config import DATABASE_NAME
 import firebase_admin
 from firebase_admin import credentials, firestore
 import os
+import base64
+import io
+from PIL import Image
 import json # Required to decode your string format
 import streamlit as st
 from datetime import datetime, timedelta
@@ -195,12 +198,83 @@ def migrate_database_for_certificates():
 # Run the migration patch
 migrate_database_for_certificates()
 
+def migrate_existing_base64_images():
+    """
+    ONE-TIME AUTOMATED MIGRATION ENGINE
+    Finds legacy Base64 chat images, compresses them into binary BLOBs, 
+    and migrates them into the high-performance media table.
+    """
+    conn = sqlite3.connect(DATABASE_NAME)
+    cursor = conn.cursor()
+    
+    # 1. Ensure the new dedicated media table exists right away
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS progress_media (
+        progress_id INTEGER PRIMARY KEY,
+        image_bytes BLOB,
+        FOREIGN KEY(progress_id) REFERENCES progress(id) ON DELETE CASCADE
+    )
+    """)
+    
+    # 2. Query rows that still contain old legacy Base64 layouts
+    cursor.execute("""
+        SELECT id, attachment FROM progress 
+        WHERE attachment LIKE '%image_base64%'
+    """)
+    rows = cursor.fetchall()
+    
+    if not rows:
+        conn.close()
+        return  # Everything is clean, skip processing!
+        
+    for row_id, attachment_raw in rows:
+        try:
+            attachment_data = json.loads(attachment_raw)
+            base64_str = attachment_data.get("content")
+            
+            if base64_str:
+                # Strip web data padding header if present
+                if "," in base64_str:
+                    base64_str = base64_str.split(",")[1]
+                
+                # Turn string format back into computer bytes
+                raw_bytes = base64.b64decode(base64_str)
+                
+                # Initialize compression framework via Pillow
+                img = Image.open(io.BytesIO(raw_bytes))
+                img.thumbnail((800, 800))  # Scales image resolution perfectly for phone views
+                
+                img_byte_arr = io.BytesIO()
+                if img.mode in ("RGBA", "P"):
+                    img = img.convert("RGB")
+                    
+                # Save as compressed JPEG format at 70% quality factor
+                img.save(img_byte_arr, format='JPEG', quality=70)
+                compressed_binary = img_byte_arr.getvalue()
+                
+                # Store the lightweight binary data cleanly
+                cursor.execute("""
+                    INSERT OR REPLACE INTO progress_media (progress_id, image_bytes)
+                    VALUES (?, ?)
+                """, (row_id, compressed_binary))
+                
+                # Replace the old massive string cell with lightweight dictionary flags
+                new_metadata = json.dumps({"type": "sqlite_blob", "has_image": True})
+                cursor.execute("""
+                    UPDATE progress SET attachment = ? WHERE id = ?
+                """, (new_metadata, row_id))
+                
+        except Exception:
+            continue  # Skips single corrupted history items safely without stopping app bootup
+
+    conn.commit()
+    conn.close()
 
 def create_tables():
     migrate_students_table()
-
+ 
+    migrate_existing_base64_images() 
     create_leaderboard_table() 
-
     conn = sqlite3.connect(DATABASE_NAME)
     cursor = conn.cursor()
     
@@ -281,6 +355,14 @@ def create_tables():
         time_spent_mins INTEGER DEFAULT 0,
         quiz_high_score INTEGER DEFAULT 0,
         UNIQUE(student_uid, subject, lesson_id)
+    )
+    """)
+
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS progress_media (
+        progress_id INTEGER PRIMARY KEY,
+        image_bytes BLOB,
+        FOREIGN KEY(progress_id) REFERENCES progress(id) ON DELETE CASCADE
     )
     """)
 
@@ -412,28 +494,26 @@ def get_student_learning_analysis(student_uid: str, grade: str, age: int):
     else: current_level = "Hard"
     return {"weak_topics": weak_topics, "strong_topics": strong_topics, "current_level": current_level}
 
-@st.cache_data(ttl=5, show_spinner=False)
+@st.cache_data(ttl=600, show_spinner=False)  # Increased from 5 to 600 for instant loading speeds
 def get_ask_mwalimu_history(student_uid, subject):
     conn = sqlite3.connect(DATABASE_NAME)
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
-
     cursor.execute("""
-        SELECT *
-        FROM progress
-        WHERE student_uid=?
-        AND subject=?
-        AND activity_type IN (
-            'ask_user',
-            'ask_assistant',
-            'ask_user_extraction'
-        )
-        ORDER BY created_at ASC
-        """, (
-            student_uid,
-            subject
-        ))
-    
+    SELECT id, activity_type, topic, attachment
+    FROM progress
+    WHERE student_uid=?
+    AND subject=?
+    AND activity_type IN (
+    'ask_user',
+    'ask_assistant',
+    'ask_user_extraction'
+    )
+    ORDER BY created_at ASC
+    """, (
+    student_uid,
+    subject
+    ))
     rows = cursor.fetchall()
     conn.close()
     
@@ -441,21 +521,38 @@ def get_ask_mwalimu_history(student_uid, subject):
     for row in rows:
         role = "user" if "user" in row["activity_type"] else "assistant"
         msg_node = {
+            "id": row["id"],  # Include the row ID reference point
             "role": role,
-            "content": row["topic"]
+            "content": row["topic"],
+            "has_image": False
         }
         if row["attachment"]:
             try:
                 attachment_data = json.loads(row["attachment"])
                 if isinstance(attachment_data, dict):
-                    if attachment_data.get("type") == "image_base64":
-                        msg_node["image_preview"] = attachment_data.get("content")
+                    # Check both for new optimized layout and fallback unmigrated layouts
+                    if attachment_data.get("has_image") or attachment_data.get("type") == "image_base64":
+                        msg_node["has_image"] = True
+                        # If a row was missed by migration, keep legacy content accessible
+                        if "content" in attachment_data and attachment_data.get("type") == "image_base64":
+                            msg_node["image_preview"] = attachment_data.get("content")
                     elif attachment_data.get("type") == "text_extraction":
                         msg_node["file_preview"] = attachment_data.get("filename")
             except Exception:
                 pass
         history.append(msg_node)
     return history
+
+@st.cache_data(ttl=600, show_spinner=False)
+def get_single_message_image(progress_id):
+    """Lazily fetches image binary arrays one message at a time on demand."""
+    conn = sqlite3.connect(DATABASE_NAME)
+    cursor = conn.cursor()
+    cursor.execute("SELECT image_bytes FROM progress_media WHERE progress_id=?", (progress_id,))
+    row = cursor.fetchone()
+    conn.close()
+    return row[0] if row else None
+
 
 @st.cache_data(ttl=5, show_spinner=False)
 def get_voice_chat_history(student_uid, subject):
@@ -516,48 +613,79 @@ def get_voice_chat_history(student_uid, subject):
     return history
 
 def save_ask_mwalimu_message(
-            student_uid,
-            student_name,
-            grade,
-            age,
-            subject,
-            role,
-            message,
-            attachment=None
-        ):
-    """Saves a conversational chat message entry tagged with the student's unique ID."""
+    student_uid,
+    student_name,
+    grade,
+    age,
+    subject,
+    role,
+    message,
+    attachment=None  # Change this variable name back to 'attachment'
+):
+    """Saves chat entries and extracts attachment image strings to store as binary chunks natively."""
     conn = sqlite3.connect(DATABASE_NAME)
     cursor = conn.cursor()
     activity = "ask_user" if role == "user" else "ask_assistant"
-    attachment_json = json.dumps(attachment) if attachment else None
     
+    # Check if the incoming payload dictates an image block is present
+    has_image = False
+    base64_str = None
+    
+    if attachment and isinstance(attachment, dict):
+        if attachment.get("type") == "image_base64" or "image" in str(attachment.get("type")):
+            has_image = True
+            base64_str = attachment.get("content") or attachment.get("preview") or attachment.get("image_preview")
+
+    # Keep SQLite database primary table metadata light and incredibly swift
+    attachment_metadata = None
+    if attachment:
+        if has_image:
+            attachment_metadata = json.dumps({"type": "sqlite_blob", "has_image": True})
+        else:
+            attachment_metadata = json.dumps(attachment)
+
     cursor.execute("""
-        INSERT INTO progress (
-            student_uid,
-            student_name,
-            student_grade,
-            student_age,
-            activity_type,
-            topic,
-            subject,
-            attachment,
-            is_voice
-        )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0)
-        """,
-        (
-            student_uid,
-            student_name,
-            grade,
-            int(age),
-            activity,
-            message,
-            subject,
-            attachment_json
-        ))
+    INSERT INTO progress (
+    student_uid, student_name, student_grade, student_age,
+    activity_type, topic, subject, attachment, is_voice
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0)
+    """,
+    (
+    student_uid, student_name, grade, int(age),
+    activity, message, subject, attachment_metadata
+    ))
+    
+    # Process image blocks cleanly by decoding them directly out of the base64 string
+    if has_image and base64_str:
+        progress_id = cursor.lastrowid
+        try:
+            # Strip header indicators if web layout padding was introduced
+            if "," in str(base64_str):
+                base64_str = str(base64_str).split(",")[-1] # Grabs the clean base64 segment
+                
+            raw_bytes = base64.b64decode(base64_str)
+            
+            img = Image.open(io.BytesIO(raw_bytes))
+            img.thumbnail((800, 800))  # Scale down layout context crispness
+            
+            img_byte_arr = io.BytesIO()
+            if img.mode in ("RGBA", "P"):
+                img = img.convert("RGB")
+            img.save(img_byte_arr, format='JPEG', quality=70)
+            binary_data = img_byte_arr.getvalue()
+            
+            cursor.execute("""
+                INSERT OR REPLACE INTO progress_media (progress_id, image_bytes) VALUES (?, ?)
+            """, (progress_id, binary_data))
+        except Exception as e:
+            print(f"Failed to process newly uploaded image block: {e}")
+
     conn.commit()
     conn.close()
     get_ask_mwalimu_history.clear()
+
+
 
 def save_voice_chat_message(
         student_uid,

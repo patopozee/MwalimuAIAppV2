@@ -1,3 +1,4 @@
+import base64
 import streamlit as st
 from services.tier_guard import verify_tier_allowance
 from services.ai import ask_mwalimu
@@ -8,6 +9,7 @@ from services.upgrade_modal import upgrade_modal
 from services.database import (
     get_ask_mwalimu_history,
     save_ask_mwalimu_message,
+    get_single_message_image,  # ADD THIS IMPORT
     get_student_data
 )
 
@@ -77,27 +79,60 @@ def render():
             continue
             
         if msg.get("role") in ["student", "user"]:
-            # 👤 STUDENT CONTAINER
+            # --- ROBUST TEXT CONTENT DISCOVERY MODIFICATION ---
+            # Fall back gracefully if the message string hasn't synced yet
+            message_text = msg.get("content", "").strip()
+        
+            if not message_text:
+                if msg.get("has_image") or "image_preview" in msg:
+                    message_text = "📸 Sent an image"
+                elif msg.get("file_preview"):
+                    message_text = f"📄 Sent a file: {msg.get('file_preview')}"
+                else:
+                    message_text = "Thinking..."
+
+            # EXTRACTION FOR THE STUDENT INITIALS AVATAR
+            # Pulls the first letter of the student's name dynamically from state
+            student_display_name = st.session_state.get("student_name") or "Student"
+            avatar_initial = student_display_name[0].upper() if student_display_name else "S"
+
+            # STUDENT CONTAINER RENDERER
             st.markdown(f"""
             <div style="display: flex; justify-content: flex-end; align-items: flex-start; gap: 10px; margin-bottom: 10px; width: 100%;">
-                <div style="background-color: #2F3037; color: #ECECF1; padding: 12px 18px; border-radius: 20px; max-width: 70%; font-family: sans-serif; font-size: 15px; line-height: 1.6; box-shadow: 0 1px 2px rgba(0,0,0,0.1);">
-                    <div style="text-align: left;">{msg.get("content", "")}</div>
-                </div>
-                <div style="width: 32px; height: 32px; background-color: #40414F; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 15px; flex-shrink: 0; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
-                    👤
-                </div>
+            <div style="background-color: #2F3037; color: #ECECF1; padding: 12px 18px; border-radius: 20px; max-width: 70%; font-family: sans-serif; font-size: 15px; line-height: 1.6; box-shadow: 0 1px 2px rgba(0,0,0,0.1);">
+            <div style="text-align: left;">{message_text}</div>
+            </div>
+            <!-- FIXED AVATAR ELEMENT: Added style match and initial insertion -->
+            <div style="width: 32px; height: 32px; background-color: #6366F1; color: #FFFFFF; font-weight: bold; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; font-family: sans-serif; flex-shrink: 0; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                {avatar_initial}
+            </div>
             </div>
             """, unsafe_allow_html=True)
-            
-            img_src = msg.get("image_preview") or msg.get("preview")
+
+            # --- IMAGE PREVIEW RENDERING ---
+            img_src = None
+            if "image_preview" in msg and msg.get("image_preview"):
+                img_src = msg.get("image_preview")
+            elif msg.get("has_image"):
+                from services.database import get_single_message_image
+                img_bytes = get_single_message_image(msg.get("id"))
+                if img_bytes:
+                    b64_data = base64.b64encode(img_bytes).decode("utf-8")
+                    img_src = f"data:image/jpeg;base64,{b64_data}"
+
             if img_src:
                 st.markdown(f"""
                 <div style="display: flex; justify-content: flex-end; margin-bottom: 20px; width: 100%; padding-right: 42px; box-sizing: border-box;">
-                    <div style="max-width: 320px; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.15); border: 1px solid #424656;">
-                        <img src="{img_src}" style="width: 100%; display: block;" />
-                    </div>
+                <div style="max-width: 320px; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.15); border: 1px solid #424656;">
+                <img src="{img_src}" style="width: 100%; display: block;" />
+                </div>
                 </div>
                 """, unsafe_allow_html=True)
+
+            # --- END OF IMAGE MODIFICATION ---
+
+            # --- END OF IMAGE MODIFICATION ---
+
 
             file_src = msg.get("file_preview")
             if file_src:
