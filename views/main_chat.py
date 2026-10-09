@@ -287,9 +287,10 @@ def render():
                         )
 
             # 5. Save incoming user message to memory & database
+            # 5. Save incoming user message to memory & database
             age_raw = str(st.session_state.get("age", ""))
             safe_age = int(age_raw) if age_raw.isdigit() else 12
-
+            
             save_ask_mwalimu_message(
                 student_uid=str(uid),
                 student_name=str(st.session_state.get("student_name", "Student")),
@@ -300,14 +301,17 @@ def render():
                 message=user_question,
                 attachment=attachment_payload
             )
-
-            # Append to session state for current turn
+            
+            # --- THE FIX: ENSURE THE LIVE TURN APARTMENT NODE CARRIES THE IMAGE STRING ---
             st.session_state.ask_mwalimu_history.append({
+                "id": "temp_live_turn",  # Add a temporary ID string indicator
                 "role": "user",
                 "content": user_question,
-                "image_preview": image_preview_url,
+                "has_image": True if image_preview_url else False,
+                "image_preview": image_preview_url,  # Binds the live base64 preview here
                 "file_preview": file_preview_name
             })
+
 
             # -------------------------------------------------
             # EXPLICITLY RENDER USER PROMPT + UPLOAD IMMEDIATELY
